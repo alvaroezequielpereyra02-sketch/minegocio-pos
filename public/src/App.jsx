@@ -38,12 +38,12 @@ import {
 // IMPORTANTE: Para usar esto en Vercel/Android, debes crear un proyecto en 
 // console.firebase.google.com y reemplazar estos valores con los tuyos.
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "TU_API_KEY_AQUI",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
+  authDomain: "minegocio-pos-e35bf.firebaseapp.com",
+  projectId: "minegocio-pos-e35bf",
+  storageBucket: "minegocio-pos-e35bf.firebasestorage.app",
+  messagingSenderId: "613903188094",
+  appId: "1:613903188094:web:2ed15b6fb6ff5be6fd582f"
 };
 
 // Inicializar Firebase
@@ -318,3 +318,4 @@ export default function App() {
             {cart.length === 0 ? (
               <div className="text-center text-slate-400 py-8">
                 <p>El carrito está vacío</p>
+
