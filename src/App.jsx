@@ -34,12 +34,40 @@ import {
     Save
 } from 'lucide-react';
 
-// --- Configuración de Firebase ---
-const firebaseConfig = JSON.parse(__firebase_config);
+// --- CONFIGURACIÓN DE FIREBASE (LIMPIA) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
+  authDomain: "minegocio-pos-e35bf.firebaseapp.com",
+  projectId: "minegocio-pos-e35bf",
+  storageBucket: "minegocio-pos-e35bf.firebasestorage.app",
+  messagingSenderId: "613903188094",
+  appId: "1:613903188094:web:2ed15b6fb6ff5be6fd582f"
+};
+
+// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// ID fijo para la tienda
+const appId = 'tienda-principal';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  // ... (el resto del código sigue igual)
+
+  // --- Autenticación ---
+  useEffect(() => {
+    // Inicio de sesión simple y directo
+    signInAnonymously(auth).catch((error) => {
+      console.error("Error auth:", error);
+    });
+    
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
 // --- Componente Principal ---
 export default function App() {
@@ -586,4 +614,5 @@ function NavButton({ active, onClick, icon, label }) {
             <span className="text-[10px] uppercase tracking-wide">{label}</span>
         </button>
     );
+
 }
