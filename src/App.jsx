@@ -234,7 +234,8 @@ export default function App() {
     const saleData = { type: 'sale', total: cartTotal, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
     try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
   };
-// --- CONTINÚA ABAJO ---const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
+// --- CONTINÚA ABAJO ---
+  const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
 
   // --- CRUD GASTOS ---
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error al guardar gasto"); } };
@@ -423,3 +424,4 @@ export default function App() {
 }
 
 // --- FIN DEL ARCHIVO ---
+
