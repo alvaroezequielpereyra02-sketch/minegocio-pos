@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -13,21 +13,21 @@ import {
   addDoc, 
   updateDoc, 
   doc, 
-  getDoc, 
-  setDoc, 
+  getDoc,
+  setDoc,
   deleteDoc, 
   onSnapshot, 
   serverTimestamp, 
   query, 
-  orderBy, 
+  orderBy,
   where 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, 
   Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, 
-  Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu, 
+  Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu,
   Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, 
-  Calculator, Box, Wallet, ChevronRight, XCircle 
+  Calculator, Box, Wallet, ChevronRight, XCircle
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -424,5 +424,3 @@ export default function App() {
     </div>
   );
 }
-
-
