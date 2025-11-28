@@ -286,9 +286,8 @@ export default function App() {
         alert("Hubo un error al intentar compartir. Intenta descargando el ticket.");
     }
   };
-  };
 
-  // --- PDF GENERATOR ---
+  // --- PDF GENERATOR (Descarga Directa) ---
   const handlePrintTicket = (transaction) => { 
     if (!transaction) return;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
@@ -507,4 +506,3 @@ export default function App() {
     </div>
   );
 }
-
