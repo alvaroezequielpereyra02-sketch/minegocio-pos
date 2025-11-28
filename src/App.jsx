@@ -1,36 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  getDoc,
-  setDoc,
-  deleteDoc, 
-  onSnapshot, 
-  serverTimestamp, 
-  query, 
-  orderBy,
-  where 
-} from 'firebase/firestore';
-import { 
-  LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, 
-  Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, 
-  Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu,
-  Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, 
-  Calculator, Box, Wallet, ChevronRight, XCircle
-} from 'lucide-react';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
+import { LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu, Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, Calculator, Box, Wallet, ChevronRight, XCircle } from 'lucide-react';
 
-// --- CONFIGURACIÓN DE FIREBASE ---
+// CONFIGURACION FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
   authDomain: "minegocio-pos-e35bf.firebaseapp.com",
@@ -43,31 +17,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
 const appId = 'tienda-principal';
 const ADMIN_SECRET_CODE = 'ADMIN123';
 
-// --- COMPONENTE AUXILIAR (BOTONES) ---
+// COMPONENTE BOTON
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button 
-      onClick={onClick} 
-      className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-    >
-      {icon} 
-      <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
+      {icon} <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
     </button>
   );
 }
 
-// --- APP PRINCIPAL ---
+// COMPONENTE PRINCIPAL
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  
   const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
-
   const [activeTab, setActiveTab] = useState('pos');
   const [products, setProducts] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -76,7 +43,6 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [cart, setCart] = useState([]);
   
-  // UI States
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -89,29 +55,22 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [lastTransactionId, setLastTransactionId] = useState(null);
-  
   const [imageMode, setImageMode] = useState('link'); 
   const [previewImage, setPreviewImage] = useState('');
-  
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
-
   const [barcodeInput, setBarcodeInput] = useState(''); 
   const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState(''); 
   const [scannedProduct, setScannedProduct] = useState(null);
   const quantityInputRef = useRef(null);
-
   const [historySection, setHistorySection] = useState('menu');
-
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // --- AUTENTICACIÓN ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -119,123 +78,98 @@ export default function App() {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) setUserData(userDoc.data());
         else setUserData({ name: 'Usuario', role: 'client' });
-      } else {
-        setUserData(null);
-      }
+      } else { setUserData(null); }
       setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // --- SINCRONIZACIÓN ---
   useEffect(() => {
     if (!user || !userData) return;
-
     const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (doc) => {
-        if (doc.exists()) setStoreProfile(doc.data());
-        else setStoreProfile({ name: 'Distribuidora P&P', logoUrl: '' });
+        if (doc.exists()) setStoreProfile(doc.data()); else setStoreProfile({ name: 'Distribuidora P&P', logoUrl: '' });
     });
-
     const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (snap) => setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (snap) => setCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    
     const unsubTrans = onSnapshot(collection(db, 'stores', appId, 'transactions'), (snapshot) => {
       let items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (userData.role !== 'admin') items = items.filter(t => t.clientId === user.uid);
       items.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
       setTransactions(items);
     });
-
     return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
   }, [user, userData]);
 
-  // --- CÁLCULOS BALANCE ---
   const balance = useMemo(() => {
-    let salesPaid = 0;
-    let salesPending = 0;
-    let salesPartial = 0;
-    let costOfGoodsSold = 0; 
-    let inventoryValue = 0;
+    let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
     let totalExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
-
     transactions.forEach(t => {
       if (t.type === 'sale') {
         if (t.paymentStatus === 'paid') {
             salesPaid += t.total;
             if (t.items) t.items.forEach(item => costOfGoodsSold += (item.cost || 0) * item.qty);
-        } else if (t.paymentStatus === 'pending') {
-            salesPending += t.total;
-        } else if (t.paymentStatus === 'partial') {
-            salesPartial += t.total; 
-        }
+        } else if (t.paymentStatus === 'pending') salesPending += t.total;
+        else if (t.paymentStatus === 'partial') salesPartial += t.total; 
       }
     });
-
     products.forEach(p => { inventoryValue += (p.price * p.stock); });
-
     const grossProfit = salesPaid - costOfGoodsSold;
     const netProfit = grossProfit - totalExpenses;
-
     const categoryValues = {};
     products.forEach(p => {
         const catName = categories.find(c => c.id === p.categoryId)?.name || 'Sin Categoría';
         if (!categoryValues[catName]) categoryValues[catName] = 0;
         categoryValues[catName] += (p.price * p.stock);
     });
-
     return { salesPaid, salesPending, salesPartial, inventoryValue, totalExpenses, grossProfit, netProfit, categoryValues, costOfGoodsSold };
   }, [transactions, products, expenses, categories]);
 
-  // --- ACTIONS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
   const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if(role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
   const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
-  
   const handlePrintTicket = (transaction) => { 
     if (!transaction) return;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
-    
     const printWindow = window.open('', '_blank');
     if (!printWindow) { alert("Permite pop-ups para imprimir"); return; }
-
     const htmlContent = `<html><head><title>Ticket #${transaction.id.slice(0,5)}</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
-    
-    printWindow.document.write(htmlContent);
-    printWindow.document.close(); 
+    printWindow.document.write(htmlContent); printWindow.document.close(); 
   };
-
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
-
-  // --- CARRITO ---
-  const addToCart = (product) => { 
-    setCart(prev => { 
-        const existing = prev.find(item => item.id === product.id); 
-        return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; 
-    }); 
-  };
+  const addToCart = (product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); };
   const updateCartQty = (id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id));
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
-  
   const handleCheckout = async () => { 
     if (!user || cart.length === 0) return; 
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' }; 
-    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; 
-    else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
-    
-    const itemsWithCost = cart.map(i => {
-        const originalProduct = products.find(p => p.id === i.id);
-        return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
-    });
-
+    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
+    const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
     const saleData = { type: 'sale', total: cartTotal, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
     try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
   };
-
   const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
+  const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error al guardar gasto"); } };
+  const handleDeleteExpense = async (id) => { if(confirm("¿Eliminar gasto?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
+  const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
+  const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if(editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e){alert("Error");} };
+  const handleSaveCategory = async (e) => { if(e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
+  const handleDeleteProduct = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'products', id)); };
+  const handleDeleteCategory = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'categories', id)); };
+  const handleDeleteCustomer = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'customers', id)); };
+  const handleFileChange = (e) => { const f = e.target.files[0]; if (f && f.size <= 800000) { const r = new FileReader(); r.onloadend = () => setPreviewImage(r.result); r.readAsDataURL(f); } };
+  const handleOpenModal = (p = null) => { setEditingProduct(p); setPreviewImage(p?.imageUrl||''); setImageMode(p?.imageUrl?.startsWith('data:')?'file':'link'); setIsProductModalOpen(true); };
+  const handleBarcodeSubmit = (e) => { e.preventDefault(); if (!barcodeInput) return; const product = products.find(p => p.barcode === barcodeInput); if (product) { addToCart(product); setBarcodeInput(''); } else { alert("Producto no encontrado."); setBarcodeInput(''); } };
+  const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { if(confirm("Producto no existe. ¿Crear nuevo?")) { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); } setInventoryBarcodeInput(''); } };
+  const handleAddStock = async (e) => { e.preventDefault(); const qty = parseInt(e.target.qty.value) || 0; if (scannedProduct && qty !== 0) { const newStock = scannedProduct.stock + qty; try { await updateDoc(doc(db, 'stores', appId, 'products', scannedProduct.id), { stock: newStock }); } catch(e) { alert("Error al actualizar stock"); } } setIsAddStockModalOpen(false); setScannedProduct(null); };
+  const handleExportCSV = () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds*1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},"${t.items?.map(i=>`${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); l.download = 'ventas.csv'; l.click(); };
+
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
+// CONTINUA ABAJO
+const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
 
   // --- CRUD GASTOS ---
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error al guardar gasto"); } };
@@ -276,7 +210,7 @@ export default function App() {
             {cart.map(item => (<div key={item.id} className="flex items-center gap-3"><div className="flex-1 min-w-0"><div className="font-medium text-sm truncate">{item.name}</div><div className="text-xs text-slate-500">${item.price} x {item.qty}</div></div><div className="flex items-center gap-1"><button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 bg-slate-100 rounded flex items-center justify-center"><Minus className="w-3 h-3"/></button><button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 bg-slate-100 rounded flex items-center justify-center"><Plus className="w-3 h-3"/></button><button onClick={() => removeFromCart(item.id)} className="ml-1 text-red-400"><Trash2 className="w-4 h-4"/></button></div></div>))}
             {cart.length === 0 && <div className="text-center text-slate-400 mt-10">Carrito vacío</div>}
         </div>
-        <div className="p-4 bg-slate-50 border-t space-y-3 pb-20 lg:pb-4"> {/* Padding extra para no tapar */}
+        <div className="p-4 bg-slate-50 border-t space-y-3">
             {userData.role === 'admin' && (<div className="relative">{selectedCustomer ? (<div className="flex items-center justify-between bg-blue-50 p-2 rounded border border-blue-100"><div><div className="text-sm font-bold text-blue-800">{selectedCustomer.name}</div><div className="text-xs text-blue-600">{selectedCustomer.phone}</div></div><button onClick={()=>setSelectedCustomer(null)} className="text-blue-400"><X size={16}/></button></div>) : (<div><div className="flex items-center gap-2 border rounded p-2 bg-white"><Search size={16} className="text-slate-400"/><input className="w-full text-sm outline-none" placeholder="Buscar cliente..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)}/></div>{customerSearch && (<div className="absolute left-0 right-0 bottom-full mb-1 bg-white border rounded shadow-lg max-h-40 overflow-y-auto z-10">{customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase())).map(c => (<button key={c.id} onClick={()=>{setSelectedCustomer(c); setCustomerSearch('');}} className="w-full text-left p-2 hover:bg-slate-50 text-sm border-b"><div className="font-bold">{c.name}</div><div className="text-xs text-slate-500">{c.phone}</div></button>))}</div>)}</div>)}</div>)}
             <div className="flex justify-between font-bold text-slate-800"><span>Total</span><span>${cartTotal}</span></div>
             <button onClick={handleCheckout} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Cobrar</button>
