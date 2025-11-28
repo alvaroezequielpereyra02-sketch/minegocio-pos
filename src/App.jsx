@@ -35,8 +35,7 @@ import {
   Upload,
   Link as LinkIcon,
   Download,
-  Tags, // Icono para categorías
-  Filter
+  Tags
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -60,16 +59,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('pos');
   const [products, setProducts] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [categories, setCategories] = useState([]); // Estado para categorías
+  const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Estados UI
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false); // Modal categorías
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all'); // Filtro activo
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   
   // Estados para imágenes
@@ -102,7 +101,7 @@ export default function App() {
       setTransactions(items);
     });
 
-    // Categorías (Nueva colección)
+    // Categorías
     const catRef = collection(db, 'stores', appId, 'categories');
     const unsubCats = onSnapshot(query(catRef, orderBy('name')), (snapshot) => {
       setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -191,7 +190,7 @@ export default function App() {
       name: form.name.value, 
       price: parseFloat(form.price.value), 
       stock: parseInt(form.stock.value),
-      categoryId: form.category.value, // Guardar categoría
+      categoryId: form.category.value,
       imageUrl: finalImageUrl 
     };
 
@@ -241,7 +240,6 @@ export default function App() {
   // --- Renderizadores ---
   
   const renderPOS = () => {
-    // Filtrado por búsqueda Y por categoría
     const filteredProducts = products.filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
       (selectedCategory === 'all' || p.categoryId === selectedCategory)
@@ -261,7 +259,7 @@ export default function App() {
             />
           </div>
 
-          {/* Filtros de Categoría (Pestañas) */}
+          {/* Filtros de Categoría */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide">
             <button 
               onClick={() => setSelectedCategory('all')}
@@ -281,7 +279,7 @@ export default function App() {
           </div>
           
           {/* Grid de Productos */}
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="flex-1 overflow-y-auto pr-2 pb-20 lg:pb-0"> {/* Padding bottom para no tapar en móvil */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {filteredProducts.map(product => (
                 <button
@@ -313,7 +311,7 @@ export default function App() {
         </div>
 
         {/* Carrito */}
-        <div className={`lg:w-80 bg-white rounded-xl shadow-lg flex flex-col border border-slate-200 ${cart.length === 0 && 'hidden lg:flex'}`}>
+        <div className={`lg:w-80 bg-white rounded-xl shadow-lg flex flex-col border border-slate-200 ${cart.length === 0 ? 'hidden lg:flex' : 'flex'}`}>
           <div className="p-4 border-b bg-slate-50 rounded-t-xl font-bold text-slate-700 flex gap-2">
             <ShoppingCart className="w-5 h-5" /> Ticket
           </div>
@@ -343,9 +341,8 @@ export default function App() {
     );
   };
 
-  // VISTA INVENTARIO CON CATEGORÍAS
   const renderInventory = () => (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col pb-20 lg:pb-0">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
         <div className="flex gap-2">
@@ -393,19 +390,23 @@ export default function App() {
   if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900">
-      <header className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-10">
+    <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden">
+      
+      {/* HEADER */}
+      <header className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-30 shrink-0 h-16">
         <div className="flex items-center gap-2 font-bold text-xl text-slate-800">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">M</div>
           MiNegocio
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden p-4 pb-24 md:pb-4 max-w-5xl mx-auto w-full">
+      {/* CONTENIDO PRINCIPAL SCROLLEABLE */}
+      <main className="flex-1 overflow-hidden p-4 max-w-5xl mx-auto w-full relative">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
+        
         {activeTab === 'transactions' && (
-          <div className="h-full flex flex-col">
+          <div className="h-full flex flex-col pb-20 lg:pb-0">
              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Historial</h2>
                 <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>
@@ -425,16 +426,26 @@ export default function App() {
         )}
       </main>
 
-      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t flex justify-around h-16 items-center shadow-lg z-20">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
-        <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" />
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
+      {/* NAVEGACIÓN INFERIOR (MÓVIL) - FIXEADA ABAJO */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
+        <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
       </nav>
 
-      {/* MODAL PRODUCTO (Con Selector de Categoría) */}
+      {/* NAVEGACIÓN ESCRITORIO (FLOTANTE) */}
+      <div className="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-2xl border border-slate-200 gap-8 items-center z-50">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
+        <div className="w-px h-6 bg-slate-200"></div>
+        <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" />
+        <div className="w-px h-6 bg-slate-200"></div>
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
+      </div>
+
+      {/* MODAL PRODUCTO */}
       {isProductModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
             <h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>
             <form onSubmit={handleSaveProduct} className="space-y-3">
               <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
@@ -443,19 +454,17 @@ export default function App() {
                 <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-1/2 p-2 border rounded" placeholder="Stock" />
               </div>
               
-              {/* SELECTOR DE CATEGORÍA */}
               <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white">
                 <option value="">Sin Categoría</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
 
-              {/* IMAGEN */}
               <div className="flex gap-2 bg-slate-100 p-1 rounded">
                  <button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button>
                  <button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button>
               </div>
               {imageMode === 'file' ? (
-                 <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
+                 <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />
               ) : (
                  <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />
               )}
@@ -470,7 +479,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CATEGORÍAS (Nuevo) */}
+      {/* MODAL CATEGORÍAS */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
@@ -479,7 +488,6 @@ export default function App() {
                 <button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button>
             </div>
             
-            {/* Lista de existentes */}
             <div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">
                 {categories.map(cat => (
                     <div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded">
@@ -490,7 +498,6 @@ export default function App() {
                 {categories.length === 0 && <p className="text-sm text-slate-400 text-center">Sin categorías</p>}
             </div>
 
-            {/* Crear nueva */}
             <form onSubmit={handleSaveCategory} className="flex gap-2">
                 <input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva categoría..." />
                 <button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button>
@@ -499,15 +506,15 @@ export default function App() {
         </div>
       )}
 
-      {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-3 rounded shadow-xl animate-bounce">¡Venta Exitosa!</div>}
+      {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-3 rounded shadow-xl animate-bounce z-50">¡Venta Exitosa!</div>}
     </div>
   );
 }
 
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center p-2 ${active ? 'text-blue-600' : 'text-slate-400'}`}>
-      {icon} <span className="text-[10px] uppercase">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400'}`}>
+      {icon} <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
     </button>
   );
 }
