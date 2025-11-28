@@ -31,10 +31,10 @@ import {
   TrendingDown,
   DollarSign,
   Save,
-  AlertTriangle
+  Image as ImageIcon // Renombrado para evitar conflicto con etiqueta html
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN DE FIREBASE (LIMPIA) ---
+// --- CONFIGURACIÓN DE FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
   authDomain: "minegocio-pos-e35bf.firebaseapp.com",
@@ -49,7 +49,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ID fijo para la tienda (Usado para compartir inventario entre todos)
 const appId = 'tienda-principal';
 
 export default function App() {
@@ -68,7 +67,6 @@ export default function App() {
 
   // --- Autenticación ---
   useEffect(() => {
-    // Inicio de sesión anónimo simple
     signInAnonymously(auth).catch((error) => {
       console.error("Error auth:", error);
     });
@@ -79,11 +77,10 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- Sincronización en Tiempo Real (Internet) ---
+  // --- Sincronización ---
   useEffect(() => {
     if (!user) return;
 
-    // Escuchar Productos (Compartidos en tienda-principal)
     const productsRef = collection(db, 'stores', appId, 'products');
     const qProducts = query(productsRef, orderBy('name'));
 
@@ -91,15 +88,11 @@ export default function App() {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(items);
       setLoading(false);
-    }, (error) => {
-        console.error("Error leyendo productos:", error);
-    });
+    }, (error) => console.error("Error productos:", error));
 
-    // Escuchar Transacciones (Compartidas)
     const transRef = collection(db, 'stores', appId, 'transactions');
     const unsubTrans = onSnapshot(transRef, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Ordenar en cliente por fecha
       items.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
       setTransactions(items);
     }, (error) => console.error("Error transacciones:", error));
@@ -119,7 +112,7 @@ export default function App() {
       if (existing) {
         if (existing.qty >= product.stock) return prev; 
         return prev.map(item => 
-          item.id === product.id ? { ...item, qty: item.qty + 1 } : item
+          item.id === product.id ? { ...item, qty: item.qty + 1, imageUrl: product.imageUrl } : item
         );
       }
       return [...prev, { ...product, qty: 1 }];
@@ -147,7 +140,7 @@ export default function App() {
     return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   }, [cart]);
 
-  // --- Acciones en la Nube ---
+  // --- Acciones ---
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -156,8 +149,9 @@ export default function App() {
     const name = form.name.value;
     const price = parseFloat(form.price.value);
     const stock = parseInt(form.stock.value);
+    const imageUrl = form.imageUrl.value; // Nueva línea para imagen
     
-    const productData = { name, price, stock };
+    const productData = { name, price, stock, imageUrl }; // Guardamos la URL
 
     try {
       if (editingProduct) {
@@ -172,13 +166,13 @@ export default function App() {
       setEditingProduct(null);
     } catch (error) {
       console.error("Error guardando:", error);
-      alert("Error al guardar. Verifica tu conexión.");
+      alert("Error al guardar.");
     }
   };
 
   const handleDeleteProduct = async (id) => {
     if (!user) return;
-    if (confirm('¿Estás seguro? Esto se borrará para TODOS los vendedores.')) {
+    if (confirm('¿Borrar producto?')) {
       await deleteDoc(doc(db, 'stores', appId, 'products', id));
     }
   };
@@ -187,7 +181,6 @@ export default function App() {
     if (!user || cart.length === 0) return;
 
     try {
-      // 1. Guardar la venta en la nube
       await addDoc(collection(db, 'stores', appId, 'transactions'), {
         type: 'sale',
         total: cartTotal,
@@ -196,7 +189,6 @@ export default function App() {
         date: serverTimestamp()
       });
 
-      // 2. Descontar stock en la nube
       for (const item of cart) {
         const currentProduct = products.find(p => p.id === item.id);
         if (currentProduct) {
@@ -212,32 +204,12 @@ export default function App() {
       setTimeout(() => setShowCheckoutSuccess(false), 3000);
     } catch (error) {
       console.error("Error checkout:", error);
-      alert("Error al procesar venta. Revisa tu conexión.");
     }
   };
 
-  // --- Cálculos ---
-  const stats = useMemo(() => {
-    let totalSales = 0;
-    let totalTrans = 0;
-    let inventoryValue = 0;
-
-    transactions.forEach(t => {
-      if (t.type === 'sale') {
-        totalSales += t.total;
-        totalTrans++;
-      }
-    });
-
-    products.forEach(p => {
-      inventoryValue += (p.price * p.stock);
-    });
-
-    return { totalSales, totalTrans, inventoryValue };
-  }, [transactions, products]);
-
-
   // --- Renderizadores ---
+  
+  // VISTA POS CON IMÁGENES
   const renderPOS = () => {
     const filteredProducts = products.filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -258,66 +230,77 @@ export default function App() {
           </div>
           
           <div className="flex-1 overflow-y-auto pr-2">
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-10 text-slate-400">
-                <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No hay productos. Ve a Inventario para agregar uno.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {filteredProducts.map(product => (
-                  <button
-                    key={product.id}
-                    onClick={() => addToCart(product)}
-                    disabled={product.stock <= 0}
-                    className={`flex flex-col items-start p-4 rounded-xl border transition-all ${
-                      product.stock > 0 
-                        ? 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-md active:scale-95' 
-                        : 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3 font-bold text-lg">
-                      {product.name.charAt(0).toUpperCase()}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {filteredProducts.map(product => (
+                <button
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  disabled={product.stock <= 0}
+                  className={`flex flex-col items-start p-0 rounded-xl border transition-all overflow-hidden bg-white shadow-sm ${
+                    product.stock > 0 
+                      ? 'hover:border-blue-400 hover:shadow-md active:scale-95' 
+                      : 'opacity-60 cursor-not-allowed'
+                  }`}
+                >
+                  {/* Zona de Imagen */}
+                  <div className="w-full h-32 bg-slate-100 relative">
+                    {product.imageUrl ? (
+                      <img 
+                        src={product.imageUrl} 
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150?text=Sin+Imagen'}} // Fallback si falla
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <ImageIcon className="w-10 h-10" />
+                      </div>
+                    )}
+                    {/* Badge de Stock */}
+                    <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-bold ${
+                      product.stock <= 5 ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-700'
+                    }`}>
+                      {product.stock}
                     </div>
-                    <div className="font-semibold text-slate-800 line-clamp-1 w-full text-left">{product.name}</div>
-                    <div className="text-sm text-slate-500 w-full text-left">Stock: {product.stock}</div>
-                    <div className="mt-2 font-bold text-blue-600">${product.price.toLocaleString()}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+                  </div>
+
+                  {/* Info Producto */}
+                  <div className="p-3 w-full text-left">
+                    <div className="font-semibold text-slate-800 line-clamp-1 text-sm">{product.name}</div>
+                    <div className="mt-1 font-bold text-blue-600">${product.price.toLocaleString()}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
+        {/* Carrito */}
         <div className={`lg:w-80 bg-white rounded-xl shadow-lg flex flex-col border border-slate-200 ${cart.length === 0 && 'hidden lg:flex'}`}>
           <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
             <h2 className="font-bold text-slate-700 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" /> Ticket de Venta
+              <ShoppingCart className="w-5 h-5" /> Ticket
             </h2>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {cart.length === 0 ? (
-              <div className="text-center text-slate-400 py-8">
-                <p>El carrito está vacío</p>
-                <p className="text-sm">Selecciona productos para vender</p>
-              </div>
-            ) : (
-              cart.map(item => (
-                <div key={item.id} className="flex items-center justify-between group">
-                  <div className="flex-1">
-                    <div className="font-medium text-slate-800">{item.name}</div>
-                    <div className="text-xs text-slate-500">${item.price} c/u</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200"><Minus className="w-3 h-3"/></button>
-                    <span className="w-4 text-center text-sm font-medium">{item.qty}</span>
-                    <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200"><Plus className="w-3 h-3"/></button>
-                    <button onClick={() => removeFromCart(item.id)} className="ml-2 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
-                  </div>
+            {cart.map(item => (
+              <div key={item.id} className="flex items-center gap-3">
+                {/* Miniatura en carrito */}
+                <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden flex-shrink-0">
+                   {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover" />}
                 </div>
-              ))
-            )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-slate-800 text-sm truncate">{item.name}</div>
+                  <div className="text-xs text-slate-500">${item.price} x {item.qty}</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Minus className="w-3 h-3"/></button>
+                  <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Plus className="w-3 h-3"/></button>
+                  <button onClick={() => removeFromCart(item.id)} className="ml-1 text-red-400"><Trash2 className="w-4 h-4"/></button>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="p-4 bg-slate-50 border-t border-slate-100 rounded-b-xl">
@@ -328,7 +311,7 @@ export default function App() {
             <button 
               onClick={handleCheckout}
               disabled={cart.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-bold shadow-sm active:scale-95 transition-all flex justify-center items-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-sm active:scale-95 transition-all"
             >
               Cobrar
             </button>
@@ -341,12 +324,12 @@ export default function App() {
   const renderInventory = () => (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">Inventario Compartido</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Inventario</h2>
         <button 
           onClick={() => { setEditingProduct(null); setIsProductModalOpen(true); }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"
         >
-          <Plus className="w-4 h-4" /> Nuevo Producto
+          <Plus className="w-4 h-4" /> Agregar
         </button>
       </div>
 
@@ -354,6 +337,7 @@ export default function App() {
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="p-4 w-16">Img</th>
               <th className="p-4 font-semibold text-slate-600">Producto</th>
               <th className="p-4 font-semibold text-slate-600 text-right">Precio</th>
               <th className="p-4 font-semibold text-slate-600 text-center">Stock</th>
@@ -363,113 +347,28 @@ export default function App() {
           <tbody className="divide-y divide-slate-100">
             {products.map(p => (
               <tr key={p.id} className="hover:bg-slate-50">
+                <td className="p-4">
+                  <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden">
+                    {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full"><ImageIcon className="w-4 h-4 text-slate-300"/></div>}
+                  </div>
+                </td>
                 <td className="p-4 text-slate-800 font-medium">{p.name}</td>
                 <td className="p-4 text-right text-slate-600">${p.price}</td>
-                <td className="p-4 text-center">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    p.stock === 0 ? 'bg-red-100 text-red-600' : 
-                    p.stock < 5 ? 'bg-amber-100 text-amber-600' : 
-                    'bg-green-100 text-green-600'
-                  }`}>
-                    {p.stock} u.
-                  </span>
-                </td>
+                <td className="p-4 text-center">{p.stock}</td>
                 <td className="p-4 text-right">
                   <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="text-blue-500 hover:text-blue-700 mr-3 font-medium text-sm">Editar</button>
                   <button onClick={() => handleDeleteProduct(p.id)} className="text-red-400 hover:text-red-600 font-medium text-sm">Borrar</button>
                 </td>
               </tr>
             ))}
-            {products.length === 0 && (
-              <tr>
-                <td colSpan="4" className="p-8 text-center text-slate-400">
-                  No hay productos cargados en la nube.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
     </div>
   );
 
-  const renderTransactions = () => (
-    <div className="h-full flex flex-col">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">Ventas Globales</h2>
-      <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-slate-200 divide-y divide-slate-100">
-        {transactions.map(t => (
-          <div key={t.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
-            <div className="flex items-center gap-4">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                t.type === 'sale' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-              }`}>
-                {t.type === 'sale' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-              </div>
-              <div>
-                <p className="font-medium text-slate-800">
-                  {t.type === 'sale' ? 'Venta' : 'Gasto'} 
-                  <span className="text-slate-400 text-sm font-normal ml-2">
-                    {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleDateString() : 'Procesando...'}
-                  </span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  {t.items ? `${t.items.length} productos` : 'Sin detalles'}
-                </p>
-              </div>
-            </div>
-            <div className={`font-bold ${t.type === 'sale' ? 'text-green-600' : 'text-slate-800'}`}>
-              {t.type === 'sale' ? '+' : '-'}${t.total?.toLocaleString()}
-            </div>
-          </div>
-        ))}
-        {transactions.length === 0 && (
-          <div className="p-10 text-center text-slate-400">
-            Aún no hay movimientos registrados.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderDashboard = () => (
-    <div className="h-full overflow-y-auto">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">Resumen del Negocio</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200">
-          <div className="flex items-center gap-3 mb-2 opacity-90">
-            <DollarSign className="w-5 h-5" />
-            <span className="font-medium">Ventas Totales</span>
-          </div>
-          <div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div>
-          <div className="mt-4 text-sm opacity-75 bg-blue-700 inline-block px-2 py-1 rounded">
-            {stats.totalTrans} transacciones
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3 mb-2 text-slate-500">
-            <Package className="w-5 h-5" />
-            <span className="font-medium">Valor Inventario</span>
-          </div>
-          <div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div>
-          <div className="mt-4 text-sm text-slate-400">
-            En {products.length} productos
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-
   // --- Render Principal ---
-
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col gap-4">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-500 font-medium animate-pulse">Conectando con la nube...</p>
-    </div>
-  );
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Cargando...</div>;
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900">
@@ -482,7 +381,6 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-xs text-slate-500 font-medium hidden sm:inline">En línea</span>
         </div>
       </header>
 
@@ -490,8 +388,21 @@ export default function App() {
       <main className="flex-1 overflow-hidden p-4 pb-24 md:pb-4 max-w-5xl mx-auto w-full">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
-        {activeTab === 'transactions' && renderTransactions()}
-        {activeTab === 'dashboard' && renderDashboard()}
+        {activeTab === 'transactions' && (
+          <div className="h-full overflow-y-auto">
+             <h2 className="text-2xl font-bold mb-4">Historial</h2>
+             {transactions.map(t => (
+               <div key={t.id} className="bg-white p-4 mb-2 rounded shadow-sm flex justify-between">
+                 <div>
+                   <div className="font-bold">Venta</div>
+                   <div className="text-xs text-slate-500">{new Date(t.date?.seconds * 1000).toLocaleString()}</div>
+                 </div>
+                 <div className="text-green-600 font-bold">+${t.total}</div>
+               </div>
+             ))}
+          </div>
+        )}
+        {activeTab === 'dashboard' && <div className="p-4 bg-white rounded shadow">Próximamente: Estadísticas avanzadas</div>}
       </main>
 
       {/* Menú Móvil */}
@@ -510,7 +421,7 @@ export default function App() {
         <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="Balance" />
       </div>
 
-      {/* Modal */}
+      {/* Modal Producto */}
       {isProductModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -525,7 +436,7 @@ export default function App() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Precio</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Precio ($)</label>
                   <input required name="price" type="number" step="0.01" defaultValue={editingProduct?.price} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
                 </div>
                 <div>
@@ -533,9 +444,24 @@ export default function App() {
                   <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
                 </div>
               </div>
+              
+              {/* CAMPO DE IMAGEN NUEVO */}
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Link de Imagen (Opcional)</label>
+                <div className="flex gap-2">
+                    <input 
+                        name="imageUrl" 
+                        defaultValue={editingProduct?.imageUrl} 
+                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm" 
+                        placeholder="https://..." 
+                    />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Tip: Copia el enlace de una imagen de Google y pégalo aquí.</p>
+              </div>
+
               <div className="pt-2">
                 <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <Save className="w-5 h-5" /> Guardar en Nube
+                  <Save className="w-5 h-5" /> Guardar
                 </button>
               </div>
             </form>
@@ -543,12 +469,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Notificación Éxito */}
+      {/* Toast Éxito */}
       {showCheckoutSuccess && (
         <div className="fixed top-20 right-4 md:right-8 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-3 animate-in slide-in-from-top duration-300 z-50">
           <div className="bg-white/20 p-1 rounded-full"><TrendingUp className="w-4 h-4" /></div>
           <div>
-            <p className="font-bold text-sm">¡Venta Sincronizada!</p>
+            <p className="font-bold text-sm">¡Venta Registrada!</p>
           </div>
         </div>
       )}
