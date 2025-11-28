@@ -3,6 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
 import { LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu, Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, Calculator, Box, Wallet, ChevronRight, XCircle } from 'lucide-react';
+// IMPORTANTE: Importamos la librería para PDF
+import html2pdf from 'html2pdf.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
@@ -126,15 +128,54 @@ export default function App() {
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
   const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if(role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
   const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
+
+  // --- FUNCIÓN MODIFICADA PARA DESCARGAR PDF ---
   const handlePrintTicket = (transaction) => { 
     if (!transaction) return;
+    
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) { alert("Permite pop-ups para imprimir"); return; }
-    const htmlContent = `<html><head><title>Ticket #${transaction.id.slice(0,5)}</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
-    printWindow.document.write(htmlContent); printWindow.document.close(); 
+    
+    // Contenido HTML para el PDF
+    const content = `
+      <div style="font-family:'Courier New',monospace;padding:10px;font-size:12px;width:100%;color:black;">
+        <div style="text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px">
+          ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px;max-height:50px;margin-bottom:5px" />` : ''}
+          <div style="font-size:16px;font-weight:bold">${storeProfile.name}</div>
+          <div>Comprobante</div>
+        </div>
+        <div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div>
+        <div style="text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px">ESTADO: ${statusText}</div>
+        <br/>
+        <table style="width:100%;margin-bottom:10px;border-collapse:collapse">
+          <thead>
+            <tr><th style="text-align:left;border-bottom:1px solid #000">Cant</th><th style="text-align:left;border-bottom:1px solid #000">Prod</th><th style="text-align:left;border-bottom:1px solid #000">Total</th></tr>
+          </thead>
+          <tbody>
+            ${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px">TOTAL: $${transaction.total}</div>
+        ${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}
+        <div style="text-align:center;margin-top:20px;font-size:10px">¡Gracias por su compra!<br/>${storeProfile.name}</div>
+      </div>
+    `;
+
+    const element = document.createElement('div');
+    element.innerHTML = content;
+
+    const opt = {
+      margin:       2,
+      filename:     `ticket-${transaction.id.slice(0,5)}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: [75, 200], orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
+  // ----------------------------------------------------
+
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
   const addToCart = (product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); };
   const updateCartQty = (id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id));
@@ -196,47 +237,12 @@ export default function App() {
             {activeTab === 'customers' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
             {activeTab === 'transactions' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Historial</h2>{userData.role === 'admin' && <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>}</div>{historySection === 'menu' ? (<div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 overflow-y-auto"><button onClick={() => setHistorySection('paid')} className="bg-green-50 border border-green-200 p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-green-100 transition-all shadow-sm"><div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white mb-4"><CheckCircle size={32}/></div><h3 className="text-xl font-bold text-green-800">Pagados</h3><p className="text-sm text-green-600">Ventas completadas</p></button><button onClick={() => setHistorySection('pending')} className="bg-red-50 border border-red-200 p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-red-100 transition-all shadow-sm"><div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white mb-4"><AlertCircle size={32}/></div><h3 className="text-xl font-bold text-red-800">Pendientes</h3><p className="text-sm text-red-600">Ventas por cobrar</p></button><button onClick={() => setHistorySection('partial')} className="bg-orange-50 border border-orange-200 p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-orange-100 transition-all shadow-sm"><div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center text-white mb-4"><Clock size={32}/></div><h3 className="text-xl font-bold text-orange-800">Parciales</h3><p className="text-sm text-orange-600">Pagos incompletos</p></button></div>) : (<div className="flex-1 flex flex-col min-h-0 bg-white rounded-xl shadow-sm border overflow-hidden"><div className={`p-4 flex items-center gap-4 border-b ${historySection === 'paid' ? 'bg-green-50' : historySection === 'pending' ? 'bg-red-50' : 'bg-orange-50'}`}><button onClick={() => setHistorySection('menu')} className="p-2 bg-white rounded-full shadow-sm hover:scale-105 transition-transform"><ArrowLeft size={20}/></button><h3 className="text-lg font-bold capitalize">{historySection === 'paid' ? 'Pagados' : historySection === 'pending' ? 'Pendientes' : 'Parciales'}</h3></div><div className="flex-1 overflow-y-auto divide-y">{transactions.filter(t => (t.paymentStatus || 'pending') === historySection).map(t => (<div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><div><p className="font-medium">{t.clientName || 'Anónimo'} <span className="text-slate-400 font-normal ml-2">{new Date(t.date?.seconds * 1000).toLocaleTimeString()}</span></p><p className="text-xs text-slate-500 truncate w-48 mt-1">{t.items?.map(i => `${i.qty} ${i.name}`).join(', ')}</p>{t.paymentNote && <p className="text-xs text-slate-500 italic mt-1 bg-slate-100 inline-block px-1 rounded">{t.paymentNote}</p>}</div><div className="flex items-center gap-2"><div className="font-bold text-slate-800">${t.total}</div>{userData.role === 'admin' && (<button onClick={() => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} className="p-2 bg-slate-100 rounded-full hover:bg-blue-100 text-blue-600"><Edit size={14} /></button>)}<button onClick={() => handlePrintTicket(t)} className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-green-600"><Printer size={14} /></button></div></div>))}</div></div>)}</div>)}
         </main>
-{/* MODIFICACIÓN: Solo mostrar el menú si el carrito NO está abierto */}
+        
+        {/* --- MODIFICACIÓN: EL NAV SE OCULTA SI ESTÁ EL CARRITO MÓVIL ABIERTO --- */}
         {!showMobileCart && (
-          <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-[50] shadow-lg">
-            <NavButton 
-              active={activeTab === 'pos'} 
-              onClick={() => setActiveTab('pos')} 
-              icon={<LayoutDashboard size={24} />} 
-              label="Vender" 
-            />
-            {userData.role === 'admin' && (
-              <NavButton 
-                active={activeTab === 'inventory'} 
-                onClick={() => setActiveTab('inventory')} 
-                icon={<Package size={24} />} 
-                label="Stock" 
-              />
-            )}
-            {userData.role === 'admin' && (
-              <NavButton 
-                active={activeTab === 'customers'} 
-                onClick={() => setActiveTab('customers')} 
-                icon={<Users size={24} />} 
-                label="Clientes" 
-              />
-            )}
-            <NavButton 
-              active={activeTab === 'transactions'} 
-              onClick={() => {setActiveTab('transactions'); setHistorySection('menu');}} 
-              icon={<History size={24} />} 
-              label="Historial" 
-            />
-            {userData.role === 'admin' && (
-              <NavButton 
-                active={activeTab === 'dashboard'} 
-                onClick={() => setActiveTab('dashboard')} 
-                icon={<TrendingUp size={24} />} 
-                label="Balance" 
-              />
-            )}
-          </nav>
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-[50] shadow-lg"><NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />{userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}{userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}<NavButton active={activeTab === 'transactions'} onClick={() => {setActiveTab('transactions'); setHistorySection('menu');}} icon={<History size={24} />} label="Historial" />{userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}</nav>
         )}
+
         {isExpenseModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg text-red-600">Registrar Gasto</h3><button onClick={() => setIsExpenseModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleSaveExpense} className="space-y-3"><label className="block text-sm text-slate-500">Descripción</label><input name="description" required className="w-full p-2 border rounded" placeholder="Ej: Combustible, Luz..." /><label className="block text-sm text-slate-500">Monto</label><input name="amount" type="number" required className="w-full p-2 border rounded text-red-600 font-bold" placeholder="0.00" /><button type="submit" className="w-full bg-red-600 text-white font-bold py-2 rounded">Guardar Gasto</button></form></div></div>)}
         {isProductModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>{editingProduct && <button onClick={() => handleDeleteProduct(editingProduct.id)} className="text-red-500 text-sm underline">Eliminar</button>}</div><form onSubmit={handleSaveProduct} className="space-y-3"><input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" /><div className="flex gap-2 items-center border p-2 rounded bg-slate-50"><ScanBarcode size={16} className="text-slate-400"/><input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras (Opcional)" /></div><div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div><div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div></div><div><label className="text-xs text-slate-500 font-bold">Stock</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div><select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}<div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
         {isCategoryModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button></div><div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div><form onSubmit={handleSaveCategory} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form></div></div>)}
@@ -249,5 +255,3 @@ export default function App() {
     </div>
   );
 }
-// --- FIN DEL ARCHIVO ---
-
