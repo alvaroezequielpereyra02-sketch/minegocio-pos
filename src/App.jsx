@@ -405,7 +405,39 @@ export default function App() {
   const handleBarcodeSubmit = (e) => { e.preventDefault(); if (!barcodeInput) return; const product = products.find(p => p.barcode === barcodeInput); if (product) { addToCart(product); setBarcodeInput(''); } else { alert("Producto no encontrado."); setBarcodeInput(''); } };
   const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { if(confirm("Producto no existe. ¿Crear nuevo?")) { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); } setInventoryBarcodeInput(''); } };
   const handleAddStock = async (e) => { e.preventDefault(); const qty = parseInt(e.target.qty.value) || 0; if (scannedProduct && qty !== 0) { const newStock = scannedProduct.stock + qty; try { await updateDoc(doc(db, 'stores', appId, 'products', scannedProduct.id), { stock: newStock }); } catch(e) { alert("Error al actualizar stock"); } } setIsAddStockModalOpen(false); setScannedProduct(null); };
-  const handleExportCSV = () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds*1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},"${t.items?.map(i=>`${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); l.download = 'ventas.csv'; l.click(); };
+  
+  // --- FUNCIÓN EXPORTAR Y BORRAR HISTORIAL (NUEVA) ---
+  const handleExportCSV = async () => {
+    if (transactions.length === 0) return alert("No hay datos.");
+    
+    // 1. Generar y descargar Excel
+    const csv = ["Fecha,Cliente,Estado,Total,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds*1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},"${t.items?.map(i=>`${i.qty} ${i.name}`).join('|')}"`)).join('\n');
+    const l = document.createElement('a');
+    l.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    l.download = `ventas_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    document.body.appendChild(l);
+    l.click();
+    document.body.removeChild(l);
+
+    // 2. Preguntar si borrar historial
+    setTimeout(async () => {
+        if (confirm("⚠️ ATENCIÓN ⚠️\n\n¿Se descargó correctamente el archivo?\n\nSi deseas limpiar el sistema para un nuevo período, acepta aquí para ELIMINAR TODO EL HISTORIAL.\n\n(Esta acción no se puede deshacer)")) {
+            const password = prompt("Para confirmar, escribe: BORRAR");
+            if (password === "BORRAR") {
+                try {
+                    // Borramos uno por uno (seguro para evitar límites de batch)
+                    const promises = transactions.map(t => deleteDoc(doc(db, 'stores', appId, 'transactions', t.id)));
+                    await Promise.all(promises);
+                    alert("✅ Historial eliminado correctamente.");
+                } catch (error) {
+                    alert("Error al borrar: " + error.message);
+                }
+            } else {
+                alert("Operación cancelada. El historial no se borró.");
+            }
+        }
+    }, 1000); // Pequeña pausa para asegurar que la descarga inicie
+  };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
 
