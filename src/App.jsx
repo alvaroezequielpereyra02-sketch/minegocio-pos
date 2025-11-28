@@ -139,6 +139,26 @@ export default function App() {
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
+  // --- Cálculos de Dashboard ---
+  const stats = useMemo(() => {
+    let totalSales = 0;
+    let totalTrans = 0;
+    let inventoryValue = 0;
+
+    transactions.forEach(t => {
+      if (t.type === 'sale') {
+        totalSales += t.total;
+        totalTrans++;
+      }
+    });
+
+    products.forEach(p => {
+      inventoryValue += (p.price * p.stock);
+    });
+
+    return { totalSales, totalTrans, inventoryValue };
+  }, [transactions, products]);
+
   // --- Imágenes ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -279,7 +299,7 @@ export default function App() {
           </div>
           
           {/* Grid de Productos */}
-          <div className="flex-1 overflow-y-auto pr-2 pb-20 lg:pb-0"> {/* Padding bottom para no tapar en móvil */}
+          <div className="flex-1 overflow-y-auto pr-2 pb-20 lg:pb-0"> 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {filteredProducts.map(product => (
                 <button
@@ -341,6 +361,7 @@ export default function App() {
     );
   };
 
+  // VISTA INVENTARIO
   const renderInventory = () => (
     <div className="h-full flex flex-col pb-20 lg:pb-0">
       <div className="flex justify-between items-center mb-4">
@@ -387,6 +408,37 @@ export default function App() {
     </div>
   );
 
+  // VISTA BALANCE (DASHBOARD) - RESTAURADA
+  const renderDashboard = () => (
+    <div className="h-full overflow-y-auto pb-20 lg:pb-0">
+      <h2 className="text-xl font-bold text-slate-800 mb-6">Resumen del Negocio</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200">
+          <div className="flex items-center gap-3 mb-2 opacity-90">
+            <DollarSign className="w-5 h-5" />
+            <span className="font-medium">Ventas Totales</span>
+          </div>
+          <div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div>
+          <div className="mt-4 text-sm opacity-75 bg-blue-700 inline-block px-2 py-1 rounded">
+            {stats.totalTrans} transacciones
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <div className="flex items-center gap-3 mb-2 text-slate-500">
+            <Package className="w-5 h-5" />
+            <span className="font-medium">Valor Inventario</span>
+          </div>
+          <div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div>
+          <div className="mt-4 text-sm text-slate-400">
+            En {products.length} productos
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
 
   return (
@@ -404,6 +456,7 @@ export default function App() {
       <main className="flex-1 overflow-hidden p-4 max-w-5xl mx-auto w-full relative">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
+        {activeTab === 'dashboard' && renderDashboard()} {/* Aquí se muestra el Balance */}
         
         {activeTab === 'transactions' && (
           <div className="h-full flex flex-col pb-20 lg:pb-0">
@@ -426,20 +479,23 @@ export default function App() {
         )}
       </main>
 
-      {/* NAVEGACIÓN INFERIOR (MÓVIL) - FIXEADA ABAJO */}
+      {/* NAVEGACIÓN INFERIOR (MÓVIL) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
         <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
+        <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />
       </nav>
 
-      {/* NAVEGACIÓN ESCRITORIO (FLOTANTE) */}
+      {/* NAVEGACIÓN ESCRITORIO */}
       <div className="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-2xl border border-slate-200 gap-8 items-center z-50">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
         <div className="w-px h-6 bg-slate-200"></div>
         <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" />
         <div className="w-px h-6 bg-slate-200"></div>
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
+        <div className="w-px h-6 bg-slate-200"></div>
+        <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="Balance" />
       </div>
 
       {/* MODAL PRODUCTO */}
