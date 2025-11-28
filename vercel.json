@@ -29,5 +29,19 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/manifest.json",
+      "destination": "/manifest.json"
+    },
+    {
+      "source": "/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/logo192.png",
+      "destination": "/logo192.png"
+    }
   ]
 }
