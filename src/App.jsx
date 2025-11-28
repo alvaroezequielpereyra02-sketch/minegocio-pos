@@ -61,12 +61,12 @@ export default function App() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false); // Modal Editar Transacción
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [editingTransaction, setEditingTransaction] = useState(null); // Transacción a editar
+  const [editingTransaction, setEditingTransaction] = useState(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -120,14 +120,76 @@ export default function App() {
   const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if(role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
   const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
   
+  // --- IMPRESIÓN PDF CORREGIDA ---
   const handlePrintTicket = (transaction) => { 
+    if (!transaction) return;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
-    const printWindow = window.open('', '', 'width=350,height=600');
-    printWindow.document.write(`<html><head><style>body{font-family:monospace;padding:20px;font-size:12px;text-align:center}</style></head><body><h3>Ticket</h3><p>${date}</p><p>Estado: ${statusText}</p><hr/>${transaction.items.map(i=>`<div>${i.qty} x ${i.name} - $${i.price*i.qty}</div>`).join('')}<hr/><h3>Total: $${transaction.total}</h3><script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}</script></body></html>`);
-    printWindow.document.close();
+    
+    // Abrir ventana en blanco
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert("Por favor permite las ventanas emergentes (pop-ups)"); return; }
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Ticket #${transaction.id.slice(0,5)}</title>
+          <style>
+            body { font-family: 'Courier New', monospace; padding: 20px; font-size: 12px; width: 100%; max-width: 300px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+            .title { font-size: 16px; font-weight: bold; }
+            table { width: 100%; margin-bottom: 10px; border-collapse: collapse; }
+            th { text-align: left; border-bottom: 1px solid #000; }
+            td { padding: 4px 0; }
+            .total { text-align: right; font-size: 14px; font-weight: bold; border-top: 1px dashed #000; padding-top: 5px; }
+            .status { text-align: center; font-weight: bold; margin: 10px 0; border: 1px solid #000; padding: 5px; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">MiNegocio POS</div>
+            <div>Comprobante de Venta</div>
+          </div>
+          <div>
+            Fecha: ${date}<br/>
+            Cliente: ${transaction.clientName || 'Consumidor Final'}
+          </div>
+          <div class="status">ESTADO: ${statusText}</div>
+          <br/>
+          <table>
+            <thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead>
+            <tbody>
+              ${transaction.items.map(i => `
+                <tr>
+                  <td>${i.qty}</td>
+                  <td>${i.name}</td>
+                  <td style="text-align:right">$${i.price * i.qty}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total">TOTAL: $${transaction.total}</div>
+          ${transaction.paymentNote ? `<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>` : ''}
+          <div class="footer">¡Gracias por su compra!</div>
+          <script>
+            // Esperar a que cargue y luego imprimir
+            window.onload = function() { 
+                setTimeout(function() { 
+                    window.print();
+                    // NO cerramos la ventana automáticamente para permitir guardar PDF en móviles
+                }, 500); 
+            }
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close(); 
   };
 
+  // --- CARRITO ---
   const addToCart = (product) => { if (product.stock <= 0) return; setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); };
   const updateCartQty = (id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id));
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
@@ -139,42 +201,40 @@ export default function App() {
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; 
     else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
     
-    // Por defecto, nueva venta es PAGADA si no se dice lo contrario
-    const saleData = { 
-        type: 'sale', 
-        total: cartTotal, 
-        items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), 
-        date: serverTimestamp(), 
-        clientId: finalClient.id, 
-        clientName: finalClient.name, 
-        clientRole: finalClient.role, 
-        sellerId: user.uid,
-        paymentStatus: 'paid', // paid, pending, partial
-        paymentNote: ''
-    }; 
+    const saleData = { type: 'sale', total: cartTotal, items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'paid', paymentNote: '' }; 
     
     try { 
         const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); 
-        for (const item of cart) { 
-            const p = products.find(prod => prod.id === item.id); 
-            if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: Math.max(0, p.stock - item.qty) }); 
-        } 
+        for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: Math.max(0, p.stock - item.qty) }); } 
         setCart([]); setSelectedCustomer(null); setCustomerSearch(''); 
         setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); 
         setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000);
     } catch (error) { alert("Error venta."); } 
   };
 
-  // --- NUEVO: GESTIÓN DE ESTADO DE PAGO ---
+  // --- ACTUALIZAR TRANSACCIÓN (ESTADO + ITEMS) ---
   const handleUpdateTransaction = async (e) => {
     e.preventDefault();
     if (!editingTransaction) return;
     const form = e.target;
     
+    // Recopilar items editados
+    const updatedItems = editingTransaction.items.map((item, index) => ({
+        ...item,
+        name: form[`item_name_${index}`].value,
+        qty: parseInt(form[`item_qty_${index}`].value),
+        price: parseFloat(form[`item_price_${index}`].value)
+    }));
+
+    // Recalcular total automáticamente
+    const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+
     try {
         await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), {
             paymentStatus: form.paymentStatus.value,
-            paymentNote: form.paymentNote.value
+            paymentNote: form.paymentNote.value,
+            items: updatedItems,
+            total: newTotal
         });
         setIsTransactionModalOpen(false);
         setEditingTransaction(null);
@@ -197,7 +257,7 @@ export default function App() {
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
 
-  if (!user || !userData) { /* Login Form igual */
+  if (!user || !userData) { 
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
@@ -221,9 +281,7 @@ export default function App() {
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
             <div className="text-sm font-bold">{userData.name}</div>
-            <div className={`text-xs px-2 py-0.5 rounded-full inline-block ${userData.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                {userData.role === 'admin' ? 'Admin' : 'Cliente'}
-            </div>
+            <div className={`text-xs px-2 py-0.5 rounded-full inline-block ${userData.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{userData.role === 'admin' ? 'Admin' : 'Cliente'}</div>
           </div>
           <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 lg:hidden"><Menu size={20}/></button>
           <button onClick={handleLogout} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 hidden lg:block"><LogOut size={18}/></button>
@@ -255,7 +313,6 @@ export default function App() {
         {activeTab === 'customers' && userData.role === 'admin' && (<div className="h-full flex flex-col pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
         {activeTab === 'dashboard' && userData.role === 'admin' && (<div className="h-full overflow-y-auto pb-20 lg:pb-0"><h2 className="text-xl font-bold text-slate-800 mb-6">Balance</h2><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg"><div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div><div className="opacity-80 text-sm">Ventas Pagadas</div></div><div className="bg-white rounded-2xl p-6 shadow-sm border"><div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div><div className="text-slate-500 text-sm">Valor Stock</div></div></div></div>)}
         
-        {/* VISTA HISTORIAL MEJORADA CON ESTADOS */}
         {activeTab === 'transactions' && (
           <div className="h-full flex flex-col pb-20 lg:pb-0">
              <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold">Historial</h2>{userData.role === 'admin' && <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>}</div>
@@ -264,29 +321,16 @@ export default function App() {
                  <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 text-sm">
                    <div>
                      <p className="font-medium">{t.clientName || 'Anónimo'} <span className="text-slate-400 font-normal ml-2">{new Date(t.date?.seconds * 1000).toLocaleTimeString()}</span></p>
-                     
-                     {/* INDICADOR DE ESTADO DE PAGO */}
                      <div className="flex gap-2 items-center mt-1">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase 
-                            ${!t.paymentStatus || t.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 
-                              t.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
-                            {t.paymentStatus === 'partial' ? 'Parcial' : t.paymentStatus === 'pending' ? 'Pendiente' : 'Pagado'}
-                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${!t.paymentStatus || t.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : t.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{t.paymentStatus === 'partial' ? 'Parcial' : t.paymentStatus === 'pending' ? 'Pendiente' : 'Pagado'}</span>
                         {t.paymentNote && <span className="text-xs text-slate-500 italic"> - {t.paymentNote}</span>}
                      </div>
-
                      <p className="text-xs text-slate-500 truncate w-48 mt-1">{t.items?.map(i => `${i.qty} ${i.name}`).join(', ')}</p>
                    </div>
                    <div className="flex items-center gap-2">
                      <div className="font-bold text-slate-800">${t.total}</div>
-                     {userData.role === 'admin' && (
-                        <button onClick={() => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} className="p-2 bg-slate-100 rounded-full hover:bg-blue-100 text-blue-600" title="Editar Estado">
-                            <Edit size={14} />
-                        </button>
-                     )}
-                     <button onClick={() => handlePrintTicket(t)} className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-green-600" title="Imprimir">
-                        <Printer size={14} />
-                     </button>
+                     {userData.role === 'admin' && (<button onClick={() => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} className="p-2 bg-slate-100 rounded-full hover:bg-blue-100 text-blue-600"><Edit size={14} /></button>)}
+                     <button onClick={() => handlePrintTicket(t)} className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-green-600"><Printer size={14} /></button>
                    </div>
                  </div>
                ))}
@@ -303,38 +347,48 @@ export default function App() {
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
       </nav>
 
-      {/* MODAL PARA EDITAR ESTADO DE PAGO (NUEVO) */}
-      {isTransactionModalOpen && userData.role === 'admin' && (
+      {/* MODAL EDICIÓN BOLETA (MEJORADO CON ITEMS) */}
+      {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[102] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
-                <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-lg">Estado de Pago</h3>
-                    <button onClick={() => setIsTransactionModalOpen(false)}><X size={20}/></button>
-                </div>
-                <div className="text-sm text-slate-500 mb-4">
-                    Cliente: <strong>{editingTransaction?.clientName}</strong><br/>
-                    Total: <strong>${editingTransaction?.total}</strong>
-                </div>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Editar Boleta</h3><button onClick={() => setIsTransactionModalOpen(false)}><X size={20}/></button></div>
+                
                 <form onSubmit={handleUpdateTransaction} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Estado Actual</label>
-                        <select name="paymentStatus" defaultValue={editingTransaction?.paymentStatus || 'paid'} className="w-full p-2 border rounded bg-white">
-                            <option value="paid">✅ Pagado</option>
-                            <option value="pending">❌ Pendiente (Fiado)</option>
-                            <option value="partial">⚠️ Pago Parcial</option>
-                        </select>
+                    {/* Sección Items */}
+                    <div className="bg-slate-50 p-3 rounded-lg border">
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Productos</label>
+                        {editingTransaction.items.map((item, index) => (
+                            <div key={index} className="flex gap-2 mb-2 items-center">
+                                <input name={`item_qty_${index}`} defaultValue={item.qty} type="number" className="w-12 p-1 border rounded text-center text-sm" />
+                                <input name={`item_name_${index}`} defaultValue={item.name} className="flex-1 p-1 border rounded text-sm" />
+                                <span className="text-xs text-slate-400">$</span>
+                                <input name={`item_price_${index}`} defaultValue={item.price} type="number" className="w-20 p-1 border rounded text-sm text-right" />
+                            </div>
+                        ))}
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nota (Opcional)</label>
-                        <input name="paymentNote" defaultValue={editingTransaction?.paymentNote || ''} className="w-full p-2 border rounded text-sm" placeholder="Ej: Abonó $500, debe $200" />
+
+                    {/* Sección Estado */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                            <select name="paymentStatus" defaultValue={editingTransaction?.paymentStatus || 'paid'} className="w-full p-2 border rounded bg-white text-sm">
+                                <option value="paid">✅ Pagado</option>
+                                <option value="pending">❌ Pendiente</option>
+                                <option value="partial">⚠️ Parcial</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Nota</label>
+                            <input name="paymentNote" defaultValue={editingTransaction?.paymentNote || ''} className="w-full p-2 border rounded text-sm" />
+                        </div>
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded">Guardar Cambios</button>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button>
                 </form>
             </div>
         </div>
       )}
 
-      {/* Modales anteriores (Producto, Categoria, Cliente) se mantienen igual */}
+      {/* Modales Clásicos... */}
       {isProductModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[102] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]"><h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3><form onSubmit={handleSaveProduct} className="space-y-3"><input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" /><div className="flex gap-2"><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-1/2 p-2 border rounded" placeholder="Precio" /><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-1/2 p-2 border rounded" placeholder="Stock" /></div><select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}<div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
       {isCategoryModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[102] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button></div><div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div><form onSubmit={handleSaveCategory} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form></div></div>)}
       {isCustomerModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[102] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl"><h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3><form onSubmit={handleSaveCustomer} className="space-y-3"><input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" /><input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" /><input required name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" /><input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email (Opcional)" /><div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsCustomerModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
