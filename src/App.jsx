@@ -61,7 +61,7 @@ function NavButton({ active, onClick, icon, label }) {
 }
 
 // --- APP PRINCIPAL ---
-export default function App() 
+export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -424,4 +424,3 @@ export default function App()
     </div>
   );
 }
-
