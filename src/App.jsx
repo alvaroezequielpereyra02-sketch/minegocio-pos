@@ -207,7 +207,16 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
+  const handleLogout = () => {
+    // Agregamos la confirmación antes de cerrar la sesión
+    const confirmed = confirm("⚠️ ¿Estás seguro de que quieres cerrar la sesión?\n\nPerderás el acceso hasta que vuelvas a iniciar sesión.");
+    
+    if (confirmed) {
+      signOut(auth);
+      setCart([]);
+      setUserData(null);
+    }
+  };
 
 // --- FUNCIÓN WHATSAPP AVANZADA (WEB SHARE API) ---
   const handleShareWhatsApp = async (transaction) => {
@@ -555,3 +564,4 @@ export default function App() {
     </div>
   );
 }
+
