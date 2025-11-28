@@ -47,7 +47,7 @@ const db = getFirestore(app);
 const appId = 'tienda-principal';
 const ADMIN_SECRET_CODE = 'ADMIN123';
 
-// --- COMPONENTE AUXILIAR (Movido al principio para evitar errores de cierre) ---
+// --- COMPONENTE AUXILIAR ---
 function NavButton({ active, onClick, icon, label }) {
   return (
     <button 
@@ -60,7 +60,7 @@ function NavButton({ active, onClick, icon, label }) {
   );
 }
 
-// --- COMPONENTE PRINCIPAL ---
+// --- APP PRINCIPAL ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -201,7 +201,7 @@ export default function App() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) { alert("Permite pop-ups para imprimir"); return; }
 
-    const htmlContent = `<html><head><title>Ticket</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
+    const htmlContent = `<html><head><title>Ticket #${transaction.id.slice(0,5)}</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
     
     printWindow.document.write(htmlContent);
     printWindow.document.close(); 
@@ -237,9 +237,11 @@ export default function App() {
 
   const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
 
-  // --- CRUD ---
+  // --- CRUD GASTOS ---
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error al guardar gasto"); } };
   const handleDeleteExpense = async (id) => { if(confirm("¿Eliminar gasto?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
+
+  // --- CRUD GENERAL ---
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
   const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if(editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e){alert("Error");} };
   const handleSaveCategory = async (e) => { if(e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
