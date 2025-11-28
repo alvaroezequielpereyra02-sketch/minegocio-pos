@@ -26,7 +26,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, 
   Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, 
   Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu,
-  Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, Calculator, Box
+  Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, Calculator, Box, Wallet
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -58,6 +58,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [expenses, setExpenses] = useState([]); // NUEVO: Gastos
   const [cart, setCart] = useState([]);
   
   // Modales
@@ -66,7 +67,8 @@ export default function App() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
-  const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false); // NUEVO: Modal Stock
+  const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false); // NUEVO: Modal Gasto
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState(null);
@@ -84,9 +86,8 @@ export default function App() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
 
-  // Scanner States
-  const [barcodeInput, setBarcodeInput] = useState(''); // Scanner Venta
-  const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState(''); // Scanner Stock
+  const [barcodeInput, setBarcodeInput] = useState(''); 
+  const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState(''); 
   const [scannedProduct, setScannedProduct] = useState(null);
   const quantityInputRef = useRef(null);
 
@@ -123,6 +124,10 @@ export default function App() {
     const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (snap) => setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (snap) => setCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    
+    // GASTOS (NUEVO)
+    const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+
     const unsubTrans = onSnapshot(collection(db, 'stores', appId, 'transactions'), (snapshot) => {
       let items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (userData.role !== 'admin') items = items.filter(t => t.clientId === user.uid);
@@ -130,55 +135,63 @@ export default function App() {
       setTransactions(items);
     });
 
-    return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); };
+    return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
   }, [user, userData]);
 
-  // --- ESCÁNER VENTA (POS) ---
-  const handleBarcodeSubmit = (e) => {
-    e.preventDefault();
-    if (!barcodeInput) return;
-    const product = products.find(p => p.barcode === barcodeInput);
-    if (product) {
-        addToCart(product); // AGREGAR 1 DIRECTAMENTE
-        setBarcodeInput('');
-    } else {
-        alert("Producto no encontrado.");
-        setBarcodeInput('');
-    }
-  };
+  // --- CÁLCULOS AVANZADOS BALANCE ---
+  const balance = useMemo(() => {
+    let salesPaid = 0;
+    let salesPending = 0;
+    let salesPartial = 0;
+    let costOfGoodsSold = 0; // Costo de lo que se vendió (y se cobró)
+    let inventoryValue = 0;
+    let totalExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
 
-  // --- ESCÁNER STOCK (INVENTARIO) ---
-  const handleInventoryBarcodeSubmit = (e) => {
-    e.preventDefault();
-    if (!inventoryBarcodeInput) return;
-    const product = products.find(p => p.barcode === inventoryBarcodeInput);
-    if (product) {
-        setScannedProduct(product);
-        setIsAddStockModalOpen(true);
-        setTimeout(() => quantityInputRef.current?.focus(), 100);
-        setInventoryBarcodeInput('');
-    } else {
-        if(confirm("Producto no existe. ¿Crear nuevo?")) {
-            setEditingProduct({ barcode: inventoryBarcodeInput });
-            setIsProductModalOpen(true);
+    // Ventas
+    transactions.forEach(t => {
+      if (t.type === 'sale') {
+        if (t.paymentStatus === 'paid') {
+            salesPaid += t.total;
+            // Sumar costo de productos vendidos en esta boleta
+            if (t.items) {
+                t.items.forEach(item => {
+                    costOfGoodsSold += (item.cost || 0) * item.qty;
+                });
+            }
+        } else if (t.paymentStatus === 'pending') {
+            salesPending += t.total;
+        } else if (t.paymentStatus === 'partial') {
+            salesPartial += t.total; // Simplificación: asume total pendiente, idealmente sería campo 'pagado'
         }
-        setInventoryBarcodeInput('');
-    }
-  };
-
-  const handleAddStock = async (e) => {
-      e.preventDefault();
-      const qty = parseInt(e.target.qty.value) || 0;
-      if (scannedProduct && qty !== 0) {
-          const newStock = scannedProduct.stock + qty;
-          try {
-            await updateDoc(doc(db, 'stores', appId, 'products', scannedProduct.id), { stock: newStock });
-            // alert(`Stock actualizado a ${newStock}`);
-          } catch(e) { alert("Error al actualizar stock"); }
       }
-      setIsAddStockModalOpen(false);
-      setScannedProduct(null);
-  };
+    });
+
+    // Inventario
+    products.forEach(p => {
+      inventoryValue += (p.price * p.stock);
+    });
+
+    // Ganancia Bruta (Ventas - Costo Mercadería)
+    const grossProfit = salesPaid - costOfGoodsSold;
+    
+    // Ganancia Neta (Bruta - Gastos Operativos)
+    const netProfit = grossProfit - totalExpenses;
+
+    // Valor por Categoría
+    const categoryValues = {};
+    products.forEach(p => {
+        const catName = categories.find(c => c.id === p.categoryId)?.name || 'Sin Categoría';
+        if (!categoryValues[catName]) categoryValues[catName] = 0;
+        categoryValues[catName] += (p.price * p.stock);
+    });
+
+    return { 
+        salesPaid, salesPending, salesPartial, 
+        inventoryValue, totalExpenses, 
+        grossProfit, netProfit, 
+        categoryValues 
+    };
+  }, [transactions, products, expenses, categories]);
 
   // --- ACTIONS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
@@ -196,20 +209,10 @@ export default function App() {
     printWindow.document.close(); 
   };
 
-  const handleUpdateStore = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || '');
-    try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); }
-  };
+  const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
 
   // --- CARRITO ---
-  const addToCart = (product) => { 
-    setCart(prev => { 
-        const existing = prev.find(item => item.id === product.id); 
-        return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; 
-    }); 
-  };
+  const addToCart = (product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); };
   const updateCartQty = (id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id));
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
@@ -219,23 +222,48 @@ export default function App() {
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' }; 
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; 
     else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
-    const saleData = { type: 'sale', total: cartTotal, items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
+    // Guardar Costo también para calcular ganancia futura
+    const itemsWithCost = cart.map(i => {
+        const originalProduct = products.find(p => p.id === i.id);
+        return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
+    });
+
+    const saleData = { type: 'sale', total: cartTotal, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
     try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
   };
 
   const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value) })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
 
-  // --- CRUD ---
+  // --- CRUD GASTOS ---
+  const handleSaveExpense = async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      try {
+          await addDoc(collection(db, 'stores', appId, 'expenses'), {
+              description: form.description.value,
+              amount: parseFloat(form.amount.value),
+              date: serverTimestamp()
+          });
+          setIsExpenseModalOpen(false);
+      } catch (error) { alert("Error al guardar gasto"); }
+  };
+  const handleDeleteExpense = async (id) => { if(confirm("¿Eliminar gasto?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
+
+  // --- CRUD GENERAL ---
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
   const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if(editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e){alert("Error");} };
-  const handleDeleteCustomer = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'customers', id)); };
-  const handleFileChange = (e) => { const f = e.target.files[0]; if (f && f.size <= 800000) { const r = new FileReader(); r.onloadend = () => setPreviewImage(r.result); r.readAsDataURL(f); } };
-  const handleExportCSV = () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds*1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},"${t.items?.map(i=>`${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); l.download = 'ventas.csv'; l.click(); };
   const handleSaveCategory = async (e) => { if(e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
   const handleDeleteProduct = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'products', id)); };
   const handleDeleteCategory = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'categories', id)); };
-  const stats = useMemo(() => { let s=0, t=0, v=0; transactions.forEach(x=>{if(x.type==='sale' && x.paymentStatus === 'paid'){s+=x.total;t++}}); products.forEach(p=>v+=p.price*p.stock); return {totalSales:s, totalTrans:t, inventoryValue:v}; }, [transactions, products]);
+  const handleDeleteCustomer = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'customers', id)); };
+  const handleFileChange = (e) => { const f = e.target.files[0]; if (f && f.size <= 800000) { const r = new FileReader(); r.onloadend = () => setPreviewImage(r.result); r.readAsDataURL(f); } };
   const handleOpenModal = (p = null) => { setEditingProduct(p); setPreviewImage(p?.imageUrl||''); setImageMode(p?.imageUrl?.startsWith('data:')?'file':'link'); setIsProductModalOpen(true); };
+  
+  // Scanner
+  const handleBarcodeSubmit = (e) => { e.preventDefault(); if (!barcodeInput) return; const product = products.find(p => p.barcode === barcodeInput); if (product) { addToCart(product); setBarcodeInput(''); } else { alert("Producto no encontrado."); setBarcodeInput(''); } };
+  const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { if(confirm("Producto no existe. ¿Crear nuevo?")) { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); } setInventoryBarcodeInput(''); } };
+  const handleAddStock = async (e) => { e.preventDefault(); const qty = parseInt(e.target.qty.value) || 0; if (scannedProduct && qty !== 0) { const newStock = scannedProduct.stock + qty; try { await updateDoc(doc(db, 'stores', appId, 'products', scannedProduct.id), { stock: newStock }); } catch(e) { alert("Error al actualizar stock"); } } setIsAddStockModalOpen(false); setScannedProduct(null); };
+  const handleExportCSV = () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds*1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},"${t.items?.map(i=>`${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); l.download = 'ventas.csv'; l.click(); };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
 
@@ -243,7 +271,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden">
-      {/* HEADER */}
       <header className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16 relative">
         <button onClick={() => userData.role === 'admin' && setIsStoreModalOpen(true)} className={`flex items-center gap-3 font-bold text-xl text-slate-800 truncate ${userData.role === 'admin' ? 'hover:bg-slate-50 rounded-lg p-1 -ml-1 transition-colors cursor-pointer group' : ''}`}>
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white flex-shrink-0 overflow-hidden shadow-sm relative">{storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" /> : <Store size={20}/>}</div>
@@ -264,7 +291,6 @@ export default function App() {
             <div className="flex-1 flex flex-col min-h-0">
               <div className="mb-3 flex gap-2">
                 <div className="relative flex-1"><Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Buscar por nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                {/* SCANNER VENTA */}
                 <form onSubmit={handleBarcodeSubmit} className="relative w-48 hidden sm:block"><ScanBarcode className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white" placeholder="Escanear..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} autoFocus/></form>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide"><button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>Todos</button>{categories.map(cat => (<button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-white border'}`}>{cat.name}</button>))}</div>
@@ -290,7 +316,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VISTA INVENTARIO (CON SCANNER STOCK) */}
+        {/* VISTA INVENTARIO */}
         {activeTab === 'inventory' && userData.role === 'admin' && (
           <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
@@ -300,13 +326,10 @@ export default function App() {
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
               </div>
             </div>
-            
-            {/* SCANNER STOCK + BUSCADOR */}
             <div className="mb-4 flex gap-2">
                 <div className="relative flex-1"><Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Buscar para editar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                 <form onSubmit={handleInventoryBarcodeSubmit} className="relative w-48 hidden sm:block"><ScanBarcode className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-green-500 outline-none bg-green-50" placeholder="Entrada Stock..." value={inventoryBarcodeInput} onChange={(e) => setInventoryBarcodeInput(e.target.value)} autoFocus/></form>
             </div>
-            
             <div className="flex-1 overflow-y-auto pr-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(product => (
@@ -330,11 +353,106 @@ export default function App() {
           </div>
         )}
 
-        {/* VISTA HISTORIAL MEJORADA (SECCIONES + FILTRO) */}
+        {/* VISTA BALANCE (MEJORADA CON GASTOS Y GRÁFICOS) */}
+        {activeTab === 'dashboard' && userData.role === 'admin' && (
+          <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                <h2 className="text-xl font-bold text-slate-800">Balance Financiero</h2>
+                <button onClick={() => setIsExpenseModalOpen(true)} className="bg-red-100 text-red-600 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold hover:bg-red-200">
+                    <Wallet size={16}/> Registrar Gasto
+                </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                {/* TARJETAS PRINCIPALES */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-l-4 border-l-green-500">
+                        <div className="text-slate-500 text-xs font-bold uppercase mb-1">Ventas Cobradas</div>
+                        <div className="text-2xl font-bold text-green-700">${balance.salesPaid.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-l-4 border-l-orange-500">
+                        <div className="text-slate-500 text-xs font-bold uppercase mb-1">Por Cobrar (Pendiente)</div>
+                        <div className="text-2xl font-bold text-orange-600">${balance.salesPending.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-l-4 border-l-red-500">
+                        <div className="text-slate-500 text-xs font-bold uppercase mb-1">Gastos Operativos</div>
+                        <div className="text-2xl font-bold text-red-600">-${balance.totalExpenses.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl shadow-lg text-white">
+                        <div className="text-slate-400 text-xs font-bold uppercase mb-1">Ganancia Neta Real</div>
+                        <div className="text-2xl font-bold text-emerald-400">${balance.netProfit.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">Despúes de costos y gastos</div>
+                    </div>
+                </div>
+
+                {/* GRÁFICO DE BARRAS SIMPLE (CSS) */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border">
+                    <h3 className="font-bold text-slate-700 mb-4">Distribución de Ventas</h3>
+                    <div className="flex items-end gap-4 h-32">
+                        {/* Barra Pagado */}
+                        <div className="flex-1 flex flex-col justify-end items-center gap-2 h-full">
+                            <div className="w-full bg-green-100 rounded-t-lg relative group transition-all hover:bg-green-200" style={{height: `${Math.min(100, (balance.salesPaid / (balance.salesPaid + balance.salesPending + 1)) * 100)}%`}}>
+                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-green-700 opacity-0 group-hover:opacity-100">${balance.salesPaid}</div>
+                            </div>
+                            <span className="text-xs text-slate-500 font-bold">Pagado</span>
+                        </div>
+                        {/* Barra Pendiente */}
+                        <div className="flex-1 flex flex-col justify-end items-center gap-2 h-full">
+                            <div className="w-full bg-orange-100 rounded-t-lg relative group transition-all hover:bg-orange-200" style={{height: `${Math.min(100, (balance.salesPending / (balance.salesPaid + balance.salesPending + 1)) * 100)}%`}}>
+                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-orange-700 opacity-0 group-hover:opacity-100">${balance.salesPending}</div>
+                            </div>
+                            <span className="text-xs text-slate-500 font-bold">Pendiente</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* LISTA DE VALOR POR CATEGORÍA */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border">
+                        <h3 className="font-bold text-slate-700 mb-4">Valor de Stock por Categoría</h3>
+                        <div className="space-y-3">
+                            {Object.entries(balance.categoryValues).map(([cat, val]) => (
+                                <div key={cat} className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-600">{cat}</span>
+                                    <span className="font-bold text-slate-800">${val.toLocaleString()}</span>
+                                </div>
+                            ))}
+                            <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                                <span>Total Inventario</span>
+                                <span>${balance.inventoryValue.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* LISTA DE ÚLTIMOS GASTOS */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border">
+                        <h3 className="font-bold text-slate-700 mb-4">Últimos Gastos</h3>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {expenses.map(exp => (
+                                <div key={exp.id} className="flex justify-between text-sm p-2 hover:bg-slate-50 rounded">
+                                    <div>
+                                        <div className="font-medium text-slate-700">{exp.description}</div>
+                                        <div className="text-xs text-slate-400">{new Date(exp.date?.seconds * 1000).toLocaleDateString()}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-red-500">-${exp.amount}</span>
+                                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={12}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {expenses.length === 0 && <p className="text-xs text-slate-400 text-center">Sin gastos registrados</p>}
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+        )}
+
+        {/* ... Resto de Vistas ... */}
+        {activeTab === 'customers' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
         {activeTab === 'transactions' && (
           <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
              <div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Historial</h2>{userData.role === 'admin' && <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>}</div>
-             
              {historySection === 'menu' ? (
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 overflow-y-auto">
                      <button onClick={() => setHistorySection('paid')} className="bg-green-50 border border-green-200 p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-green-100 transition-all shadow-sm"><div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white mb-4"><CheckCircle size={32}/></div><h3 className="text-xl font-bold text-green-800">Pagados</h3><p className="text-sm text-green-600">Ventas completadas</p></button>
@@ -343,27 +461,12 @@ export default function App() {
                  </div>
              ) : (
                  <div className="flex-1 flex flex-col min-h-0 bg-white rounded-xl shadow-sm border overflow-hidden">
-                     <div className={`p-4 flex items-center gap-4 border-b ${historySection === 'paid' ? 'bg-green-50' : historySection === 'pending' ? 'bg-red-50' : 'bg-orange-50'}`}>
-                         <button onClick={() => setHistorySection('menu')} className="p-2 bg-white rounded-full shadow-sm hover:scale-105 transition-transform"><ArrowLeft size={20}/></button>
-                         <h3 className="text-lg font-bold capitalize">{historySection === 'paid' ? 'Pagados' : historySection === 'pending' ? 'Pendientes' : 'Parciales'}</h3>
-                     </div>
-                     <div className="flex-1 overflow-y-auto divide-y">
-                        {transactions.filter(t => (t.paymentStatus || 'pending') === historySection).map(t => (
-                            <div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                                <div><p className="font-medium">{t.clientName || 'Anónimo'} <span className="text-slate-400 font-normal ml-2">{new Date(t.date?.seconds * 1000).toLocaleTimeString()}</span></p><p className="text-xs text-slate-500 truncate w-48 mt-1">{t.items?.map(i => `${i.qty} ${i.name}`).join(', ')}</p>{t.paymentNote && <p className="text-xs text-slate-500 italic mt-1 bg-slate-100 inline-block px-1 rounded">{t.paymentNote}</p>}</div>
-                                <div className="flex items-center gap-2"><div className="font-bold text-slate-800">${t.total}</div>{userData.role === 'admin' && (<button onClick={() => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} className="p-2 bg-slate-100 rounded-full hover:bg-blue-100 text-blue-600"><Edit size={14} /></button>)}<button onClick={() => handlePrintTicket(t)} className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-green-600"><Printer size={14} /></button></div>
-                            </div>
-                        ))}
-                        {transactions.filter(t => (t.paymentStatus || 'pending') === historySection).length === 0 && (<div className="p-10 text-center text-slate-400">No hay boletas en esta sección.</div>)}
-                     </div>
+                     <div className={`p-4 flex items-center gap-4 border-b ${historySection === 'paid' ? 'bg-green-50' : historySection === 'pending' ? 'bg-red-50' : 'bg-orange-50'}`}><button onClick={() => setHistorySection('menu')} className="p-2 bg-white rounded-full shadow-sm hover:scale-105 transition-transform"><ArrowLeft size={20}/></button><h3 className="text-lg font-bold capitalize">{historySection === 'paid' ? 'Pagados' : historySection === 'pending' ? 'Pendientes' : 'Parciales'}</h3></div>
+                     <div className="flex-1 overflow-y-auto divide-y">{transactions.filter(t => (t.paymentStatus || 'pending') === historySection).map(t => (<div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><div><p className="font-medium">{t.clientName || 'Anónimo'} <span className="text-slate-400 font-normal ml-2">{new Date(t.date?.seconds * 1000).toLocaleTimeString()}</span></p><p className="text-xs text-slate-500 truncate w-48 mt-1">{t.items?.map(i => `${i.qty} ${i.name}`).join(', ')}</p>{t.paymentNote && <p className="text-xs text-slate-500 italic mt-1 bg-slate-100 inline-block px-1 rounded">{t.paymentNote}</p>}</div><div className="flex items-center gap-2"><div className="font-bold text-slate-800">${t.total}</div>{userData.role === 'admin' && (<button onClick={() => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} className="p-2 bg-slate-100 rounded-full hover:bg-blue-100 text-blue-600"><Edit size={14} /></button>)}<button onClick={() => handlePrintTicket(t)} className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-green-600"><Printer size={14} /></button></div></div>))}</div>
                  </div>
              )}
           </div>
         )}
-
-        {/* ... Resto de Vistas ... */}
-        {activeTab === 'customers' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
-        {activeTab === 'dashboard' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><h2 className="text-xl font-bold text-slate-800 mb-6 flex-shrink-0">Balance</h2><div className="flex-1 overflow-y-auto"><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg"><div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div><div className="opacity-80 text-sm">Ventas Pagadas</div></div><div className="bg-white rounded-2xl p-6 shadow-sm border"><div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div><div className="text-slate-500 text-sm">Valor Stock</div></div></div></div></div>)}
       </main>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-[50] shadow-lg">
@@ -374,60 +477,36 @@ export default function App() {
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
       </nav>
 
-      {/* MODAL CANTIDAD STOCK (NUEVO) */}
-      {isAddStockModalOpen && scannedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[105] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
-                <div className="flex items-center gap-3 justify-center mb-2">
-                    <Box size={32} className="text-blue-600"/>
-                    <h3 className="font-bold text-lg text-slate-800">Entrada de Mercadería</h3>
-                </div>
-                <div className="bg-slate-100 p-3 rounded-lg">
-                    <div className="font-bold text-lg">{scannedProduct.name}</div>
-                    <div className="text-sm text-slate-500">Stock Actual: {scannedProduct.stock}</div>
-                </div>
-                <form onSubmit={handleAddStock}>
-                    <label className="block text-sm text-slate-500 mb-2">¿Cuántas unidades ingresan?</label>
-                    <input ref={quantityInputRef} name="qty" type="number" defaultValue="1" min="1" className="w-32 p-3 border-2 border-blue-500 rounded-lg text-center text-2xl font-bold mx-auto block mb-4" />
-                    <div className="flex gap-2">
-                        <button type="button" onClick={()=>{setIsAddStockModalOpen(false); setScannedProduct(null);}} className="flex-1 py-3 text-slate-500 font-bold bg-slate-100 rounded-lg">Cancelar</button>
-                        <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg">Confirmar</button>
-                    </div>
+      {/* MODAL GASTOS (NUEVO) */}
+      {isExpenseModalOpen && userData.role === 'admin' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-red-600">Registrar Gasto</h3><button onClick={() => setIsExpenseModalOpen(false)}><X size={20}/></button></div>
+                <form onSubmit={handleSaveExpense} className="space-y-3">
+                    <label className="block text-sm text-slate-500">Descripción</label>
+                    <input name="description" required className="w-full p-2 border rounded" placeholder="Ej: Combustible, Luz..." />
+                    <label className="block text-sm text-slate-500">Monto</label>
+                    <input name="amount" type="number" required className="w-full p-2 border rounded text-red-600 font-bold" placeholder="0.00" />
+                    <button type="submit" className="w-full bg-red-600 text-white font-bold py-2 rounded">Guardar Gasto</button>
                 </form>
             </div>
         </div>
       )}
 
-      {/* MODALES CLÁSICOS */}
-      {isProductModalOpen && userData.role === 'admin' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
-                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>{editingProduct && <button onClick={() => handleDeleteProduct(editingProduct.id)} className="text-red-500 text-sm underline">Eliminar</button>}</div>
-                <form onSubmit={handleSaveProduct} className="space-y-3">
-                    <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
-                    {/* INPUT BARCODE */}
-                    <div className="flex gap-2 items-center border p-2 rounded bg-slate-50">
-                        <ScanBarcode size={16} className="text-slate-400"/>
-                        <input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras (Opcional)" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div>
-                        <div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div>
-                    </div>
-                    <div><label className="text-xs text-slate-500 font-bold">Stock</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div>
-                    <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                    <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
-                    <div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
-                </form>
-            </div>
-        </div>
-      )}
-      {isCategoryModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button></div><div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div><form onSubmit={handleSaveCategory} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form></div></div>)}
-      {isCustomerModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl"><h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3><form onSubmit={handleSaveCustomer} className="space-y-3"><input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" /><input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" /><input required name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" /><input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email (Opcional)" /><div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsCustomerModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
-      {isStoreModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={() => setIsStoreModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateStore} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>)}
+      {/* MODAL EDICIÓN BOLETA */}
       {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Editar Boleta</h3><button onClick={() => setIsTransactionModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateTransaction} className="space-y-4"><div className="bg-slate-50 rounded-lg border overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-200 text-slate-700 font-bold"><tr><th className="p-2 w-16">Cant</th><th className="p-2">Producto</th><th className="p-2 w-20 text-right">Precio ($)</th></tr></thead><tbody className="divide-y divide-slate-200">{editingTransaction.items.map((item, index) => (<tr key={index} className="bg-white"><td className="p-2"><input name={`item_qty_${index}`} defaultValue={item.qty} type="number" className="w-full p-1 border rounded text-center" /></td><td className="p-2"><input name={`item_name_${index}`} defaultValue={item.name} className="w-full p-1 border rounded" /></td><td className="p-2"><input name={`item_price_${index}`} defaultValue={item.price} type="number" className="w-full p-1 border rounded text-right" /></td></tr>))}</tbody></table></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Estado</label><select name="paymentStatus" defaultValue={editingTransaction?.paymentStatus || 'pending'} className="w-full p-2 border rounded bg-white text-sm"><option value="paid">✅ Pagado</option><option value="pending">❌ Pendiente</option><option value="partial">⚠️ Parcial</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Nota</label><input name="paymentNote" defaultValue={editingTransaction?.paymentNote || ''} className="w-full p-2 border rounded text-sm" placeholder="Detalles..." /></div></div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>
       )}
+
+      {/* MODAL PRODUCTO CON COSTO */}
+      {isProductModalOpen && userData.role === 'admin' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>{editingProduct && <button onClick={() => handleDeleteProduct(editingProduct.id)} className="text-red-500 text-sm underline">Eliminar</button>}</div><form onSubmit={handleSaveProduct} className="space-y-3"><input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" /><div className="flex gap-2 items-center border p-2 rounded bg-slate-50"><ScanBarcode size={16} className="text-slate-400"/><input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras (Opcional)" /></div><div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div><div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div></div><div><label className="text-xs text-slate-500 font-bold">Stock</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div><select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}<div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>
+      )}
+      {/* ... Otros Modales (Cat, Client, Store, Scanner) ... */}
+      {isCategoryModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button></div><div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div><form onSubmit={handleSaveCategory} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form></div></div>)}
+      {isCustomerModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl"><h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3><form onSubmit={handleSaveCustomer} className="space-y-3"><input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" /><input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" /><input required name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" /><input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email (Opcional)" /><div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsCustomerModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
+      {isStoreModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={() => setIsStoreModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateStore} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>)}
+      {isAddStockModalOpen && scannedProduct && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[105] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center"><div className="flex items-center gap-3 justify-center mb-2"><Box size={32} className="text-blue-600"/><h3 className="font-bold text-lg text-slate-800">Entrada Stock</h3></div><div className="bg-slate-100 p-3 rounded-lg"><div className="font-bold text-lg">{scannedProduct.name}</div><div className="text-sm text-slate-500">Stock Actual: {scannedProduct.stock}</div></div><form onSubmit={handleAddStock}><label className="block text-sm text-slate-500 mb-2">Cantidad a sumar:</label><input ref={quantityInputRef} name="qty" type="number" defaultValue="1" min="1" className="w-32 p-3 border-2 border-blue-500 rounded-lg text-center text-2xl font-bold mx-auto block mb-4" /><div className="flex gap-2"><button type="button" onClick={()=>{setIsAddStockModalOpen(false); setScannedProduct(null);}} className="flex-1 py-3 text-slate-500 font-bold bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg">Confirmar</button></div></form></div></div>)}
 
       {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><button onClick={() => {handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false);}} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Imprimir Ticket</button></div>}
     </div>
