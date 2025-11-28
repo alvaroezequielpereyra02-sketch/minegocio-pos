@@ -296,7 +296,7 @@ export default function App() {
         <div className="p-4 border-t">
             <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">{userData.name.charAt(0)}</div>
-                <div className="overflow-hidden"><div className="text-sm font-bold truncate">{userData.name}</div><div className="text-xs text-slate-500 capitalize">{userData.role === 'admin' ? 'Admin' : 'Cliente'}</div></div>
+                <div className="overflow-hidden"><div className="text-sm font-bold truncate">{userData.name}</div><div className="text-xs text-slate-500 capitalize">{userData.role === 'admin' ? 'Administrador' : 'Cliente'}</div></div>
             </div>
             <button onClick={handleLogout} className="w-full p-2 border rounded-lg flex items-center justify-center gap-2 text-sm text-red-600 hover:bg-red-50"><LogOut size={16}/> Salir</button>
         </div>
@@ -412,14 +412,5 @@ export default function App() {
 
       {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><button onClick={() => {handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false);}} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Imprimir Ticket</button></div>}
     </div>
-  );
-}
-
-function NavButton({ active, onClick, icon, label }) {
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
-      {icon} 
-      <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
-    </button>
   );
 }
