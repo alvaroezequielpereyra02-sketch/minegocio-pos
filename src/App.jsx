@@ -33,7 +33,8 @@ import {
   Save,
   Image as ImageIcon,
   Upload,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Download // Icono para descargar
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -67,8 +68,8 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   
-  // Estados para manejo de imágenes en el formulario
-  const [imageMode, setImageMode] = useState('link'); // 'link' o 'file'
+  // Estados para manejo de imágenes
+  const [imageMode, setImageMode] = useState('link'); 
   const [previewImage, setPreviewImage] = useState('');
 
   // --- Autenticación ---
@@ -146,11 +147,11 @@ export default function App() {
     return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   }, [cart]);
 
-  // --- Manejo de Imágenes (Archivo a Base64) ---
+  // --- Manejo de Imágenes ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 800000) { // Límite aprox 800KB para no saturar Firestore
+      if (file.size > 800000) { 
         alert("La imagen es muy pesada. Por favor usa una más pequeña (menos de 1MB).");
         return;
       }
@@ -165,8 +166,50 @@ export default function App() {
   const handleOpenModal = (product = null) => {
     setEditingProduct(product);
     setPreviewImage(product?.imageUrl || '');
-    setImageMode(product?.imageUrl?.startsWith('data:') ? 'file' : 'link'); // Detectar tipo
+    setImageMode(product?.imageUrl?.startsWith('data:') ? 'file' : 'link'); 
     setIsProductModalOpen(true);
+  };
+
+  // --- EXPORTAR A EXCEL (CSV) ---
+  const handleExportCSV = () => {
+    if (transactions.length === 0) {
+      alert("No hay ventas para exportar.");
+      return;
+    }
+
+    // 1. Crear cabeceras
+    const headers = ["Fecha", "Hora", "Tipo", "Total", "Productos", "Vendedor ID"];
+    
+    // 2. Convertir datos
+    const rows = transactions.map(t => {
+      const date = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
+      const itemsString = t.items ? t.items.map(i => `${i.qty}x ${i.name}`).join(' | ') : '';
+      
+      return [
+        date.toLocaleDateString(),
+        date.toLocaleTimeString(),
+        t.type === 'sale' ? 'Venta' : 'Gasto',
+        t.total,
+        `"${itemsString}"`, // Comillas para evitar problemas con comas
+        t.sellerId || 'Desconocido'
+      ];
+    });
+
+    // 3. Unir todo en texto CSV
+    const csvContent = [
+      headers.join(','), 
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // 4. Crear archivo y descargar
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `ventas_minegocio_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // --- Acciones ---
@@ -179,7 +222,6 @@ export default function App() {
     const price = parseFloat(form.price.value);
     const stock = parseInt(form.stock.value);
     
-    // Determinar qué imagen usar (la subida o el link)
     let finalImageUrl = '';
     if (imageMode === 'file') {
         finalImageUrl = previewImage;
@@ -203,7 +245,7 @@ export default function App() {
       setPreviewImage('');
     } catch (error) {
       console.error("Error guardando:", error);
-      alert("Error al guardar. Verifica si la imagen es demasiado grande.");
+      alert("Error al guardar.");
     }
   };
 
@@ -246,7 +288,6 @@ export default function App() {
 
   // --- Renderizadores ---
   
-  // VISTA POS CON IMÁGENES
   const renderPOS = () => {
     const filteredProducts = products.filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -279,21 +320,19 @@ export default function App() {
                       : 'opacity-60 cursor-not-allowed'
                   }`}
                 >
-                  {/* Zona de Imagen */}
                   <div className="w-full h-32 bg-slate-100 relative">
                     {product.imageUrl ? (
                       <img 
                         src={product.imageUrl} 
                         alt={product.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150?text=Sin+Imagen'}} // Fallback si falla
+                        onError={(e) => {e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150?text=Sin+Imagen'}} 
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300">
                         <ImageIcon className="w-10 h-10" />
                       </div>
                     )}
-                    {/* Badge de Stock */}
                     <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-bold ${
                       product.stock <= 5 ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-700'
                     }`}>
@@ -301,7 +340,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Info Producto */}
                   <div className="p-3 w-full text-left">
                     <div className="font-semibold text-slate-800 line-clamp-1 text-sm">{product.name}</div>
                     <div className="mt-1 font-bold text-blue-600">${product.price.toLocaleString()}</div>
@@ -312,7 +350,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Carrito */}
         <div className={`lg:w-80 bg-white rounded-xl shadow-lg flex flex-col border border-slate-200 ${cart.length === 0 && 'hidden lg:flex'}`}>
           <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
             <h2 className="font-bold text-slate-700 flex items-center gap-2">
@@ -323,7 +360,6 @@ export default function App() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3">
-                {/* Miniatura en carrito */}
                 <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden flex-shrink-0">
                    {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover" />}
                 </div>
@@ -425,20 +461,42 @@ export default function App() {
       <main className="flex-1 overflow-hidden p-4 pb-24 md:pb-4 max-w-5xl mx-auto w-full">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
+        
+        {/* PESTAÑA HISTORIAL MEJORADA CON EXPORTAR */}
         {activeTab === 'transactions' && (
-          <div className="h-full overflow-y-auto">
-             <h2 className="text-2xl font-bold mb-4">Historial</h2>
-             {transactions.map(t => (
-               <div key={t.id} className="bg-white p-4 mb-2 rounded shadow-sm flex justify-between">
-                 <div>
-                   <div className="font-bold">Venta</div>
-                   <div className="text-xs text-slate-500">{new Date(t.date?.seconds * 1000).toLocaleString()}</div>
+          <div className="h-full flex flex-col">
+             <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-slate-800">Historial</h2>
+                <button 
+                  onClick={handleExportCSV}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-medium transition-all"
+                >
+                  <Download className="w-4 h-4" /> Exportar Excel
+                </button>
+             </div>
+             
+             <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-slate-200 divide-y divide-slate-100">
+               {transactions.map(t => (
+                 <div key={t.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                   <div>
+                     <p className="font-medium text-slate-800">
+                       Venta 
+                       <span className="text-slate-400 text-sm font-normal ml-2">
+                         {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleString() : 'Reciente'}
+                       </span>
+                     </p>
+                     <p className="text-xs text-slate-500 line-clamp-1">
+                       {t.items ? t.items.map(i => `${i.qty}x ${i.name}`).join(', ') : 'Sin detalles'}
+                     </p>
+                   </div>
+                   <div className="text-green-600 font-bold">+${t.total}</div>
                  </div>
-                 <div className="text-green-600 font-bold">+${t.total}</div>
-               </div>
-             ))}
+               ))}
+               {transactions.length === 0 && <div className="p-8 text-center text-slate-400">No hay ventas registradas.</div>}
+             </div>
           </div>
         )}
+        
         {activeTab === 'dashboard' && <div className="p-4 bg-white rounded shadow">Próximamente: Estadísticas avanzadas</div>}
       </main>
 
@@ -482,11 +540,10 @@ export default function App() {
                 </div>
               </div>
               
-              {/* SECCIÓN DE IMAGEN MEJORADA */}
+              {/* SECCIÓN DE IMAGEN */}
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">Imagen del Producto</label>
                 
-                {/* Selector de Modo */}
                 <div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg">
                     <button 
                         type="button"
@@ -504,7 +561,6 @@ export default function App() {
                     </button>
                 </div>
 
-                {/* Input Dinámico */}
                 {imageMode === 'file' ? (
                     <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
                         <input 
@@ -528,7 +584,6 @@ export default function App() {
                     />
                 )}
 
-                {/* Previsualización */}
                 {previewImage && (
                     <div className="mt-3 relative w-full h-32 rounded-lg overflow-hidden border border-slate-200">
                         <img src={previewImage} className="w-full h-full object-cover" alt="Vista previa" />
