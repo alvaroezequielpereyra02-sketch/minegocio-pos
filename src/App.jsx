@@ -34,7 +34,9 @@ import {
   Image as ImageIcon,
   Upload,
   Link as LinkIcon,
-  Download // Icono para descargar
+  Download,
+  Tags, // Icono para categorías
+  Filter
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -47,7 +49,6 @@ const firebaseConfig = {
   appId: "1:613903188094:web:2ed15b6fb6ff5be6fd582f"
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -59,28 +60,26 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('pos');
   const [products, setProducts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [categories, setCategories] = useState([]); // Estado para categorías
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Estados UI
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false); // Modal categorías
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all'); // Filtro activo
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   
-  // Estados para manejo de imágenes
+  // Estados para imágenes
   const [imageMode, setImageMode] = useState('link'); 
   const [previewImage, setPreviewImage] = useState('');
 
   // --- Autenticación ---
   useEffect(() => {
-    signInAnonymously(auth).catch((error) => {
-      console.error("Error auth:", error);
-    });
-    
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    signInAnonymously(auth).catch((error) => console.error(error));
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
     return () => unsubscribe();
   }, []);
 
@@ -88,53 +87,48 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
+    // Productos
     const productsRef = collection(db, 'stores', appId, 'products');
-    const qProducts = query(productsRef, orderBy('name'));
-
-    const unsubProducts = onSnapshot(qProducts, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setProducts(items);
+    const unsubProducts = onSnapshot(query(productsRef, orderBy('name')), (snapshot) => {
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    }, (error) => console.error("Error productos:", error));
+    });
 
+    // Transacciones
     const transRef = collection(db, 'stores', appId, 'transactions');
     const unsubTrans = onSnapshot(transRef, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       items.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
       setTransactions(items);
-    }, (error) => console.error("Error transacciones:", error));
+    });
 
-    return () => {
-      unsubProducts();
-      unsubTrans();
-    };
+    // Categorías (Nueva colección)
+    const catRef = collection(db, 'stores', appId, 'categories');
+    const unsubCats = onSnapshot(query(catRef, orderBy('name')), (snapshot) => {
+      setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => { unsubProducts(); unsubTrans(); unsubCats(); };
   }, [user]);
 
-  // --- Lógica del Carrito ---
+  // --- Carrito ---
   const addToCart = (product) => {
     if (product.stock <= 0) return; 
-
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
         if (existing.qty >= product.stock) return prev; 
-        return prev.map(item => 
-          item.id === product.id ? { ...item, qty: item.qty + 1, imageUrl: product.imageUrl } : item
-        );
+        return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
       }
       return [...prev, { ...product, qty: 1 }];
     });
   };
 
-  const removeFromCart = (productId) => {
-    setCart(prev => prev.filter(item => item.id !== productId));
-  };
-
-  const updateCartQty = (productId, delta) => {
+  const updateCartQty = (id, delta) => {
     setCart(prev => prev.map(item => {
-      if (item.id === productId) {
+      if (item.id === id) {
         const newQty = item.qty + delta;
-        const product = products.find(p => p.id === productId);
+        const product = products.find(p => p.id === id);
         if (newQty < 1) return item;
         if (product && newQty > product.stock) return item;
         return { ...item, qty: newQty };
@@ -143,23 +137,18 @@ export default function App() {
     }));
   };
 
-  const cartTotal = useMemo(() => {
-    return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  }, [cart]);
+  const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
+  const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
-  // --- Manejo de Imágenes ---
+  // --- Imágenes ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 800000) { 
-        alert("La imagen es muy pesada. Por favor usa una más pequeña (menos de 1MB).");
-        return;
-      }
+    if (file && file.size <= 800000) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result);
-      };
+      reader.onloadend = () => setPreviewImage(reader.result);
       reader.readAsDataURL(file);
+    } else if(file) {
+      alert("Imagen muy pesada (Max 800KB)");
     }
   };
 
@@ -170,143 +159,128 @@ export default function App() {
     setIsProductModalOpen(true);
   };
 
-  // --- EXPORTAR A EXCEL (CSV) ---
+  // --- Exportar CSV ---
   const handleExportCSV = () => {
-    if (transactions.length === 0) {
-      alert("No hay ventas para exportar.");
-      return;
-    }
-
-    // 1. Crear cabeceras
-    const headers = ["Fecha", "Hora", "Tipo", "Total", "Productos", "Vendedor ID"];
-    
-    // 2. Convertir datos
+    if (transactions.length === 0) return alert("No hay datos.");
+    const headers = ["Fecha", "Hora", "Tipo", "Total", "Productos"];
     const rows = transactions.map(t => {
       const date = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
-      const itemsString = t.items ? t.items.map(i => `${i.qty}x ${i.name}`).join(' | ') : '';
-      
       return [
         date.toLocaleDateString(),
         date.toLocaleTimeString(),
         t.type === 'sale' ? 'Venta' : 'Gasto',
         t.total,
-        `"${itemsString}"`, // Comillas para evitar problemas con comas
-        t.sellerId || 'Desconocido'
+        `"${t.items ? t.items.map(i => `${i.qty}x ${i.name}`).join(' | ') : ''}"`
       ];
     });
-
-    // 3. Unir todo en texto CSV
-    const csvContent = [
-      headers.join(','), 
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    // 4. Crear archivo y descargar
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `ventas_minegocio_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
+    link.download = `ventas_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
-  // --- Acciones ---
+  // --- Acciones de Datos ---
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!user) return;
-
     const form = e.target;
-    const name = form.name.value;
-    const price = parseFloat(form.price.value);
-    const stock = parseInt(form.stock.value);
+    const finalImageUrl = imageMode === 'file' ? previewImage : (form.imageUrlLink?.value || '');
     
-    let finalImageUrl = '';
-    if (imageMode === 'file') {
-        finalImageUrl = previewImage;
-    } else {
-        finalImageUrl = form.imageUrlLink?.value || '';
-    }
-    
-    const productData = { name, price, stock, imageUrl: finalImageUrl };
+    const productData = { 
+      name: form.name.value, 
+      price: parseFloat(form.price.value), 
+      stock: parseInt(form.stock.value),
+      categoryId: form.category.value, // Guardar categoría
+      imageUrl: finalImageUrl 
+    };
 
     try {
       if (editingProduct) {
         await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), productData);
       } else {
-        await addDoc(collection(db, 'stores', appId, 'products'), {
-          ...productData,
-          createdAt: serverTimestamp()
-        });
+        await addDoc(collection(db, 'stores', appId, 'products'), { ...productData, createdAt: serverTimestamp() });
       }
       setIsProductModalOpen(false);
-      setEditingProduct(null);
-      setPreviewImage('');
-    } catch (error) {
-      console.error("Error guardando:", error);
-      alert("Error al guardar.");
+    } catch (error) { alert("Error al guardar."); }
+  };
+
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    const name = e.target.catName.value;
+    if(name) {
+      await addDoc(collection(db, 'stores', appId, 'categories'), { name, createdAt: serverTimestamp() });
+      setIsCategoryModalOpen(false);
     }
   };
 
+  const handleDeleteCategory = async (id) => {
+    if(confirm('¿Borrar categoría?')) await deleteDoc(doc(db, 'stores', appId, 'categories', id));
+  };
+
   const handleDeleteProduct = async (id) => {
-    if (!user) return;
-    if (confirm('¿Borrar producto?')) {
-      await deleteDoc(doc(db, 'stores', appId, 'products', id));
-    }
+    if (confirm('¿Borrar producto?')) await deleteDoc(doc(db, 'stores', appId, 'products', id));
   };
 
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
-
-    try {
-      await addDoc(collection(db, 'stores', appId, 'transactions'), {
-        type: 'sale',
-        total: cartTotal,
-        items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })),
-        sellerId: user.uid,
-        date: serverTimestamp()
-      });
-
-      for (const item of cart) {
-        const currentProduct = products.find(p => p.id === item.id);
-        if (currentProduct) {
-          const newStock = Math.max(0, currentProduct.stock - item.qty);
-          await updateDoc(doc(db, 'stores', appId, 'products', item.id), {
-            stock: newStock
-          });
-        }
-      }
-
-      setCart([]);
-      setShowCheckoutSuccess(true);
-      setTimeout(() => setShowCheckoutSuccess(false), 3000);
-    } catch (error) {
-      console.error("Error checkout:", error);
+    await addDoc(collection(db, 'stores', appId, 'transactions'), {
+      type: 'sale', total: cartTotal,
+      items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })),
+      sellerId: user.uid, date: serverTimestamp()
+    });
+    for (const item of cart) {
+      const p = products.find(prod => prod.id === item.id);
+      if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: Math.max(0, p.stock - item.qty) });
     }
+    setCart([]);
+    setShowCheckoutSuccess(true);
+    setTimeout(() => setShowCheckoutSuccess(false), 3000);
   };
 
   // --- Renderizadores ---
   
   const renderPOS = () => {
+    // Filtrado por búsqueda Y por categoría
     const filteredProducts = products.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
+      (selectedCategory === 'all' || p.categoryId === selectedCategory)
     );
 
     return (
       <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="mb-4 relative">
+          {/* Barra de Búsqueda */}
+          <div className="mb-3 relative">
             <Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
             <input 
-              type="text"
-              placeholder="Buscar productos..."
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Buscar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* Filtros de Categoría (Pestañas) */}
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide">
+            <button 
+              onClick={() => setSelectedCategory('all')}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+            >
+              Todos
+            </button>
+            {categories.map(cat => (
+              <button 
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
           
+          {/* Grid de Productos */}
           <div className="flex-1 overflow-y-auto pr-2">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {filteredProducts.map(product => (
@@ -314,35 +288,23 @@ export default function App() {
                   key={product.id}
                   onClick={() => addToCart(product)}
                   disabled={product.stock <= 0}
-                  className={`flex flex-col items-start p-0 rounded-xl border transition-all overflow-hidden bg-white shadow-sm ${
-                    product.stock > 0 
-                      ? 'hover:border-blue-400 hover:shadow-md active:scale-95' 
-                      : 'opacity-60 cursor-not-allowed'
+                  className={`flex flex-col items-start p-0 rounded-xl border bg-white shadow-sm overflow-hidden ${
+                    product.stock > 0 ? 'active:scale-95' : 'opacity-60'
                   }`}
                 >
                   <div className="w-full h-32 bg-slate-100 relative">
                     {product.imageUrl ? (
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150?text=Sin+Imagen'}} 
-                      />
+                      <img src={product.imageUrl} className="w-full h-full object-cover" onError={(e)=>{e.target.src='https://via.placeholder.com/150'}} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon className="w-10 h-10" />
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8"/></div>
                     )}
-                    <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-bold ${
-                      product.stock <= 5 ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-700'
-                    }`}>
+                    <div className="absolute top-1 right-1 bg-white/90 px-1.5 rounded text-[10px] font-bold text-slate-700">
                       {product.stock}
                     </div>
                   </div>
-
                   <div className="p-3 w-full text-left">
-                    <div className="font-semibold text-slate-800 line-clamp-1 text-sm">{product.name}</div>
-                    <div className="mt-1 font-bold text-blue-600">${product.price.toLocaleString()}</div>
+                    <div className="font-semibold text-slate-800 text-sm truncate">{product.name}</div>
+                    <div className="font-bold text-blue-600 text-sm">${product.price}</div>
                   </div>
                 </button>
               ))}
@@ -350,87 +312,75 @@ export default function App() {
           </div>
         </div>
 
+        {/* Carrito */}
         <div className={`lg:w-80 bg-white rounded-xl shadow-lg flex flex-col border border-slate-200 ${cart.length === 0 && 'hidden lg:flex'}`}>
-          <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-            <h2 className="font-bold text-slate-700 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" /> Ticket
-            </h2>
+          <div className="p-4 border-b bg-slate-50 rounded-t-xl font-bold text-slate-700 flex gap-2">
+            <ShoppingCart className="w-5 h-5" /> Ticket
           </div>
-          
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden flex-shrink-0">
-                   {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover" />}
-                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-slate-800 text-sm truncate">{item.name}</div>
+                  <div className="font-medium text-sm truncate">{item.name}</div>
                   <div className="text-xs text-slate-500">${item.price} x {item.qty}</div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Minus className="w-3 h-3"/></button>
-                  <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Plus className="w-3 h-3"/></button>
+                  <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 bg-slate-100 rounded flex items-center justify-center"><Minus className="w-3 h-3"/></button>
+                  <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 bg-slate-100 rounded flex items-center justify-center"><Plus className="w-3 h-3"/></button>
                   <button onClick={() => removeFromCart(item.id)} className="ml-1 text-red-400"><Trash2 className="w-4 h-4"/></button>
                 </div>
               </div>
             ))}
           </div>
-
-          <div className="p-4 bg-slate-50 border-t border-slate-100 rounded-b-xl">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-600 font-medium">Total</span>
-              <span className="text-2xl font-bold text-slate-800">${cartTotal.toLocaleString()}</span>
+          <div className="p-4 bg-slate-50 border-t rounded-b-xl">
+            <div className="flex justify-between mb-4 font-bold text-slate-800">
+              <span>Total</span><span>${cartTotal}</span>
             </div>
-            <button 
-              onClick={handleCheckout}
-              disabled={cart.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-sm active:scale-95 transition-all"
-            >
-              Cobrar
-            </button>
+            <button onClick={handleCheckout} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Cobrar</button>
           </div>
         </div>
       </div>
     );
   };
 
+  // VISTA INVENTARIO CON CATEGORÍAS
   const renderInventory = () => (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">Inventario</h2>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Agregar
-        </button>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
+        <div className="flex gap-2">
+            <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium hover:bg-slate-200">
+                <Tags className="w-4 h-4" /> Categorías
+            </button>
+            <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium hover:bg-blue-700">
+                <Plus className="w-4 h-4" /> Producto
+            </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-slate-200">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-200">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 border-b">
             <tr>
-              <th className="p-4 w-16">Img</th>
-              <th className="p-4 font-semibold text-slate-600">Producto</th>
-              <th className="p-4 font-semibold text-slate-600 text-right">Precio</th>
-              <th className="p-4 font-semibold text-slate-600 text-center">Stock</th>
-              <th className="p-4 font-semibold text-slate-600 text-right">Acciones</th>
+              <th className="p-3">Prod</th>
+              <th className="p-3 hidden sm:table-cell">Cat</th>
+              <th className="p-3 text-right">Precio</th>
+              <th className="p-3 text-center">Stock</th>
+              <th className="p-3 text-right">Acción</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y">
             {products.map(p => (
               <tr key={p.id} className="hover:bg-slate-50">
-                <td className="p-4">
-                  <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden">
-                    {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full"><ImageIcon className="w-4 h-4 text-slate-300"/></div>}
-                  </div>
+                <td className="p-3 font-medium">{p.name}</td>
+                <td className="p-3 hidden sm:table-cell text-slate-500">
+                    {categories.find(c => c.id === p.categoryId)?.name || '-'}
                 </td>
-                <td className="p-4 text-slate-800 font-medium">{p.name}</td>
-                <td className="p-4 text-right text-slate-600">${p.price}</td>
-                <td className="p-4 text-center">{p.stock}</td>
-                <td className="p-4 text-right">
-                  <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 mr-3 font-medium text-sm">Editar</button>
-                  <button onClick={() => handleDeleteProduct(p.id)} className="text-red-400 hover:text-red-600 font-medium text-sm">Borrar</button>
+                <td className="p-3 text-right">${p.price}</td>
+                <td className="p-3 text-center">{p.stock}</td>
+                <td className="p-3 text-right">
+                  <button onClick={() => handleOpenModal(p)} className="text-blue-600 mr-3">Editar</button>
+                  <button onClick={() => handleDeleteProduct(p.id)} className="text-red-500">X</button>
                 </td>
               </tr>
             ))}
@@ -440,198 +390,124 @@ export default function App() {
     </div>
   );
 
-  // --- Render Principal ---
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Cargando...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900">
-      
-      {/* Navbar */}
-      <header className="bg-white shadow-sm border-b border-slate-200 px-4 py-3 flex justify-between items-center z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">M</div>
-          <h1 className="font-bold text-xl tracking-tight text-slate-800">MiNegocio <span className="text-blue-600">POS</span></h1>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+      <header className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-10">
+        <div className="flex items-center gap-2 font-bold text-xl text-slate-800">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">M</div>
+          MiNegocio
         </div>
       </header>
 
-      {/* Contenido */}
       <main className="flex-1 overflow-hidden p-4 pb-24 md:pb-4 max-w-5xl mx-auto w-full">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
-        
-        {/* PESTAÑA HISTORIAL MEJORADA CON EXPORTAR */}
         {activeTab === 'transactions' && (
           <div className="h-full flex flex-col">
              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-slate-800">Historial</h2>
-                <button 
-                  onClick={handleExportCSV}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-medium transition-all"
-                >
-                  <Download className="w-4 h-4" /> Exportar Excel
-                </button>
+                <h2 className="text-xl font-bold">Historial</h2>
+                <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>
              </div>
-             
-             <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-slate-200 divide-y divide-slate-100">
+             <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y">
                {transactions.map(t => (
-                 <div key={t.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                 <div key={t.id} className="p-3 flex justify-between hover:bg-slate-50 text-sm">
                    <div>
-                     <p className="font-medium text-slate-800">
-                       Venta 
-                       <span className="text-slate-400 text-sm font-normal ml-2">
-                         {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleString() : 'Reciente'}
-                       </span>
-                     </p>
-                     <p className="text-xs text-slate-500 line-clamp-1">
-                       {t.items ? t.items.map(i => `${i.qty}x ${i.name}`).join(', ') : 'Sin detalles'}
-                     </p>
+                     <p className="font-medium">Venta <span className="text-slate-400 font-normal">{new Date(t.date?.seconds * 1000).toLocaleTimeString()}</span></p>
+                     <p className="text-xs text-slate-500 truncate w-48">{t.items?.map(i => `${i.qty} ${i.name}`).join(', ')}</p>
                    </div>
-                   <div className="text-green-600 font-bold">+${t.total}</div>
+                   <div className="font-bold text-green-600">+${t.total}</div>
                  </div>
                ))}
-               {transactions.length === 0 && <div className="p-8 text-center text-slate-400">No hay ventas registradas.</div>}
              </div>
           </div>
         )}
-        
-        {activeTab === 'dashboard' && <div className="p-4 bg-white rounded shadow">Próximamente: Estadísticas avanzadas</div>}
       </main>
 
-      {/* Menú Móvil */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 pb-safe flex justify-around items-center h-16 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t flex justify-around h-16 items-center shadow-lg z-20">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
         <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" />
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
-        <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="Balance" />
       </nav>
 
-      {/* Menú Desktop */}
-      <div className="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-xl border border-slate-200 gap-8 items-center z-20">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
-        <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" />
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
-        <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="Balance" />
-      </div>
-
-      {/* Modal Producto */}
+      {/* MODAL PRODUCTO (Con Selector de Categoría) */}
       {isProductModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-lg text-slate-800">{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</h3>
-              <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Nombre</label>
-                <input required name="name" defaultValue={editingProduct?.name} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Precio ($)</label>
-                  <input required name="price" type="number" step="0.01" defaultValue={editingProduct?.price} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Stock</label>
-                  <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
-                </div>
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>
+            <form onSubmit={handleSaveProduct} className="space-y-3">
+              <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
+              <div className="flex gap-2">
+                <input required name="price" type="number" defaultValue={editingProduct?.price} className="w-1/2 p-2 border rounded" placeholder="Precio" />
+                <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-1/2 p-2 border rounded" placeholder="Stock" />
               </div>
               
-              {/* SECCIÓN DE IMAGEN */}
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">Imagen del Producto</label>
-                
-                <div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg">
-                    <button 
-                        type="button"
-                        onClick={() => { setImageMode('file'); setPreviewImage(''); }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm rounded-md transition-all ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:bg-slate-200'}`}
-                    >
-                        <Upload size={16} /> Subir Archivo
-                    </button>
-                    <button 
-                        type="button"
-                        onClick={() => { setImageMode('link'); setPreviewImage(''); }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm rounded-md transition-all ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:bg-slate-200'}`}
-                    >
-                        <LinkIcon size={16} /> Usar Link
-                    </button>
-                </div>
+              {/* SELECTOR DE CATEGORÍA */}
+              <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white">
+                <option value="">Sin Categoría</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
 
-                {imageMode === 'file' ? (
-                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
-                        <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={handleFileChange}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                        />
-                        <div className="flex flex-col items-center gap-2 text-slate-500">
-                            <Upload className="w-8 h-8 opacity-50" />
-                            <span className="text-xs">Toca para subir foto (Max 1MB)</span>
-                        </div>
-                    </div>
-                ) : (
-                    <input 
-                        name="imageUrlLink" 
-                        defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} 
-                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
-                        placeholder="Pegar enlace https://..." 
-                        onChange={(e) => setPreviewImage(e.target.value)}
-                    />
-                )}
-
-                {previewImage && (
-                    <div className="mt-3 relative w-full h-32 rounded-lg overflow-hidden border border-slate-200">
-                        <img src={previewImage} className="w-full h-full object-cover" alt="Vista previa" />
-                        <button 
-                            type="button"
-                            onClick={() => setPreviewImage('')}
-                            className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
-                        >
-                            <X size={12} />
-                        </button>
-                    </div>
-                )}
+              {/* IMAGEN */}
+              <div className="flex gap-2 bg-slate-100 p-1 rounded">
+                 <button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button>
+                 <button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button>
               </div>
+              {imageMode === 'file' ? (
+                 <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
+              ) : (
+                 <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />
+              )}
+              {previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
 
-              <div className="pt-2">
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <Save className="w-5 h-5" /> Guardar
-                </button>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Toast Éxito */}
-      {showCheckoutSuccess && (
-        <div className="fixed top-20 right-4 md:right-8 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-3 animate-in slide-in-from-top duration-300 z-50">
-          <div className="bg-white/20 p-1 rounded-full"><TrendingUp className="w-4 h-4" /></div>
-          <div>
-            <p className="font-bold text-sm">¡Venta Registrada!</p>
+      {/* MODAL CATEGORÍAS (Nuevo) */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center">
+                <h3 className="font-bold text-lg">Gestionar Categorías</h3>
+                <button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button>
+            </div>
+            
+            {/* Lista de existentes */}
+            <div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">
+                {categories.map(cat => (
+                    <div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded">
+                        <span>{cat.name}</span>
+                        <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+                {categories.length === 0 && <p className="text-sm text-slate-400 text-center">Sin categorías</p>}
+            </div>
+
+            {/* Crear nueva */}
+            <form onSubmit={handleSaveCategory} className="flex gap-2">
+                <input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva categoría..." />
+                <button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button>
+            </form>
           </div>
         </div>
       )}
 
+      {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-3 rounded shadow-xl animate-bounce">¡Venta Exitosa!</div>}
     </div>
   );
 }
 
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button 
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 p-2 transition-all ${
-        active ? 'text-blue-600 scale-105 font-medium' : 'text-slate-400 hover:text-slate-600'
-      }`}
-    >
-      {icon}
-      <span className="text-[10px] uppercase tracking-wide">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center p-2 ${active ? 'text-blue-600' : 'text-slate-400'}`}>
+      {icon} <span className="text-[10px] uppercase">{label}</span>
     </button>
   );
 }
