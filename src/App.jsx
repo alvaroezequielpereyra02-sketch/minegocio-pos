@@ -150,9 +150,8 @@ export default function App() {
     try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); }
   };
 
-  // --- CARRITO (STOCK NEGATIVO PERMITIDO) ---
+  // --- CARRITO ---
   const addToCart = (product) => { 
-    // YA NO REVISAMOS SI HAY STOCK <= 0 PARA PERMITIR VENTA NEGATIVA
     setCart(prev => { 
         const existing = prev.find(item => item.id === product.id); 
         return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; 
@@ -168,12 +167,12 @@ export default function App() {
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; 
     else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
     const saleData = { type: 'sale', total: cartTotal, items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
-    try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); /* RESTA AUNQUE QUEDE NEGATIVO */ } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
+    try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
   };
 
   const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const form = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: form[`item_name_${index}`].value, qty: parseInt(form[`item_qty_${index}`].value), price: parseFloat(form[`item_price_${index}`].value) })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: form.paymentStatus.value, paymentNote: form.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); } catch (error) { alert("Error al actualizar"); } };
 
-  // --- CRUD (AHORA CON COSTO) ---
+  // --- CRUD ---
   const handleSaveProduct = async (e) => { 
     e.preventDefault(); 
     const f = e.target; 
@@ -181,7 +180,7 @@ export default function App() {
     const d = { 
         name: f.name.value, 
         price: parseFloat(f.price.value), 
-        cost: parseFloat(f.cost.value || 0), // NUEVO CAMPO COSTO
+        cost: parseFloat(f.cost.value || 0), 
         stock: parseInt(f.stock.value), 
         categoryId: f.category.value, 
         imageUrl: img 
@@ -198,29 +197,12 @@ export default function App() {
   const handleSaveCategory = async (e) => { if(e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
   const handleDeleteProduct = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'products', id)); };
   const handleDeleteCategory = async (id) => { if(confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'categories', id)); };
-  
   const stats = useMemo(() => { let s=0, t=0, v=0; transactions.forEach(x=>{if(x.type==='sale' && x.paymentStatus === 'paid'){s+=x.total;t++}}); products.forEach(p=>v+=p.price*p.stock); return {totalSales:s, totalTrans:t, inventoryValue:v}; }, [transactions, products]);
-  
   const handleOpenModal = (p = null) => { setEditingProduct(p); setPreviewImage(p?.imageUrl||''); setImageMode(p?.imageUrl?.startsWith('data:')?'file':'link'); setIsProductModalOpen(true); };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
 
-  if (!user || !userData) { 
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-          <div className="text-center mb-6"> {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover shadow-sm"/> : <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-2"><Store size={24}/></div>} <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1> <p className="text-slate-500 text-sm">Acceso al Sistema</p> </div> 
-          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-            {isRegistering && (<><input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" /><div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div><div className="pt-2 border-t mt-2"><p className="text-xs text-slate-400 mb-1">Código Admin (Solo Personal):</p><input name="secretCode" className="w-full p-2 border rounded-lg text-sm" placeholder="Dejar vacío si eres cliente" /></div></>)}
-            <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" /><input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
-            {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button>
-          </form>
-          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button>
-        </div>
-      </div>
-    );
-  }
+  if (!user || !userData) { return ( <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4"> <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md"> <div className="text-center mb-6"> {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover shadow-sm"/> : <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-2"><Store size={24}/></div>} <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1> <p className="text-slate-500 text-sm">Acceso al Sistema</p> </div> <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4"> {isRegistering && (<><input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" /><div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div><div className="pt-2 border-t mt-2"><p className="text-xs text-slate-400 mb-1">Código Admin (Solo Personal):</p><input name="secretCode" className="w-full p-2 border rounded-lg text-sm" placeholder="Dejar vacío si eres cliente" /></div></>)} <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" /><input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" /> {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>} <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button> </form> <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button> </div> </div> ); }
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden">
@@ -238,7 +220,7 @@ export default function App() {
         {isMenuOpen && (<div className="absolute top-16 right-0 w-64 bg-white shadow-2xl border-l border-b border-slate-200 p-4 flex flex-col gap-2 z-[60]"><button onClick={()=>{setActiveTab('pos'); setIsMenuOpen(false);}} className="text-left p-3 hover:bg-blue-50 rounded flex gap-2 items-center"><LayoutDashboard size={16}/> Vender</button>{userData.role === 'admin' && (<><button onClick={()=>{setActiveTab('inventory'); setIsMenuOpen(false);}} className="text-left p-3 hover:bg-blue-50 rounded flex gap-2 items-center"><Package size={16}/> Inventario</button><button onClick={()=>{setActiveTab('customers'); setIsMenuOpen(false);}} className="text-left p-3 hover:bg-blue-50 rounded flex gap-2 items-center"><Users size={16}/> Clientes</button><button onClick={()=>{setActiveTab('dashboard'); setIsMenuOpen(false);}} className="text-left p-3 hover:bg-blue-50 rounded flex gap-2 items-center"><TrendingUp size={16}/> Balance</button></>)}<button onClick={()=>{setActiveTab('transactions'); setIsMenuOpen(false);}} className="text-left p-3 hover:bg-blue-50 rounded flex gap-2 items-center"><History size={16}/> Historial</button><div className="border-t pt-2 mt-2"><button onClick={handleLogout} className="text-left p-3 hover:bg-red-50 text-red-600 rounded flex gap-2 items-center w-full"><LogOut size={16}/> Cerrar Sesión</button></div></div>)}
       </header>
 
-      {/* MAIN LAYOUT */}
+      {/* MAIN LAYOUT (FLEXIBLE) */}
       <main className="flex-1 overflow-hidden p-4 max-w-7xl mx-auto w-full relative z-0 flex flex-col">
         {/* VISTA VENDER */}
         {activeTab === 'pos' && (
@@ -250,10 +232,7 @@ export default function App() {
                 <button key={product.id} onClick={() => addToCart(product)} className={`flex flex-col items-start p-0 rounded-xl border bg-white shadow-sm overflow-hidden active:scale-95 transition-all`}>
                   <div className="w-full h-32 bg-slate-100 relative">
                     {product.imageUrl ? <img src={product.imageUrl} className="w-full h-full object-cover" onError={(e)=>{e.target.src='https://via.placeholder.com/150'}} /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8"/></div>}
-                    {/* STOCK BADGE: Rojo si es <= 0, Verde si es > 0 */}
-                    <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${product.stock <= 0 ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-700'}`}>
-                      {product.stock}
-                    </div>
+                    <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${product.stock <= 0 ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-700'}`}>{product.stock}</div>
                   </div>
                   <div className="p-3 w-full text-left"><div className="font-semibold text-slate-800 text-sm truncate">{product.name}</div><div className="font-bold text-blue-600 text-sm">${product.price}</div></div>
                 </button>
@@ -271,50 +250,34 @@ export default function App() {
           </div>
         )}
 
-        {/* VISTA INVENTARIO (Rediseñada como Grid Visual) */}
+        {/* VISTA INVENTARIO (GRID VISUAL) */}
         {activeTab === 'inventory' && userData.role === 'admin' && (
-          <div className="h-full flex flex-col pb-20 lg:pb-0">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-slate-800">Inventario Visual</h2>
+          <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+              <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
               <div className="flex gap-2">
                   <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags className="w-4 h-4" /> Cats</button>
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
               </div>
             </div>
-            {/* Buscador Inventario */}
-            <div className="mb-4 relative"><Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Buscar para editar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+            <div className="mb-4 relative flex-shrink-0"><Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" /><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Buscar para editar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
             
             <div className="flex-1 overflow-y-auto pr-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(product => (
-                    <button 
-                        key={product.id} 
-                        onClick={() => handleOpenModal(product)} 
-                        className="flex flex-col items-start p-0 rounded-xl border bg-white shadow-sm overflow-hidden hover:ring-2 hover:ring-blue-400 transition-all text-left relative"
-                    >
+                    <button key={product.id} onClick={() => handleOpenModal(product)} className="flex flex-col items-start p-0 rounded-xl border bg-white shadow-sm overflow-hidden hover:ring-2 hover:ring-blue-400 transition-all text-left relative group">
                       <div className="w-full h-32 bg-slate-100 relative">
                         {product.imageUrl ? <img src={product.imageUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8"/></div>}
-                        {/* Indicador de Stock */}
-                        <div className={`absolute top-1 right-1 px-2 py-0.5 rounded text-xs font-bold shadow-sm ${product.stock <= 0 ? 'bg-red-600 text-white' : 'bg-white/90 text-slate-700'}`}>
-                          {product.stock}
-                        </div>
+                        <div className={`absolute top-1 right-1 px-2 py-0.5 rounded text-xs font-bold shadow-sm ${product.stock <= 0 ? 'bg-red-600 text-white' : 'bg-white/90 text-slate-700'}`}>{product.stock}</div>
                       </div>
                       <div className="p-3 w-full">
                         <div className="font-semibold text-slate-800 text-sm truncate">{product.name}</div>
                         <div className="flex justify-between items-end mt-1">
-                            <div>
-                                <div className="text-[10px] text-slate-400">Costo: ${product.cost || 0}</div>
-                                <div className="font-bold text-blue-600 text-sm">${product.price}</div>
-                            </div>
-                            <Edit size={14} className="text-slate-300 mb-1"/>
+                            <div><div className="text-[10px] text-slate-400">Costo: ${product.cost || 0}</div><div className="font-bold text-blue-600 text-sm">${product.price}</div></div>
+                            <Edit size={14} className="text-slate-300 group-hover:text-blue-500 mb-1"/>
                         </div>
                       </div>
-                      {/* Alerta visual si stock negativo */}
-                      {product.stock < 0 && (
-                          <div className="absolute top-0 left-0 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-br-lg font-bold flex items-center gap-1">
-                              <AlertTriangle size={10}/> Deuda: {Math.abs(product.stock)}
-                          </div>
-                      )}
+                      {product.stock < 0 && (<div className="absolute top-0 left-0 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-br-lg font-bold flex items-center gap-1"><AlertTriangle size={10}/> Deuda: {Math.abs(product.stock)}</div>)}
                     </button>
                   ))}
                 </div>
@@ -322,12 +285,12 @@ export default function App() {
           </div>
         )}
 
-        {/* ... Resto de vistas (Customers, Dashboard, Transactions) sin cambios ... */}
-        {activeTab === 'customers' && userData.role === 'admin' && (<div className="h-full flex flex-col pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
-        {activeTab === 'dashboard' && userData.role === 'admin' && (<div className="h-full overflow-y-auto pb-20 lg:pb-0"><h2 className="text-xl font-bold text-slate-800 mb-6">Balance</h2><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg"><div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div><div className="opacity-80 text-sm">Ventas Pagadas</div></div><div className="bg-white rounded-2xl p-6 shadow-sm border"><div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div><div className="text-slate-500 text-sm">Valor Stock</div></div></div></div>)}
+        {/* ... Resto de Vistas ... */}
+        {activeTab === 'customers' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Clientes</h2><button onClick={() => {setEditingCustomer(null); setIsCustomerModalOpen(true);}} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button></div><div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12}/> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12}/> {c.address}</span></div></div><div className="flex gap-2"><button onClick={()=>{setEditingCustomer(c); setIsCustomerModalOpen(true);}} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={()=>handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>))}</div></div>)}
+        {activeTab === 'dashboard' && userData.role === 'admin' && (<div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0"><h2 className="text-xl font-bold text-slate-800 mb-6 flex-shrink-0">Balance</h2><div className="flex-1 overflow-y-auto"><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg"><div className="text-3xl font-bold">${stats.totalSales.toLocaleString()}</div><div className="opacity-80 text-sm">Ventas Pagadas</div></div><div className="bg-white rounded-2xl p-6 shadow-sm border"><div className="text-3xl font-bold text-slate-800">${stats.inventoryValue.toLocaleString()}</div><div className="text-slate-500 text-sm">Valor Stock</div></div></div></div></div>)}
         {activeTab === 'transactions' && (
-          <div className="h-full flex flex-col pb-20 lg:pb-0">
-             <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold">Historial</h2>{userData.role === 'admin' && <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>}</div>
+          <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+             <div className="flex justify-between items-center mb-4 flex-shrink-0"><h2 className="text-xl font-bold">Historial</h2>{userData.role === 'admin' && <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2"><Download size={16}/> Excel</button>}</div>
              <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y">
                {transactions.map(t => (
                  <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 text-sm">
@@ -359,7 +322,16 @@ export default function App() {
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
       </nav>
 
-      {/* MODAL PRODUCTO (AHORA CON COSTO Y DELETE) */}
+      {/* NAVEGACIÓN ESCRITORIO (Centrada y Visible) */}
+      <div className="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-2xl border border-slate-200 gap-8 items-center z-[100]">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={20} />} label="Vender" />
+        {userData.role === 'admin' && <><div className="w-px h-6 bg-slate-200"></div><NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="Stock" /><div className="w-px h-6 bg-slate-200"></div><NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={20} />} label="Clientes" /></>}
+        <div className="w-px h-6 bg-slate-200"></div><NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={20} />} label="Historial" />
+        {userData.role === 'admin' && <><div className="w-px h-6 bg-slate-200"></div><NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="Balance" /></>}
+      </div>
+
+      {/* Modales (Producto con Costo, etc.) */}
+      {/* ... (Modales anteriores se mantienen) ... */}
       {isProductModalOpen && userData.role === 'admin' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
             <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -367,22 +339,20 @@ export default function App() {
                 <form onSubmit={handleSaveProduct} className="space-y-3">
                     <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
                     <div className="grid grid-cols-2 gap-2">
-                        <div><label className="text-xs text-slate-500">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div>
-                        <div><label className="text-xs text-slate-500">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div>
+                        <div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div>
+                        <div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div>
                     </div>
-                    <div><label className="text-xs text-slate-500">Stock Actual (Puede ser negativo)</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div>
+                    <div><label className="text-xs text-slate-500 font-bold">Stock Actual (Puede ser negativo)</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div>
                     <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                    {/* Imagen ... */}<div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={()=>{setImageMode('file'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='file'?'bg-white shadow':''}`}>Subir</button><button type="button" onClick={()=>{setImageMode('link'); setPreviewImage('')}} className={`flex-1 py-1 text-xs rounded ${imageMode==='link'?'bg-white shadow':''}`}>Link</button></div>{imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:')?editingProduct?.imageUrl:''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e)=>setPreviewImage(e.target.value)} />}{previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
                     <div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
                 </form>
             </div>
         </div>
       )}
-
-      {/* MODAL CONFIGURACIÓN NEGOCIO */}
-      {isStoreModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={() => setIsStoreModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateStore} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>)}
       {isCategoryModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={()=>setIsCategoryModalOpen(false)}><X size={20}/></button></div><div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div><form onSubmit={handleSaveCategory} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form></div></div>)}
       {isCustomerModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl"><h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3><form onSubmit={handleSaveCustomer} className="space-y-3"><input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" /><input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" /><input required name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" /><input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email (Opcional)" /><div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsCustomerModalOpen(false)} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div></form></div></div>)}
+      {isStoreModalOpen && userData.role === 'admin' && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={() => setIsStoreModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateStore} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>)}
       {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]"><div className="flex justify-between items-center"><h3 className="font-bold text-lg">Editar Boleta</h3><button onClick={() => setIsTransactionModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleUpdateTransaction} className="space-y-4"><div className="bg-slate-50 rounded-lg border overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-200 text-slate-700 font-bold"><tr><th className="p-2 w-16">Cant</th><th className="p-2">Producto</th><th className="p-2 w-20 text-right">Precio ($)</th></tr></thead><tbody className="divide-y divide-slate-200">{editingTransaction.items.map((item, index) => (<tr key={index} className="bg-white"><td className="p-2"><input name={`item_qty_${index}`} defaultValue={item.qty} type="number" className="w-full p-1 border rounded text-center" /></td><td className="p-2"><input name={`item_name_${index}`} defaultValue={item.name} className="w-full p-1 border rounded" /></td><td className="p-2"><input name={`item_price_${index}`} defaultValue={item.price} type="number" className="w-full p-1 border rounded text-right" /></td></tr>))}</tbody></table></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Estado</label><select name="paymentStatus" defaultValue={editingTransaction?.paymentStatus || 'pending'} className="w-full p-2 border rounded bg-white text-sm"><option value="paid">✅ Pagado</option><option value="pending">❌ Pendiente</option><option value="partial">⚠️ Parcial</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Nota</label><input name="paymentNote" defaultValue={editingTransaction?.paymentNote || ''} className="w-full p-2 border rounded text-sm" placeholder="Detalles..." /></div></div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button></form></div></div>
       )}
