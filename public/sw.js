@@ -1,14 +1,15 @@
-// Service Worker mínimo para que sea instalable (PWA)
+// Service Worker Mínimo y Robusto (Solo registra, no interfiere con la red)
+
 self.addEventListener('install', (e) => {
-  console.log('Service Worker: Instalado');
+  console.log('SW: Instalado');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  console.log('Service Worker: Activo');
+  console.log('SW: Activado');
+  // Reclamar inmediatamente a todos los clientes
+  e.waitUntil(clients.claim());
 });
 
-self.addEventListener('fetch', (e) => {
-  // Simplemente responde a las peticiones, necesario para PWA
-  e.respondWith(fetch(e.request));
-});
+// IMPORTANTÍSIMO: Ya NO ponemos un listener para 'fetch'
+// Esto evita el error TypeError y deja que el navegador maneje las peticiones de red.
