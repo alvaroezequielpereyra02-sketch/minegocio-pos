@@ -31,7 +31,9 @@ import {
   TrendingDown,
   DollarSign,
   Save,
-  Image as ImageIcon // Renombrado para evitar conflicto con etiqueta html
+  Image as ImageIcon,
+  Upload,
+  Link as LinkIcon
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
@@ -64,6 +66,10 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
+  
+  // Estados para manejo de imágenes en el formulario
+  const [imageMode, setImageMode] = useState('link'); // 'link' o 'file'
+  const [previewImage, setPreviewImage] = useState('');
 
   // --- Autenticación ---
   useEffect(() => {
@@ -140,6 +146,29 @@ export default function App() {
     return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   }, [cart]);
 
+  // --- Manejo de Imágenes (Archivo a Base64) ---
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800000) { // Límite aprox 800KB para no saturar Firestore
+        alert("La imagen es muy pesada. Por favor usa una más pequeña (menos de 1MB).");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleOpenModal = (product = null) => {
+    setEditingProduct(product);
+    setPreviewImage(product?.imageUrl || '');
+    setImageMode(product?.imageUrl?.startsWith('data:') ? 'file' : 'link'); // Detectar tipo
+    setIsProductModalOpen(true);
+  };
+
   // --- Acciones ---
   const handleSaveProduct = async (e) => {
     e.preventDefault();
@@ -149,9 +178,16 @@ export default function App() {
     const name = form.name.value;
     const price = parseFloat(form.price.value);
     const stock = parseInt(form.stock.value);
-    const imageUrl = form.imageUrl.value; // Nueva línea para imagen
     
-    const productData = { name, price, stock, imageUrl }; // Guardamos la URL
+    // Determinar qué imagen usar (la subida o el link)
+    let finalImageUrl = '';
+    if (imageMode === 'file') {
+        finalImageUrl = previewImage;
+    } else {
+        finalImageUrl = form.imageUrlLink?.value || '';
+    }
+    
+    const productData = { name, price, stock, imageUrl: finalImageUrl };
 
     try {
       if (editingProduct) {
@@ -164,9 +200,10 @@ export default function App() {
       }
       setIsProductModalOpen(false);
       setEditingProduct(null);
+      setPreviewImage('');
     } catch (error) {
       console.error("Error guardando:", error);
-      alert("Error al guardar.");
+      alert("Error al guardar. Verifica si la imagen es demasiado grande.");
     }
   };
 
@@ -326,7 +363,7 @@ export default function App() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Inventario</h2>
         <button 
-          onClick={() => { setEditingProduct(null); setIsProductModalOpen(true); }}
+          onClick={() => handleOpenModal()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm"
         >
           <Plus className="w-4 h-4" /> Agregar
@@ -356,7 +393,7 @@ export default function App() {
                 <td className="p-4 text-right text-slate-600">${p.price}</td>
                 <td className="p-4 text-center">{p.stock}</td>
                 <td className="p-4 text-right">
-                  <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="text-blue-500 hover:text-blue-700 mr-3 font-medium text-sm">Editar</button>
+                  <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 mr-3 font-medium text-sm">Editar</button>
                   <button onClick={() => handleDeleteProduct(p.id)} className="text-red-400 hover:text-red-600 font-medium text-sm">Borrar</button>
                 </td>
               </tr>
@@ -445,18 +482,65 @@ export default function App() {
                 </div>
               </div>
               
-              {/* CAMPO DE IMAGEN NUEVO */}
+              {/* SECCIÓN DE IMAGEN MEJORADA */}
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Link de Imagen (Opcional)</label>
-                <div className="flex gap-2">
-                    <input 
-                        name="imageUrl" 
-                        defaultValue={editingProduct?.imageUrl} 
-                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm" 
-                        placeholder="https://..." 
-                    />
+                <label className="block text-sm font-medium text-slate-600 mb-2">Imagen del Producto</label>
+                
+                {/* Selector de Modo */}
+                <div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg">
+                    <button 
+                        type="button"
+                        onClick={() => { setImageMode('file'); setPreviewImage(''); }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm rounded-md transition-all ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:bg-slate-200'}`}
+                    >
+                        <Upload size={16} /> Subir Archivo
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => { setImageMode('link'); setPreviewImage(''); }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm rounded-md transition-all ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:bg-slate-200'}`}
+                    >
+                        <LinkIcon size={16} /> Usar Link
+                    </button>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">Tip: Copia el enlace de una imagen de Google y pégalo aquí.</p>
+
+                {/* Input Dinámico */}
+                {imageMode === 'file' ? (
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleFileChange}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center gap-2 text-slate-500">
+                            <Upload className="w-8 h-8 opacity-50" />
+                            <span className="text-xs">Toca para subir foto (Max 1MB)</span>
+                        </div>
+                    </div>
+                ) : (
+                    <input 
+                        name="imageUrlLink" 
+                        defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} 
+                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
+                        placeholder="Pegar enlace https://..." 
+                        onChange={(e) => setPreviewImage(e.target.value)}
+                    />
+                )}
+
+                {/* Previsualización */}
+                {previewImage && (
+                    <div className="mt-3 relative w-full h-32 rounded-lg overflow-hidden border border-slate-200">
+                        <img src={previewImage} className="w-full h-full object-cover" alt="Vista previa" />
+                        <button 
+                            type="button"
+                            onClick={() => setPreviewImage('')}
+                            className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full hover:bg-black/70"
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                )}
               </div>
 
               <div className="pt-2">
