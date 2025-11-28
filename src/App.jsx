@@ -129,65 +129,65 @@ export default function App() {
   const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if(role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
   const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
 
-  // --- FUNCIÓN DE TICKET REDISEÑADA ---
+ // --- FUNCIÓN DE TICKET CORREGIDA (MEJOR FORMATO VISUAL) ---
   const handlePrintTicket = (transaction) => { 
     if (!transaction) return;
     
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
     
-    // Contenido HTML mejorado con columnas claras
+    // Contenido HTML optimizado para PDF sin superposición
     const content = `
-      <div style="font-family:'Courier New',monospace;padding:10px;font-size:11px;width:100%;color:black;">
+      <div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;">
         
-        <div style="text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px">
-          ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px;max-height:50px;margin-bottom:5px" />` : ''}
-          <div style="font-size:14px;font-weight:bold;margin-top:2px">${storeProfile.name}</div>
-          <div style="font-size:10px;">Comprobante de Venta</div>
+        <div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">
+          ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}
+          <div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div>
+          <div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div>
         </div>
 
-        <div style="margin-bottom:8px;">
+        <div style="font-size:11px; margin-bottom:10px; line-height: 1.4;">
           <div><strong>Fecha:</strong> ${date}</div>
           <div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div>
         </div>
 
-        <div style="text-align:center;font-weight:bold;font-size:12px;margin:10px 0;border:1px solid #000;padding:4px;background-color:#f0f0f0;">
+        <div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">
           ESTADO: ${statusText}
         </div>
 
-        <table style="width:100%;border-collapse:collapse;margin-top:5px;font-size:11px;">
+        <table style="width:100%; border-collapse: collapse; font-size:10px;">
           <thead>
-            <tr style="border-bottom:1px solid #000;">
-              <th style="text-align:left;width:10%;">Cant</th>
-              <th style="text-align:left;width:45%;">Prod</th>
-              <th style="text-align:right;width:20%;">Unit</th>
-              <th style="text-align:right;width:25%;">Total</th>
+            <tr style="border-bottom: 2px solid #000;">
+              <th style="text-align:left; padding: 5px 0; width:10%;">Cant</th>
+              <th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th>
+              <th style="text-align:right; padding: 5px 0; width:20%;">Unit</th>
+              <th style="text-align:right; padding: 5px 0; width:20%;">Total</th>
             </tr>
           </thead>
           <tbody>
             ${transaction.items.map(i => `
-              <tr style="border-bottom:1px dashed #ddd;">
-                <td style="text-align:center;vertical-align:top;padding-top:4px;">${i.qty}</td>
-                <td style="text-align:left;vertical-align:top;padding-top:4px;padding-right:2px;">${i.name}</td>
-                <td style="text-align:right;vertical-align:top;padding-top:4px;">$${i.price}</td>
-                <td style="text-align:right;vertical-align:top;padding-top:4px;font-weight:bold;">$${i.price * i.qty}</td>
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td>
+                <td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td>
+                <td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td>
+                <td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
 
-        <div style="margin-top:10px;border-top:1px solid #000;padding-top:5px;">
-           <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:bold;">
+        <div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;">
+           <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;">
               <span>TOTAL:</span>
               <span>$${transaction.total}</span>
            </div>
         </div>
 
-        ${transaction.paymentNote ? `<div style="margin-top:10px;font-style:italic;font-size:10px;border:1px dotted #aaa;padding:4px;">Nota: ${transaction.paymentNote}</div>` : ''}
+        ${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}
 
-        <div style="text-align:center;margin-top:20px;font-size:10px;color:#444;">
+        <div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">
           ¡Gracias por su compra!<br/>
-          *** ${storeProfile.name} ***
+          <strong>${storeProfile.name}</strong>
         </div>
       </div>
     `;
@@ -196,11 +196,11 @@ export default function App() {
     element.innerHTML = content;
 
     const opt = {
-      margin:       2,
+      margin:       [0, 0, 0, 0], // Sin márgenes externos adicionales
       filename:     `ticket-${transaction.id.slice(0,5)}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
-      jsPDF:        { unit: 'mm', format: [75, 220], orientation: 'portrait' } 
+      html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF:        { unit: 'mm', format: [80, 200], orientation: 'portrait' } // Subí a 80mm para dar más aire
     };
 
     html2pdf().set(opt).from(element).save();
@@ -298,3 +298,4 @@ export default function App() {
     </div>
   );
 }
+
