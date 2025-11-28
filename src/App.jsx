@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
+getAuth, 
+signInWithEmailAndPassword,
+createUserWithEmailAndPassword,
+signOut,
+onAuthStateChanged
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -424,3 +424,4 @@ export default function App() {
     </div>
   );
 }
+
