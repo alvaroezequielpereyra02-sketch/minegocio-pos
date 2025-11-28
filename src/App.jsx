@@ -192,12 +192,100 @@ export default function App() {
   const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if(role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
   const handleLogout = () => { signOut(auth); setCart([]); setUserData(null); };
 
-  // --- FUNCIONALIDAD WHATSAPP ---
-  const handleShareWhatsApp = (t) => {
-    if (!t) return;
-    const itemsList = t.items.map(i => `- ${i.qty} x ${i.name} ($${i.price})`).join('%0A');
-    const message = `Hola ${t.clientName || 'Cliente'}! 👋%0A%0AAquí el detalle de tu compra en *${storeProfile.name}*:%0A%0A${itemsList}%0A%0A*TOTAL: $${t.total}*%0AEstado: ${t.paymentStatus === 'paid' ? 'Pagado ✅' : 'Pendiente ❌'}%0A%0A¡Gracias por elegirnos!`;
-    window.open(`https://wa.me/?text=${message}`, '_blank');
+// --- FUNCIÓN WHATSAPP AVANZADA (WEB SHARE API) ---
+  const handleShareWhatsApp = async (transaction) => {
+    if (!transaction) return;
+
+    // 1. Preparamos los datos del ticket (Igual que en imprimir)
+    const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
+    const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
+    const methodText = transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'card' ? 'Tarjeta' : 'Otro';
+
+    // 2. Generamos el HTML (El mismo diseño que tu ticket de impresión)
+    const content = `
+      <div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;">
+        <div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">
+          ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}
+          <div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div>
+          <div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div>
+        </div>
+        <div style="font-size:11px; margin-bottom:10px; line-height: 1.4;">
+          <div><strong>Fecha:</strong> ${date}</div>
+          <div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div>
+          <div><strong>Pago:</strong> ${methodText}</div>
+        </div>
+        <div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">
+          ESTADO: ${statusText}
+        </div>
+        <table style="width:100%; border-collapse: collapse; font-size:10px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000;">
+              <th style="text-align:left; padding: 5px 0; width:10%;">Cant</th>
+              <th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th>
+              <th style="text-align:right; padding: 5px 0; width:20%;">Unit</th>
+              <th style="text-align:right; padding: 5px 0; width:20%;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transaction.items.map(i => `
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td>
+                <td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td>
+                <td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td>
+                <td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;">
+           <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;">
+              <span>TOTAL:</span>
+              <span>$${transaction.total}</span>
+           </div>
+        </div>
+        ${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}
+        <div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">
+          ¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong>
+        </div>
+      </div>
+    `;
+
+    // 3. Crear elemento temporal
+    const element = document.createElement('div');
+    element.innerHTML = content;
+
+    // Configuración PDF
+    const opt = { 
+        margin: [0, 0, 0, 0], 
+        filename: `ticket-${transaction.id.slice(0,5)}.pdf`, 
+        image: { type: 'jpeg', quality: 0.98 }, 
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true }, 
+        jsPDF: { unit: 'mm', format: [80, 200], orientation: 'portrait' } 
+    };
+
+    try {
+        // 4. Generar el PDF como un "Blob" (Archivo en memoria)
+        const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+
+        // 5. Crear un archivo físico virtual
+        const file = new File([pdfBlob], `ticket-${transaction.id.slice(0,5)}.pdf`, { type: 'application/pdf' });
+
+        // 6. Verificar si el navegador soporta compartir archivos (Casi todos los móviles lo hacen)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: 'Comprobante de Venta',
+                text: `Hola! Aquí tienes tu comprobante de compra en ${storeProfile.name}.`,
+            });
+        } else {
+            alert("Tu dispositivo no soporta compartir archivos directamente. El archivo se descargará.");
+            html2pdf().set(opt).from(element).save(); // Fallback: descargar si no puede compartir
+        }
+    } catch (error) {
+        console.error("Error al compartir:", error);
+        alert("Hubo un error al intentar compartir. Intenta descargando el ticket.");
+    }
+  };
   };
 
   // --- PDF GENERATOR ---
@@ -419,3 +507,4 @@ export default function App() {
     </div>
   );
 }
+
