@@ -422,4 +422,3 @@ export default function App() {
     </div>
   );
 }
-// --- FIN DEL ARCHIVO ---
