@@ -139,7 +139,7 @@ export default function App() {
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
-  // --- Cálculos de Dashboard ---
+  // --- CÁLCULOS DEL BALANCE (Restaurado) ---
   const stats = useMemo(() => {
     let totalSales = 0;
     let totalTrans = 0;
@@ -456,7 +456,7 @@ export default function App() {
       <main className="flex-1 overflow-hidden p-4 max-w-5xl mx-auto w-full relative">
         {activeTab === 'pos' && renderPOS()}
         {activeTab === 'inventory' && renderInventory()}
-        {activeTab === 'dashboard' && renderDashboard()} {/* Aquí se muestra el Balance */}
+        {activeTab === 'dashboard' && renderDashboard()} {/* Balance Restaurado */}
         
         {activeTab === 'transactions' && (
           <div className="h-full flex flex-col pb-20 lg:pb-0">
