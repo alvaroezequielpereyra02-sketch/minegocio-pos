@@ -420,7 +420,12 @@ export default function App() {
 
       {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><button onClick={() => {handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false);}} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Imprimir Ticket</button></div>}
     </div>
+      )}
+  </main>   {/* ← ← ← ESTE ERA EL QUE FALTABA */}
+
+    </div>
   );
 }
 
 // --- FIN DEL ARCHIVO ---
+
