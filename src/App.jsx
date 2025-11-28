@@ -1,8 +1,34 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
-import { LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu, Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, Calculator, Box, Wallet, ChevronRight, XCircle } from 'lucide-react';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  getDoc,
+  setDoc,
+  deleteDoc, 
+  onSnapshot, 
+  serverTimestamp, 
+  query, 
+  orderBy,
+  where 
+} from 'firebase/firestore';
+import { 
+  LayoutDashboard, ShoppingCart, Package, History, Plus, Trash2, Minus, 
+  Search, X, TrendingUp, DollarSign, Save, Image as ImageIcon, Upload, 
+  Link as LinkIcon, Download, Tags, LogOut, Users, MapPin, Phone, Printer, Menu,
+  Edit, Store, AlertTriangle, ScanBarcode, ArrowLeft, CheckCircle, Clock, AlertCircle, 
+  Calculator, Box, Wallet, ChevronRight, XCircle
+} from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
 const firebaseConfig = {
@@ -24,8 +50,12 @@ const ADMIN_SECRET_CODE = 'ADMIN123';
 // --- COMPONENTE AUXILIAR (BOTONES) ---
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
-      {icon} <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
+    <button 
+      onClick={onClick} 
+      className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+    >
+      {icon} 
+      <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
     </button>
   );
 }
@@ -35,6 +65,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
   const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
 
   const [activeTab, setActiveTab] = useState('pos');
@@ -76,6 +107,7 @@ export default function App() {
   const quantityInputRef = useRef(null);
 
   const [historySection, setHistorySection] = useState('menu');
+
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginError, setLoginError] = useState('');
 
@@ -87,7 +119,9 @@ export default function App() {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) setUserData(userDoc.data());
         else setUserData({ name: 'Usuario', role: 'client' });
-      } else { setUserData(null); }
+      } else {
+        setUserData(null);
+      }
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -96,43 +130,61 @@ export default function App() {
   // --- SINCRONIZACIÓN ---
   useEffect(() => {
     if (!user || !userData) return;
+
     const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (doc) => {
         if (doc.exists()) setStoreProfile(doc.data());
         else setStoreProfile({ name: 'Distribuidora P&P', logoUrl: '' });
     });
+
     const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (snap) => setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (snap) => setCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    
     const unsubTrans = onSnapshot(collection(db, 'stores', appId, 'transactions'), (snapshot) => {
       let items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (userData.role !== 'admin') items = items.filter(t => t.clientId === user.uid);
       items.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
       setTransactions(items);
     });
+
     return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
   }, [user, userData]);
 
   // --- CÁLCULOS BALANCE ---
   const balance = useMemo(() => {
-    let salesPaid = 0; let salesPending = 0; let salesPartial = 0; let costOfGoodsSold = 0; let inventoryValue = 0;
+    let salesPaid = 0;
+    let salesPending = 0;
+    let salesPartial = 0;
+    let costOfGoodsSold = 0; 
+    let inventoryValue = 0;
     let totalExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+
     transactions.forEach(t => {
       if (t.type === 'sale') {
-        if (t.paymentStatus === 'paid') { salesPaid += t.total; if (t.items) t.items.forEach(item => costOfGoodsSold += (item.cost || 0) * item.qty); } 
-        else if (t.paymentStatus === 'pending') { salesPending += t.total; } 
-        else if (t.paymentStatus === 'partial') { salesPartial += t.total; }
+        if (t.paymentStatus === 'paid') {
+            salesPaid += t.total;
+            if (t.items) t.items.forEach(item => costOfGoodsSold += (item.cost || 0) * item.qty);
+        } else if (t.paymentStatus === 'pending') {
+            salesPending += t.total;
+        } else if (t.paymentStatus === 'partial') {
+            salesPartial += t.total; 
+        }
       }
     });
+
     products.forEach(p => { inventoryValue += (p.price * p.stock); });
+
     const grossProfit = salesPaid - costOfGoodsSold;
     const netProfit = grossProfit - totalExpenses;
+
     const categoryValues = {};
     products.forEach(p => {
         const catName = categories.find(c => c.id === p.categoryId)?.name || 'Sin Categoría';
         if (!categoryValues[catName]) categoryValues[catName] = 0;
         categoryValues[catName] += (p.price * p.stock);
     });
+
     return { salesPaid, salesPending, salesPartial, inventoryValue, totalExpenses, grossProfit, netProfit, categoryValues, costOfGoodsSold };
   }, [transactions, products, expenses, categories]);
 
@@ -145,9 +197,12 @@ export default function App() {
     if (!transaction) return;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
+    
     const printWindow = window.open('', '_blank');
     if (!printWindow) { alert("Permite pop-ups para imprimir"); return; }
+
     const htmlContent = `<html><head><title>Ticket #${transaction.id.slice(0,5)}</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
+    
     printWindow.document.write(htmlContent);
     printWindow.document.close(); 
   };
@@ -156,7 +211,10 @@ export default function App() {
 
   // --- CARRITO ---
   const addToCart = (product) => { 
-    setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); 
+    setCart(prev => { 
+        const existing = prev.find(item => item.id === product.id); 
+        return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; 
+    }); 
   };
   const updateCartQty = (id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id));
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
@@ -167,7 +225,12 @@ export default function App() {
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' }; 
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; 
     else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
-    const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
+    
+    const itemsWithCost = cart.map(i => {
+        const originalProduct = products.find(p => p.id === i.id);
+        return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
+    });
+
     const saleData = { type: 'sale', total: cartTotal, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '' }; 
     try { const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData); for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); } setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 3000); } catch (error) { alert("Error venta."); } 
   };
@@ -359,3 +422,5 @@ export default function App() {
     </div>
   );
 }
+
+// --- FIN DEL ARCHIVO ---
