@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN DE FIREBASE ---
+// Asegúrate de usar tus propias credenciales aquí o variables de entorno
 const firebaseConfig = {
   apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
   authDomain: "minegocio-pos-e35bf.firebaseapp.com",
@@ -197,12 +198,9 @@ export default function App() {
     if (!transaction) return;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
-    
     const printWindow = window.open('', '_blank');
     if (!printWindow) { alert("Permite pop-ups para imprimir"); return; }
-
     const htmlContent = `<html><head><title>Ticket #${transaction.id.slice(0,5)}</title><style>body{font-family:'Courier New',monospace;padding:20px;font-size:12px;width:100%;max-width:300px;margin:0 auto}.header{text-align:center;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px}.logo{max-width:50px;max-height:50px;margin-bottom:5px}.title{font-size:16px;font-weight:bold}table{width:100%;margin-bottom:10px;border-collapse:collapse}th{text-align:left;border-bottom:1px solid #000}td{padding:4px 0}.total{text-align:right;font-size:14px;font-weight:bold;border-top:1px dashed #000;padding-top:5px}.status{text-align:center;font-weight:bold;margin:10px 0;border:1px solid #000;padding:5px}.footer{text-align:center;margin-top:20px;font-size:10px}</style></head><body><div class="header">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" class="logo" />` : ''}<div class="title">${storeProfile.name}</div><div>Comprobante</div></div><div>Fecha: ${date}<br/>Cliente: ${transaction.clientName || 'Consumidor Final'}</div><div class="status">ESTADO: ${statusText}</div><br/><table><thead><tr><th>Cant</th><th>Prod</th><th>Total</th></tr></thead><tbody>${transaction.items.map(i=>`<tr><td>${i.qty}</td><td>${i.name}</td><td style="text-align:right">$${i.price*i.qty}</td></tr>`).join('')}</tbody></table><div class="total">TOTAL: $${transaction.total}</div>${transaction.paymentNote?`<div style="margin-top:5px;font-style:italic">Nota: ${transaction.paymentNote}</div>`:''}<div class="footer">¡Gracias por su compra!<br/>${storeProfile.name}</div><script>window.onload=function(){setTimeout(function(){window.print()},500)}</script></body></html>`;
-    
     printWindow.document.write(htmlContent);
     printWindow.document.close(); 
   };
@@ -421,9 +419,5 @@ export default function App() {
       {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><button onClick={() => {handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false);}} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Imprimir Ticket</button></div>}
     </div>
   );
-
-
 }
-
-
 // --- FIN DEL ARCHIVO ---
