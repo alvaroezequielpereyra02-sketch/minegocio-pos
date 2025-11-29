@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
@@ -46,9 +46,9 @@ export default function App() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   
-  // NUEVO ESTADO PARA DETALLE DE TRANSACCIÓN
+  // ESTADOS DE TRANSACCIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [editingTransaction, setEditingTransaction] = useState(null); // Para el modal de edición de items
+  const [editingTransaction, setEditingTransaction] = useState(null);
 
   // Datos
   const [products, setProducts] = useState([]);
@@ -78,6 +78,36 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL (Boton Atrás) ---
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // Si el usuario presiona "Atrás" en el celular:
+      if (selectedTransaction) {
+        setSelectedTransaction(null); // Cierra la boleta
+      } else if (showMobileCart) {
+        setShowMobileCart(false); // Cierra el carrito
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedTransaction, showMobileCart]);
+
+  // Función envoltorio para abrir boleta y agregar historial
+  const handleOpenTransactionDetail = (t) => {
+    window.history.pushState({ view: 'transaction' }, '', ''); // Agrega estado al navegador
+    setSelectedTransaction(t);
+  };
+
+  // Función envoltorio para cerrar boleta manualmente (botón flecha)
+  const handleCloseTransactionDetail = () => {
+    if (window.history.state && window.history.state.view === 'transaction') {
+       window.history.back(); // Simula presionar atrás para limpiar el historial
+    } else {
+       setSelectedTransaction(null); // Fallback
+    }
+  };
 
   // --- AUTH & DATA LOADING ---
   useEffect(() => {
@@ -164,23 +194,20 @@ export default function App() {
   const handleResetPassword = async () => { const email = document.querySelector('input[name="email"]').value; if (!email) return setLoginError("Escribe tu correo primero."); try { await sendPasswordResetEmail(auth, email); alert("Correo enviado."); setLoginError(""); } catch (error) { setLoginError("Error al enviar correo."); } };
   const handleFinalLogout = () => { signOut(auth); setCart([]); setUserData(null); setIsLogoutConfirmOpen(false); };
   
-  // NUEVA FUNCIÓN PARA BORRAR (CANCELAR) VENTA DESDE EL DETALLE
   const handleDeleteTransaction = async (id) => {
-    if(confirm("⚠️ ¿Estás seguro de cancelar esta venta? Esto no se puede deshacer y el stock no se repondrá automáticamente (debes hacerlo manual).")) {
+    if(confirm("⚠️ ¿Estás seguro de cancelar esta venta? Esto no se puede deshacer y el stock no se repondrá automáticamente.")) {
         try {
             await deleteDoc(doc(db, 'stores', appId, 'transactions', id));
-            setSelectedTransaction(null); // Cerrar modal
+            handleCloseTransactionDetail(); // Usar el handler seguro
         } catch (error) {
             alert("Error al cancelar venta.");
         }
     }
   };
 
-  // NUEVA FUNCIÓN PARA ACTUALIZAR VENTA (PAGO PARCIAL O ESTADO) DESDE DETALLE
   const handleQuickUpdateTransaction = async (id, data) => {
     try {
         await updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
-        // Si la transacción seleccionada es la que estamos editando, actualizar el estado local
         if (selectedTransaction && selectedTransaction.id === id) {
             setSelectedTransaction(prev => ({ ...prev, ...data }));
         }
@@ -189,20 +216,16 @@ export default function App() {
     }
   };
 
-  // PDF & SHARE (Lazy Load)
   const handlePrintTicket = async (transaction) => { 
     if (!transaction) return;
     const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
     const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
     const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
     const methodText = transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro';
-    
-    // Calcular deuda para el ticket
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
     const debt = total - paid;
     const debtText = transaction.paymentStatus === 'partial' ? `<div style="margin-top:5px; font-weight:bold; color:#d32f2f;">RESTA POR PAGAR: $${debt.toLocaleString()}</div>` : '';
-
     const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${methodText}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${statusText}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div>${debtText}</div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`;
     const element = document.createElement('div'); element.innerHTML = content;
     html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0,5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 200] } }).from(element).save();
@@ -210,9 +233,8 @@ export default function App() {
   const handleShareWhatsApp = async (transaction) => {
     if (!transaction) return;
     const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
-    // (Reutiliza lógica de contenido similar a PrintTicket, simplificado para el ejemplo)
-    alert("Función de compartir ticket activa (requiere entorno seguro HTTPS y soporte de navegador).");
-    handlePrintTicket(transaction); // Fallback visual
+    alert("Función de compartir ticket activa.");
+    handlePrintTicket(transaction); 
   };
 
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
@@ -251,39 +273,16 @@ export default function App() {
     } catch (error) { alert("Error venta."); } 
   };
 
-  // --- FUNCIÓN ACTUALIZADA: Ahora maneja el objeto limpio del modal nuevo ---
   const handleUpdateTransaction = async (dataOrEvent) => { 
     if (!editingTransaction) return;
-    
-    // Detectar si viene del modal nuevo (objeto) o viejo (evento form)
-    let updatedItems = [];
-    let newTotal = 0;
-
-    if (dataOrEvent.items && typeof dataOrEvent.total === 'number') {
-        updatedItems = dataOrEvent.items;
-        newTotal = dataOrEvent.total;
-    } else {
-        // Fallback por si acaso, aunque el modal ya no manda eventos
-        return; 
-    }
-
+    let updatedItems = []; let newTotal = 0;
+    if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; }
     try { 
-        await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { 
-            items: updatedItems, 
-            total: newTotal 
-        }); 
-        
+        await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); 
         setIsTransactionModalOpen(false); 
-        
-        // Actualizar visualmente la transacción seleccionada si está abierta
-        if(selectedTransaction && selectedTransaction.id === editingTransaction.id) {
-            setSelectedTransaction(prev => ({...prev, items: updatedItems, total: newTotal}));
-        }
-        
+        if(selectedTransaction && selectedTransaction.id === editingTransaction.id) { setSelectedTransaction(prev => ({...prev, items: updatedItems, total: newTotal})); }
         setEditingTransaction(null); 
-    } catch (error) { 
-        alert("Error al actualizar"); 
-    } 
+    } catch (error) { alert("Error"); } 
   };
 
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
@@ -393,13 +392,13 @@ export default function App() {
                         handleExportCSV={handleExportCSV} 
                         historySection={historySection} 
                         setHistorySection={setHistorySection} 
-                        onSelectTransaction={setSelectedTransaction} 
+                        onSelectTransaction={handleOpenTransactionDetail} 
                     />
                     {/* Renderizamos el detalle sobre todo si está seleccionado */}
                     {selectedTransaction && (
                         <TransactionDetail 
                             transaction={selectedTransaction} 
-                            onClose={() => setSelectedTransaction(null)}
+                            onClose={handleCloseTransactionDetail}
                             onPrint={handlePrintTicket}
                             onShare={handleShareWhatsApp}
                             onCancel={handleDeleteTransaction}
