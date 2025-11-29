@@ -43,7 +43,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
 
   // --- MODAL DE GESTIÓN DE PAGO (Interno) ---
   const PaymentModal = () => (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" style={{zIndex: 10000}}>
+    <div className="fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" style={{zIndex: 10000}}>
         <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b pb-3">
                 <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -107,7 +107,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
       
       {showPaymentModal && <PaymentModal />}
 
-      {/* Modal Compartir */}
+      {/* Modal Compartir (CAPA SUPERIOR) */}
       {showShareOptions && (
         <div className="fixed inset-0 z-[110] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -126,8 +126,8 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
       {/* TARJETA PRINCIPAL (BOLETA) */}
       <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-[600px] sm:h-auto flex flex-col relative animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Navbar - ARREGLADA LA FLECHA ATRÁS */}
-        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-[200] sm:rounded-t-2xl shadow-sm">
+        {/* Navbar */}
+        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-[105] shadow-sm sm:rounded-t-2xl">
           <button 
             onClick={onClose} 
             className="p-3 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100"
@@ -141,7 +141,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
               <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0,8).toUpperCase()}</div>
           </div>
           
-          {/* Botón Editar Items */}
           <button 
             onClick={() => onEditItems(transaction)} 
             className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm transition-transform active:scale-95"
@@ -150,7 +149,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-24">
           
           {/* Cabecera de Precio */}
           <div className="bg-slate-50 p-8 text-center border-b relative">
@@ -159,7 +158,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                   ${displayAmount.toLocaleString()}
               </div>
               
-              {/* Info Pago Parcial */}
               {transaction.paymentStatus === 'partial' && (
                   <div className="mt-3 flex justify-center gap-4 text-sm font-medium">
                       <span className="text-slate-500">Total: <b>${total.toLocaleString()}</b></span>
@@ -167,7 +165,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                   </div>
               )}
 
-              {/* Botón Estado */}
               <div className="mt-6 flex justify-center">
                 <button 
                     onClick={() => {
@@ -188,8 +185,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
               </div>
           </div>
 
-          {/* Pestañas */}
-          <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
+          <div className="flex border-b sticky top-0 bg-white z-50 shadow-sm">
               {['items', 'details', 'client'].map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                     {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
@@ -198,7 +194,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </div>
 
           <div className="p-6">
-            {/* Contenido Items */}
             {activeTab === 'items' && (
                 <div className="space-y-4">
                     {transaction.items.map((item, index) => (
@@ -214,7 +209,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* Contenido Detalles */}
             {activeTab === 'details' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
@@ -236,7 +230,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* Contenido Cliente */}
             {activeTab === 'client' && (
                 <div className="space-y-6">
                     <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
@@ -265,11 +258,13 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </div>
         </div>
 
-        {/* Footer FIJO - Garantiza que se vea al fondo en móviles */}
-        <div className="p-4 border-t bg-white flex gap-3 sm:rounded-b-2xl absolute bottom-0 left-0 right-0 z-[200] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-          <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100"><Share2 size={20} /> Compartir</button>
-          <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">Cancelar</button>
-        </div>
+        {/* Footer FIJO - SE OCULTA SI HAY MODAL COMPARTIR */}
+        {!showShareOptions && (
+            <div className="p-4 border-t bg-white flex gap-3 sm:rounded-b-2xl absolute bottom-0 left-0 right-0 z-[100] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100"><Share2 size={20} /> Compartir</button>
+                <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">Cancelar</button>
+            </div>
+        )}
       </div>
     </div>
   );
