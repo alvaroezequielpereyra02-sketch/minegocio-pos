@@ -10,7 +10,7 @@ import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
 import Dashboard from './components/Dashboard';
 import History from './components/History';
-import TransactionDetail from './components/TransactionDetail'; // <--- IMPORTADO
+import TransactionDetail from './components/TransactionDetail';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal } from './components/Modals';
 
 // CONFIGURACIÓN FIREBASE
@@ -334,6 +334,7 @@ export default function App() {
                             onPrint={handlePrintTicket}
                             onShare={handleShareWhatsApp}
                             onCancel={handleDeleteTransaction}
+                            customers={customers}  // <--- PASAMOS LOS CLIENTES
                         />
                     )}
                 </>
