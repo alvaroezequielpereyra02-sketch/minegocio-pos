@@ -1,249 +1,261 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Receipt, Mail, Phone, MapPin, User, Calendar, CreditCard, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Receipt, Mail, Phone, MapPin, CreditCard, ExternalLink, Edit, Save, DollarSign } from 'lucide-react';
 
-export default function TransactionDetail({ transaction, onClose, onPrint, onShare, onCancel, customers }) {
+export default function TransactionDetail({ transaction, onClose, onPrint, onShare, onCancel, customers, onUpdate, onEditItems }) {
   const [showShareOptions, setShowShareOptions] = useState(false);
-  const [activeTab, setActiveTab] = useState('items'); // 'items', 'details', 'client'
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('items'); 
 
-  if (!transaction) return null;
+  // Estados locales para la gestión de pagos rápida
+  const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
+  const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
+  const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
 
-  // Buscar datos del cliente en la base de datos local usando el ID de la transacción
-  const customerData = customers.find(c => c.id === transaction.clientId) || {};
-  
-  // Datos combinados (prioriza los guardados en la venta, si no, usa los actuales del cliente)
-  const clientName = transaction.clientName || customerData.name || 'Consumidor Final';
-  const clientPhone = customerData.phone || '';
-  const clientAddress = customerData.address || '';
-  const clientEmail = customerData.email || '';
+  // Calcular deuda
+  const total = transaction.total || 0;
+  const paid = transaction.amountPaid || 0;
+  const debt = total - paid;
 
+  // Lógica de visualización del precio principal
+  // Si es parcial, mostramos la DEUDA (lo que falta). Si es pagado, el TOTAL.
+  const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
+  const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
+  const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
+
+  const clientData = customers.find(c => c.id === transaction.clientId) || {};
+  const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
   const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
-  const dateStr = dateObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const timeStr = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  
+  // Guardar cambios de pago/nota
+  const handleSavePayment = () => {
+    let finalAmountPaid = tempAmountPaid;
+    
+    // Lógica automática de montos
+    if (tempStatus === 'paid') finalAmountPaid = total; // Si paga todo, el monto pagado es el total
+    if (tempStatus === 'pending') finalAmountPaid = 0; // Si vuelve a pendiente, no pagó nada
 
-  // --- MODAL DE OPCIONES DE COMPARTIR ---
-  if (showShareOptions) {
-    return (
-      <div className="fixed inset-0 z-[70] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
-          <div className="p-4 flex justify-between items-start border-b">
-            <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400 hover:text-slate-600"/></button>
-            <div className="text-right">
-              <h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3>
-              <p className="text-xs text-slate-500">Selecciona un formato</p>
+    onUpdate(transaction.id, {
+        paymentStatus: tempStatus,
+        amountPaid: finalAmountPaid,
+        paymentNote: tempNote
+    });
+    setShowPaymentModal(false);
+  };
+
+  // Modal para cambiar estado y montos
+  const PaymentModal = () => (
+    <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+        <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <DollarSign size={20} className="text-blue-600"/> Gestionar Pago
+            </h3>
+            
+            {/* Selector de Estado */}
+            <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Estado del Pago</label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                    <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'paid' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}>✅ PAGADO</button>
+                    <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'partial' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}>⚠️ PARCIAL</button>
+                    <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
+                </div>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
-            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all">
-                <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div>
-                <span className="font-bold text-slate-700">PDF</span>
-            </button>
-            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all">
-                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div>
-                <span className="font-bold text-slate-700">WhatsApp</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  // --- VISTA DETALLADA PRINCIPAL ---
+            {/* Input de Monto (Solo si es Parcial) */}
+            {tempStatus === 'partial' && (
+                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
+                    <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">¿Cuánto abonó el cliente?</label>
+                    <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
+                        <span className="text-slate-400 font-bold">$</span>
+                        <input 
+                            type="number" 
+                            className="w-full outline-none text-lg font-bold text-slate-800"
+                            value={tempAmountPaid}
+                            onChange={(e) => setTempAmountPaid(Number(e.target.value))}
+                            placeholder="0"
+                        />
+                    </div>
+                    <div className="text-right text-xs text-orange-600 mt-2 font-bold">
+                        Resta: ${(total - tempAmountPaid).toLocaleString()}
+                    </div>
+                </div>
+            )}
+
+            {/* Notas */}
+            <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
+                <textarea 
+                    className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                    rows="2"
+                    placeholder="Ej: Pasa a pagar el resto mañana..."
+                    value={tempNote}
+                    onChange={(e) => setTempNote(e.target.value)}
+                />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-3 text-slate-500 font-bold">Cancelar</button>
+                <button onClick={handleSavePayment} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Guardar</button>
+            </div>
+        </div>
+    </div>
+  );
+
+  // --- RENDER PRINCIPAL ---
   return (
     <div className="fixed inset-0 z-50 bg-slate-100/90 backdrop-blur-sm flex justify-center items-start sm:items-center overflow-y-auto animate-in fade-in duration-200">
+      {showPaymentModal && <PaymentModal />}
       
-      {/* Contenedor Principal (Hoja) - Centrado en PC */}
+      {/* Modal Compartir (mismo de antes) */}
+      {showShareOptions && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
+            <div className="p-4 flex justify-between items-start border-b">
+                <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400"/></button>
+                <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
+                <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
+                <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
+            </div>
+            </div>
+        </div>
+      )}
+
+      {/* Contenedor Principal */}
       <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-[600px] sm:h-auto flex flex-col relative animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Navbar Superior Sticky */}
+        {/* Navbar */}
         <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-10 sm:rounded-t-2xl">
-          <button 
-            onClick={onClose} 
-            className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors active:bg-slate-200"
-            aria-label="Volver atrás"
-          >
-              <ArrowLeft size={24} />
-          </button>
+          <button onClick={onClose} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
           <div className="flex-1 min-w-0">
               <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
               <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0,8).toUpperCase()}</div>
           </div>
-          <div className={`px-3 py-1 rounded-full text-xs font-bold border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-              {transaction.paymentStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'}
-          </div>
+          {/* Botón Editar Pedido (Items) */}
+          <button onClick={() => onEditItems(transaction)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full flex items-center gap-1 font-bold text-xs border border-blue-100">
+            <Edit size={16} /> Editar
+          </button>
         </div>
 
-        {/* Cuerpo Principal */}
         <div className="flex-1 overflow-y-auto">
           
-          {/* Cabecera de Precio */}
-          <div className="bg-slate-50 p-8 text-center border-b">
-              <div className="text-5xl font-extrabold text-slate-800 tracking-tight">
-                  ${transaction.total.toLocaleString()}
+          {/* Cabecera de Precio Inteligente */}
+          <div className="bg-slate-50 p-8 text-center border-b relative">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
+              <div className={`text-5xl font-extrabold tracking-tight ${displayColor}`}>
+                  ${displayAmount.toLocaleString()}
               </div>
-              <div className="text-sm text-slate-500 mt-2 font-medium flex items-center justify-center gap-2">
-                  <CreditCard size={14}/>
-                  {transaction.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo'}
+              
+              {/* Desglose si es parcial */}
+              {transaction.paymentStatus === 'partial' && (
+                  <div className="mt-2 text-sm text-slate-500 font-medium bg-white inline-block px-3 py-1 rounded-full border shadow-sm">
+                      Total: ${total.toLocaleString()}  |  Pagado: ${paid.toLocaleString()}
+                  </div>
+              )}
+
+              {/* Botón Gestionar Pago */}
+              <div className="mt-6 flex justify-center">
+                <button 
+                    onClick={() => {
+                        setTempStatus(transaction.paymentStatus);
+                        setTempAmountPaid(transaction.amountPaid || 0);
+                        setTempNote(transaction.paymentNote || '');
+                        setShowPaymentModal(true);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm shadow-sm transition-all border ${
+                        transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 
+                        transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                        'bg-red-100 text-red-700 border-red-200'
+                    }`}
+                >
+                    {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
+                    <Edit size={14} className="opacity-50"/>
+                </button>
               </div>
           </div>
 
-          {/* Pestañas de Navegación */}
-          <div className="flex border-b sticky top-[60px] bg-white z-10">
-              <button 
-                onClick={() => setActiveTab('items')}
-                className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'items' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                ITEMS ({transaction.items.length})
-              </button>
-              <button 
-                onClick={() => setActiveTab('details')}
-                className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'details' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                DETALLES
-              </button>
-              <button 
-                onClick={() => setActiveTab('client')}
-                className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'client' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                CLIENTE
-              </button>
+          {/* Pestañas */}
+          <div className="flex border-b sticky top-0 bg-white z-10">
+              {['items', 'details', 'client'].map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                    {tab === 'items' ? `Items (${transaction.items.length})` : tab === 'details' ? 'Detalles' : 'Cliente'}
+                  </button>
+              ))}
           </div>
 
-          {/* CONTENIDO DE PESTAÑAS */}
           <div className="p-6">
-            
-            {/* 1. LISTA DE ITEMS */}
+            {/* ITEMS */}
             {activeTab === 'items' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="space-y-4 animate-in fade-in slide-in-from-left-4">
                     {transaction.items.map((item, index) => (
-                        <div key={index} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
-                            <div className="bg-blue-50 text-blue-700 font-bold w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                                {item.qty}
-                            </div>
+                        <div key={index} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100">
+                            <div className="bg-blue-50 text-blue-700 font-bold w-10 h-10 rounded-lg flex items-center justify-center shrink-0">{item.qty}</div>
                             <div className="flex-1 min-w-0">
                                 <div className="font-bold text-slate-800 leading-tight">{item.name}</div>
                                 <div className="text-xs text-slate-400 mt-1">${item.price.toLocaleString()} c/u</div>
                             </div>
-                            <div className="text-lg font-bold text-slate-700">
-                                ${(item.price * item.qty).toLocaleString()}
-                            </div>
+                            <div className="text-lg font-bold text-slate-700">${(item.price * item.qty).toLocaleString()}</div>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* 2. DETALLES TÉCNICOS */}
+            {/* DETALLES */}
             {activeTab === 'details' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="space-y-6 animate-in fade-in">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Calendar size={12}/> Fecha</div>
-                            <div className="font-semibold text-slate-700 text-sm">{dateStr}</div>
+                            <div className="text-xs text-slate-400 mb-1">Método de Pago</div>
+                            <div className="font-bold text-slate-700">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div>
                         </div>
                         <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><CreditCard size={12}/> Hora</div>
-                            <div className="font-semibold text-slate-700 text-sm">{timeStr}</div>
+                            <div className="text-xs text-slate-400 mb-1">Fecha</div>
+                            <div className="font-bold text-slate-700">{dateObj.toLocaleDateString()}</div>
                         </div>
                     </div>
-                    
                     <div>
-                        <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Notas de la venta</h4>
-                        <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic min-h-[80px]">
-                            {transaction.paymentNote ? `"${transaction.paymentNote}"` : "Sin notas adicionales."}
+                        <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Nota Interna</h4>
+                        <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">
+                            {transaction.paymentNote || "Sin notas."}
                         </div>
-                    </div>
-
-                    <div className="text-xs text-slate-300 text-center pt-4">
-                        ID Transacción: {transaction.id}
                     </div>
                 </div>
             )}
 
-            {/* 3. INFORMACIÓN DEL CLIENTE (NUEVO) */}
+            {/* CLIENTE */}
             {activeTab === 'client' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="space-y-6 animate-in fade-in">
                     <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                        <div className="w-12 h-12 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold">
-                            {clientName.charAt(0).toUpperCase()}
-                        </div>
+                        <div className="w-12 h-12 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold">{clientName.charAt(0).toUpperCase()}</div>
                         <div>
                             <div className="font-bold text-slate-800 text-lg">{clientName}</div>
-                            <div className="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-1">
-                                {transaction.clientRole === 'client' ? 'Cliente Registrado' : 'Invitado'}
-                            </div>
+                            <div className="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-1">Cliente</div>
                         </div>
                     </div>
-
                     <div className="space-y-3">
-                        {/* Teléfono */}
-                        {clientPhone ? (
+                        {clientData.phone ? (
                             <div className="flex gap-2">
-                                <a href={`tel:${clientPhone}`} className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all group">
-                                    <div className="p-2 bg-slate-100 text-slate-500 rounded-full group-hover:bg-blue-100 group-hover:text-blue-600"><Phone size={18}/></div>
-                                    <div>
-                                        <div className="text-xs text-slate-400">Teléfono</div>
-                                        <div className="font-bold text-slate-700">{clientPhone}</div>
-                                    </div>
-                                </a>
-                                <a href={`https://wa.me/${clientPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="flex items-center justify-center w-14 bg-green-50 border border-green-200 rounded-lg text-green-600 hover:bg-green-100">
-                                    <MessageCircle size={24}/>
-                                </a>
+                                <a href={`tel:${clientData.phone}`} className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-400"><Phone size={18} className="text-slate-400"/><span className="font-bold text-slate-700">{clientData.phone}</span></a>
+                                <a href={`https://wa.me/${clientData.phone.replace(/\D/g,'')}`} target="_blank" className="w-14 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center text-green-600"><MessageCircle size={24}/></a>
                             </div>
-                        ) : (
-                            <div className="p-3 border border-dashed border-slate-300 rounded-lg text-slate-400 text-sm text-center">Sin teléfono registrado</div>
-                        )}
-
-                        {/* Dirección */}
-                        {clientAddress ? (
+                        ) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg">Sin teléfono</div>}
+                        {clientData.address ? (
                             <div className="flex gap-2">
-                                <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
-                                    <div className="p-2 bg-slate-100 text-slate-500 rounded-full"><MapPin size={18}/></div>
-                                    <div>
-                                        <div className="text-xs text-slate-400">Dirección de Entrega</div>
-                                        <div className="font-bold text-slate-700 leading-tight">{clientAddress}</div>
-                                    </div>
-                                </div>
-                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientAddress)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center w-14 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 hover:bg-blue-100">
-                                    <ExternalLink size={24}/>
-                                </a>
+                                <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg"><MapPin size={18} className="text-slate-400"/><span className="font-bold text-slate-700">{clientData.address}</span></div>
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600"><ExternalLink size={24}/></a>
                             </div>
-                        ) : (
-                            <div className="p-3 border border-dashed border-slate-300 rounded-lg text-slate-400 text-sm text-center">Sin dirección registrada</div>
-                        )}
-
-                        {/* Email */}
-                        {clientEmail && (
-                            <a href={`mailto:${clientEmail}`} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all group">
-                                <div className="p-2 bg-slate-100 text-slate-500 rounded-full group-hover:bg-blue-100 group-hover:text-blue-600"><Mail size={18}/></div>
-                                <div>
-                                    <div className="text-xs text-slate-400">Email</div>
-                                    <div className="font-bold text-slate-700">{clientEmail}</div>
-                                </div>
-                            </a>
-                        )}
+                        ) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg">Sin dirección</div>}
                     </div>
                 </div>
             )}
-
           </div>
         </div>
 
-        {/* Footer de Acciones */}
-        <div className="p-4 border-t bg-white safe-area-bottom flex gap-3 sm:rounded-b-2xl">
-          <button 
-              onClick={() => setShowShareOptions(true)}
-              className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 hover:border-slate-300 transition-colors"
-          >
-              <Share2 size={20} /> Compartir
-          </button>
-
-          <button 
-              onClick={() => onCancel(transaction.id)}
-              className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 hover:border-red-200 transition-colors"
-          >
-              Cancelar
-          </button>
+        {/* Footer */}
+        <div className="p-4 border-t bg-white flex gap-3 sm:rounded-b-2xl">
+          <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50"><Share2 size={20} /> Compartir</button>
+          <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50">Cancelar</button>
         </div>
-
       </div>
     </div>
   );
