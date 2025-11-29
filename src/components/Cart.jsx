@@ -38,7 +38,7 @@ export default function Cart({
                 <div className="text-xs text-slate-500 font-medium mt-0.5">${item.price} x unidad</div>
               </div>
               
-              {/* CANTIDAD EDITABLE */}
+              {/* CANTIDAD EDITABLE */} {/* CANTIDAD EDITABLE */}
               <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
                 <button onClick={() => updateCartQty(item.id, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-200 active:bg-slate-300 text-slate-600 transition-colors border-r border-slate-200">
                   <Minus className="w-3 h-3"/>
@@ -138,3 +138,4 @@ export default function Cart({
     </div>
   );
 }
+
