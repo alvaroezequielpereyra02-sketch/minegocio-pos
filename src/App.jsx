@@ -79,33 +79,40 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
-  // --- LÓGICA DE NAVEGACIÓN MÓVIL (Boton Atrás) ---
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL ROBUSTA ---
+  // Usamos useEffect para escuchar el botón atrás del navegador/celular
   useEffect(() => {
-    const handlePopState = (event) => {
-      // Si el usuario presiona "Atrás" en el celular:
-      if (selectedTransaction) {
-        setSelectedTransaction(null); // Cierra la boleta
-      } else if (showMobileCart) {
-        setShowMobileCart(false); // Cierra el carrito
-      }
+    const onPopState = (e) => {
+        // Si hay una transacción abierta, la cerramos
+        if (selectedTransaction) {
+            e.preventDefault();
+            setSelectedTransaction(null);
+        } 
+        // Si el carrito móvil está abierto, lo cerramos
+        else if (showMobileCart) {
+            e.preventDefault();
+            setShowMobileCart(false);
+        }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, [selectedTransaction, showMobileCart]);
 
-  // Función envoltorio para abrir boleta y agregar historial
+  // Función para ABRIR boleta (Agrega historia)
   const handleOpenTransactionDetail = (t) => {
-    window.history.pushState({ view: 'transaction' }, '', ''); // Agrega estado al navegador
+    // Agregamos un estado al historial para que el botón "Atrás" tenga algo que deshacer
+    window.history.pushState({ view: 'transaction' }, document.title);
     setSelectedTransaction(t);
   };
 
-  // Función envoltorio para cerrar boleta manualmente (botón flecha)
+  // Función para CERRAR boleta (Simula Atrás o cierra directo)
   const handleCloseTransactionDetail = () => {
+    // Si estamos volviendo manualmente con la flecha en pantalla
     if (window.history.state && window.history.state.view === 'transaction') {
-       window.history.back(); // Simula presionar atrás para limpiar el historial
+       window.history.back(); // Esto disparará el popstate y cerrará el modal
     } else {
-       setSelectedTransaction(null); // Fallback
+       setSelectedTransaction(null); // Fallback por si no hay historial
     }
   };
 
@@ -210,7 +217,6 @@ export default function App() {
   const handleQuickUpdateTransaction = async (id, data) => {
     try {
         await updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
-        // Si la transacción seleccionada es la que estamos editando, actualizar el estado local
         if (selectedTransaction && selectedTransaction.id === id) {
             setSelectedTransaction(prev => ({ ...prev, ...data }));
         }
@@ -240,7 +246,6 @@ export default function App() {
   const handleShareWhatsApp = async (transaction) => {
     if (!transaction) return;
     const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
-    // (Reutiliza lógica de contenido similar a PrintTicket, simplificado para el ejemplo)
     alert("Función de compartir ticket activa (requiere entorno seguro HTTPS y soporte de navegador).");
     handlePrintTicket(transaction); // Fallback visual
   };
@@ -281,11 +286,8 @@ export default function App() {
     } catch (error) { alert("Error venta."); } 
   };
 
-  // --- FUNCIÓN ACTUALIZADA: Ahora maneja el objeto limpio del modal nuevo ---
   const handleUpdateTransaction = async (dataOrEvent) => { 
     if (!editingTransaction) return;
-    
-    // Detectar si viene del modal nuevo (objeto) o viejo (evento form)
     let updatedItems = [];
     let newTotal = 0;
 
@@ -293,7 +295,6 @@ export default function App() {
         updatedItems = dataOrEvent.items;
         newTotal = dataOrEvent.total;
     } else {
-        // Fallback por si acaso, aunque el modal ya no manda eventos
         return; 
     }
 
@@ -305,7 +306,6 @@ export default function App() {
         
         setIsTransactionModalOpen(false); 
         
-        // Actualizar visualmente la transacción seleccionada si está abierta
         if(selectedTransaction && selectedTransaction.id === editingTransaction.id) {
             setSelectedTransaction(prev => ({...prev, items: updatedItems, total: newTotal}));
         }
