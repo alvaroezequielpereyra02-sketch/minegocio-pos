@@ -6,17 +6,14 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activeTab, setActiveTab] = useState('items'); 
 
-  // Estados para el Modal de Pagos
   const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
   const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
   const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
 
-  // Cálculos
   const total = transaction.total || 0;
   const paid = transaction.amountPaid || 0;
   const debt = total - paid;
 
-  // Lógica visual
   const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
   const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
   const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
@@ -25,13 +22,10 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
   const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
   const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
   
-  // Guardar Pago
   const handleSavePayment = () => {
     let finalAmountPaid = tempAmountPaid;
-    
-    // Reglas de negocio
-    if (tempStatus === 'paid') finalAmountPaid = total; // Si paga, se asume todo
-    if (tempStatus === 'pending') finalAmountPaid = 0;  // Si pendiente, 0
+    if (tempStatus === 'paid') finalAmountPaid = total;
+    if (tempStatus === 'pending') finalAmountPaid = 0;
 
     onUpdate(transaction.id, {
         paymentStatus: tempStatus,
@@ -41,9 +35,8 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     setShowPaymentModal(false);
   };
 
-  // --- MODAL DE GESTIÓN DE PAGO (Interno) ---
   const PaymentModal = () => (
-    <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
         <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b pb-3">
                 <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -51,8 +44,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </h3>
                 <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400"/></button>
             </div>
-            
-            {/* Selector de Estado */}
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                 <div className="grid grid-cols-3 gap-2 mt-2">
@@ -61,8 +52,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
                 </div>
             </div>
-
-            {/* Input de Monto (Solo Parcial) */}
             {tempStatus === 'partial' && (
                 <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
                     <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto que YA PAGÓ el cliente:</label>
@@ -82,8 +71,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     </div>
                 </div>
             )}
-
-            {/* Notas */}
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
                 <textarea 
@@ -94,7 +81,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     onChange={(e) => setTempNote(e.target.value)}
                 />
             </div>
-
             <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">
                 Guardar Cambios
             </button>
@@ -103,13 +89,13 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100/90 backdrop-blur-sm flex justify-center items-start sm:items-center overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] bg-slate-100/90 backdrop-blur-sm flex justify-center items-start sm:items-center overflow-y-auto animate-in fade-in duration-200">
       
       {showPaymentModal && <PaymentModal />}
 
       {/* Modal Compartir */}
       {showShareOptions && (
-        <div className="fixed inset-0 z-[70] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[110] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
             <div className="p-4 flex justify-between items-start border-b">
                 <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400"/></button>
@@ -126,15 +112,14 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
       {/* TARJETA PRINCIPAL (BOLETA) */}
       <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-[600px] sm:h-auto flex flex-col relative animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Navbar FIXED - Solución Móvil */}
-        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-50 shadow-md sm:rounded-t-2xl">
-          {/* Botón Atrás - Mejorado */}
+        {/* Navbar FIXED - ARREGLADO Z-INDEX Y VISIBILIDAD */}
+        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-[105] shadow-sm sm:rounded-t-2xl">
           <button 
             onClick={onClose} 
-            className="p-2 text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors active:scale-95 shadow-sm"
+            className="p-2 -ml-2 text-slate-800 bg-slate-100/50 hover:bg-slate-200 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-200"
             aria-label="Volver"
           >
-              <ArrowLeft size={24} /> 
+              <ArrowLeft size={24} className="text-slate-700"/> 
           </button>
           
           <div className="flex-1 min-w-0">
@@ -142,10 +127,9 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
               <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0,8).toUpperCase()}</div>
           </div>
           
-          {/* Botón Editar - Mejorado */}
           <button 
             onClick={() => onEditItems(transaction)} 
-            className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm transition-transform active:scale-95"
+            className="px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm border border-blue-100 transition-transform active:scale-95"
           >
             <Edit size={16} /> <span className="hidden sm:inline">Editar</span>
           </button>
@@ -187,8 +171,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
               </div>
           </div>
 
-          {/* Pestañas */}
-          <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
+          <div className="flex border-b sticky top-0 bg-white z-50 shadow-sm">
               {['items', 'details', 'client'].map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                     {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
@@ -197,7 +180,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </div>
 
           <div className="p-6">
-            {/* ITEMS */}
             {activeTab === 'items' && (
                 <div className="space-y-4">
                     {transaction.items.map((item, index) => (
@@ -213,7 +195,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* DETALLES */}
             {activeTab === 'details' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
@@ -235,7 +216,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* CLIENTE */}
             {activeTab === 'client' && (
                 <div className="space-y-6">
                     <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
