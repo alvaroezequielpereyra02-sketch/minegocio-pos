@@ -56,7 +56,8 @@ export default function History({
         return (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
                 <div className="flex justify-between items-center mb-6 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-slate-800">Historial</h2>
+                    {/* CAMBIO APLICADO: Título actualizado */}
+                    <h2 className="text-xl font-bold text-slate-800">Transacciones</h2>
                     {userData.role === 'admin' && (
                         <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2 font-bold shadow-sm active:scale-95 transition-transform">
                             <Download size={16}/> Excel
