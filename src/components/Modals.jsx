@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft } from 'lucide-react';
 
 // Estilo base para el fondo oscuro de los modales
-const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
+// CORRECCIÓN: Aumentamos el z-index a 20000 para superar a la boleta (que tiene 9999)
+const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[20000] backdrop-blur-sm animate-in fade-in duration-200";
 
 // (Mantener los otros modales igual: ExpenseModal, ProductModal, etc...)
 // SOLO PEGO DE NUEVO LOS MODALES PEQUEÑOS PARA QUE TENGAS EL ARCHIVO COMPLETO,
@@ -148,8 +149,9 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         onSave({ items: localItems, total: newTotal });
     };
 
+    // CORRECCIÓN PRINCIPAL: Z-Index 20000 para estar encima de TransactionDetail (9999)
     return (
-        <div className="fixed inset-0 z-[250] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[20000] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
             
             {/* Contenedor Principal Estilo "Hoja" */}
             <div className="w-full max-w-2xl h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl flex flex-col relative">
