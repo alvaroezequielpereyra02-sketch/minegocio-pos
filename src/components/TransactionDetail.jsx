@@ -126,21 +126,28 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
       {/* TARJETA PRINCIPAL (BOLETA) */}
       <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-[600px] sm:h-auto flex flex-col relative animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Navbar - ARREGLADA LA FLECHA ATRÁS */}
-        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-20 sm:rounded-t-2xl shadow-sm">
+        {/* Navbar FIXED - Solución Móvil */}
+        <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-50 shadow-md sm:rounded-t-2xl">
+          {/* Botón Atrás - Mejorado */}
           <button 
             onClick={onClose} 
-            className="p-2 -ml-2 text-slate-700 hover:bg-slate-100 rounded-full transition-colors active:bg-slate-200 z-30"
+            className="p-2 text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors active:scale-95 shadow-sm"
+            aria-label="Volver"
           >
-              <ArrowLeft size={28} /> {/* Icono más grande */}
+              <ArrowLeft size={24} /> 
           </button>
+          
           <div className="flex-1 min-w-0">
               <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
               <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0,8).toUpperCase()}</div>
           </div>
-          {/* Botón Editar Items */}
-          <button onClick={() => onEditItems(transaction)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg flex items-center gap-1 font-bold text-xs border border-blue-100 transition-colors">
-            <Edit size={16} /> Editar
+          
+          {/* Botón Editar - Mejorado */}
+          <button 
+            onClick={() => onEditItems(transaction)} 
+            className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm transition-transform active:scale-95"
+          >
+            <Edit size={16} /> <span className="hidden sm:inline">Editar</span>
           </button>
         </div>
 
@@ -153,7 +160,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                   ${displayAmount.toLocaleString()}
               </div>
               
-              {/* Info Pago Parcial */}
               {transaction.paymentStatus === 'partial' && (
                   <div className="mt-3 flex justify-center gap-4 text-sm font-medium">
                       <span className="text-slate-500">Total: <b>${total.toLocaleString()}</b></span>
@@ -161,7 +167,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                   </div>
               )}
 
-              {/* Botón Estado */}
               <div className="mt-6 flex justify-center">
                 <button 
                     onClick={() => {
@@ -183,7 +188,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </div>
 
           {/* Pestañas */}
-          <div className="flex border-b sticky top-0 bg-white z-10">
+          <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
               {['items', 'details', 'client'].map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                     {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
@@ -192,7 +197,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
           </div>
 
           <div className="p-6">
-            {/* Contenido Items */}
+            {/* ITEMS */}
             {activeTab === 'items' && (
                 <div className="space-y-4">
                     {transaction.items.map((item, index) => (
@@ -208,7 +213,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* Contenido Detalles */}
+            {/* DETALLES */}
             {activeTab === 'details' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
@@ -230,7 +235,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* Contenido Cliente */}
+            {/* CLIENTE */}
             {activeTab === 'client' && (
                 <div className="space-y-6">
                     <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
