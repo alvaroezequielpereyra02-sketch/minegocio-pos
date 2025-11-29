@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus } from 'lucide-react';
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft } from 'lucide-react';
 
-// Estilo base para el fondo oscuro de los modales (Z-INDEX 200 PARA ESTAR ENCIMA DE TODO)
+// Estilo base para el fondo oscuro de los modales
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
+
+// (Mantener los otros modales igual: ExpenseModal, ProductModal, etc...)
+// SOLO PEGO DE NUEVO LOS MODALES PEQUEÑOS PARA QUE TENGAS EL ARCHIVO COMPLETO,
+// EL CAMBIO IMPORTANTE ESTÁ AL FINAL EN TransactionModal.
 
 export function ExpenseModal({ onClose, onSave }) {
     return (
@@ -116,7 +120,7 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
-// 7. MODAL DE TRANSACCIÓN MEJORADO (Ahora maneja estado local)
+// 7. MODAL DE EDICIÓN DE ITEMS (REDISEÑADO - FULL SCREEN EN MÓVIL)
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     
@@ -126,85 +130,114 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         setLocalItems(newItems);
     };
 
+    const updateQty = (index, delta) => {
+        const newItems = [...localItems];
+        const newQty = (newItems[index].qty || 0) + delta;
+        if(newQty < 1) return; // Mínimo 1
+        newItems[index].qty = newQty;
+        setLocalItems(newItems);
+    };
+
     const deleteItem = (index) => {
         const newItems = localItems.filter((_, i) => i !== index);
         setLocalItems(newItems);
     };
 
-    const handleSave = (e) => {
-        e.preventDefault();
+    const handleSave = () => {
         const newTotal = localItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
         onSave({ items: localItems, total: newTotal });
     };
 
     return (
-        <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center border-b pb-2">
-                    <h3 className="font-bold text-lg">Editar Contenido de Boleta</h3>
-                    <button onClick={onClose}><X size={20}/></button>
-                </div>
+        <div className="fixed inset-0 z-[250] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
+            
+            {/* Contenedor Principal Estilo "Hoja" */}
+            <div className="w-full max-w-2xl h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl flex flex-col relative">
                 
-                <form onSubmit={handleSave} className="space-y-4">
-                    <div className="bg-slate-50 rounded-lg border overflow-hidden max-h-60 overflow-y-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-200 text-slate-700 font-bold sticky top-0">
-                                <tr>
-                                    <th className="p-2 w-16 text-center">Cant</th>
-                                    <th className="p-2">Producto</th>
-                                    <th className="p-2 w-20 text-right">Precio</th>
-                                    <th className="p-2 w-8"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {localItems.map((item, index) => (
-                                    <tr key={index} className="bg-white">
-                                        <td className="p-2">
-                                            <div className="flex items-center gap-1">
-                                                <input 
-                                                    type="number" 
-                                                    value={item.qty} 
-                                                    onChange={(e) => updateItem(index, 'qty', parseInt(e.target.value) || 0)}
-                                                    className="w-12 p-1 border rounded text-center bg-slate-50 font-bold"
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="p-2">
-                                            <input 
-                                                value={item.name} 
-                                                onChange={(e) => updateItem(index, 'name', e.target.value)}
-                                                className="w-full p-1 border-b focus:border-blue-500 outline-none"
-                                            />
-                                        </td>
-                                        <td className="p-2 text-right">
-                                            <input 
-                                                type="number" 
-                                                value={item.price} 
-                                                onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)}
-                                                className="w-16 p-1 border rounded text-right"
-                                            />
-                                        </td>
-                                        <td className="p-2 text-center">
-                                            <button type="button" onClick={() => deleteItem(index)} className="text-red-400 hover:text-red-600">
-                                                <Trash2 size={16}/>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {localItems.length === 0 && <div className="p-4 text-center text-slate-400">Boleta vacía</div>}
+                {/* Header */}
+                <div className="bg-white px-4 py-3 border-b flex items-center justify-between sticky top-0 z-10 sm:rounded-t-2xl">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
+                            <ArrowLeft size={24} />
+                        </button>
+                        <div>
+                            <h3 className="font-bold text-lg text-slate-800">Editar Pedido</h3>
+                            <p className="text-xs text-slate-500">Modifica cantidades o precios</p>
+                        </div>
                     </div>
-
-                    <div className="flex justify-between items-center text-sm font-bold text-slate-700 bg-slate-100 p-3 rounded-lg">
-                        <span>NUEVO TOTAL:</span>
-                        <span className="text-xl text-blue-600">${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}</span>
-                    </div>
-
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-md">
-                        Confirmar Cambios
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:bg-blue-700 transition-colors flex items-center gap-2">
+                        <CheckCircle size={18}/> Guardar
                     </button>
-                </form>
+                </div>
+
+                {/* Lista de Items */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                    {localItems.map((item, index) => (
+                        <div key={index} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            {/* Fila Superior: Nombre y Eliminar */}
+                            <div className="flex justify-between items-start mb-3">
+                                <input 
+                                    className="font-bold text-slate-800 text-lg w-full outline-none border-b border-transparent focus:border-blue-300 mr-2"
+                                    value={item.name}
+                                    onChange={(e) => updateItem(index, 'name', e.target.value)}
+                                />
+                                <button onClick={() => deleteItem(index)} className="text-red-400 hover:text-red-600 p-1">
+                                    <Trash2 size={20}/>
+                                </button>
+                            </div>
+
+                            {/* Controles de Precio y Cantidad */}
+                            <div className="flex items-center justify-between gap-4">
+                                {/* Precio Unitario */}
+                                <div className="flex-1">
+                                    <label className="text-[10px] uppercase font-bold text-slate-400">Precio Unit.</label>
+                                    <div className="flex items-center gap-1 border rounded-lg p-2 bg-slate-50">
+                                        <span className="text-slate-400 font-bold">$</span>
+                                        <input 
+                                            type="number"
+                                            className="w-full bg-transparent outline-none font-bold text-slate-700"
+                                            value={item.price}
+                                            onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Cantidad (Botones Grandes) */}
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => updateQty(index, -1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200">
+                                        <Minus size={18}/>
+                                    </button>
+                                    <div className="w-8 text-center font-bold text-xl">{item.qty}</div>
+                                    <button onClick={() => updateQty(index, 1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200">
+                                        <Plus size={18}/>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {/* Subtotal Item */}
+                            <div className="text-right mt-2 text-xs font-bold text-blue-600">
+                                Subtotal: ${(item.price * item.qty).toLocaleString()}
+                            </div>
+                        </div>
+                    ))}
+                    
+                    {localItems.length === 0 && (
+                        <div className="text-center py-10 text-slate-400">
+                            No hay items en el pedido.
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer Total */}
+                <div className="p-4 bg-white border-t sm:rounded-b-2xl sticky bottom-0 z-10">
+                    <div className="flex justify-between items-center text-lg">
+                        <span className="font-bold text-slate-600">Nuevo Total</span>
+                        <span className="font-extrabold text-2xl text-slate-900">
+                            ${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}
+                        </span>
+                    </div>
+                </div>
+
             </div>
         </div>
     );
