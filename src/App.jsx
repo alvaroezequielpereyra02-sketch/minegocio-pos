@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
-// CORRECCIÓN: Se agregaron LogOut, ShoppingCart y ChevronRight que faltaban
 import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight } from 'lucide-react';
 
 // IMPORTACIÓN DE COMPONENTES
@@ -11,6 +10,7 @@ import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
 import Dashboard from './components/Dashboard';
 import History from './components/History';
+import TransactionDetail from './components/TransactionDetail'; // <--- IMPORTADO
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal } from './components/Modals';
 
 // CONFIGURACIÓN FIREBASE
@@ -46,6 +46,9 @@ export default function App() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   
+  // NUEVO ESTADO PARA DETALLE DE TRANSACCIÓN
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+
   // Datos
   const [products, setProducts] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -161,6 +164,18 @@ export default function App() {
   const handleResetPassword = async () => { const email = document.querySelector('input[name="email"]').value; if (!email) return setLoginError("Escribe tu correo primero."); try { await sendPasswordResetEmail(auth, email); alert("Correo enviado."); setLoginError(""); } catch (error) { setLoginError("Error al enviar correo."); } };
   const handleFinalLogout = () => { signOut(auth); setCart([]); setUserData(null); setIsLogoutConfirmOpen(false); };
   
+  // NUEVA FUNCIÓN PARA BORRAR (CANCELAR) VENTA DESDE EL DETALLE
+  const handleDeleteTransaction = async (id) => {
+    if(confirm("⚠️ ¿Estás seguro de cancelar esta venta? Esto no se puede deshacer y el stock no se repondrá automáticamente (debes hacerlo manual).")) {
+        try {
+            await deleteDoc(doc(db, 'stores', appId, 'transactions', id));
+            setSelectedTransaction(null); // Cerrar modal
+        } catch (error) {
+            alert("Error al cancelar venta.");
+        }
+    }
+  };
+
   // PDF & SHARE (Lazy Load)
   const handlePrintTicket = async (transaction) => { 
     if (!transaction) return;
@@ -302,7 +317,26 @@ export default function App() {
             )}
 
             {activeTab === 'transactions' && (
-                <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onEditTransaction={(t) => {setEditingTransaction(t); setIsTransactionModalOpen(true);}} onPrintTicket={handlePrintTicket} onShareWhatsApp={handleShareWhatsApp} />
+                <>
+                    <History 
+                        transactions={transactions} 
+                        userData={userData} 
+                        handleExportCSV={handleExportCSV} 
+                        historySection={historySection} 
+                        setHistorySection={setHistorySection} 
+                        onSelectTransaction={setSelectedTransaction} 
+                    />
+                    {/* Renderizamos el detalle sobre todo si está seleccionado */}
+                    {selectedTransaction && (
+                        <TransactionDetail 
+                            transaction={selectedTransaction} 
+                            onClose={() => setSelectedTransaction(null)}
+                            onPrint={handlePrintTicket}
+                            onShare={handleShareWhatsApp}
+                            onCancel={handleDeleteTransaction}
+                        />
+                    )}
+                </>
             )}
         </main>
         
