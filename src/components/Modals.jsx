@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus } from 'lucide-react';
 
-// ... (Los modales ExpenseModal, ProductModal, etc. quedan igual, los copio para que tengas el archivo completo funcional)
+// Estilo base para el fondo oscuro de los modales (Z-INDEX 200 PARA ESTAR ENCIMA DE TODO)
+const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
 export function ExpenseModal({ onClose, onSave }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-red-600">Registrar Gasto</h3><button onClick={onClose}><X size={20}/></button></div>
                 <form onSubmit={onSave} className="space-y-3">
                     <label className="block text-sm text-slate-500">Descripción</label><input name="description" required className="w-full p-2 border rounded" placeholder="Ej: Combustible, Luz..." />
@@ -20,8 +21,8 @@ export function ExpenseModal({ onClose, onSave }) {
 
 export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>{editingProduct && <button onClick={() => onDelete(editingProduct.id)} className="text-red-500 text-sm underline">Eliminar</button>}</div>
                 <form onSubmit={onSave} className="space-y-3">
                     <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
@@ -41,8 +42,8 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 
 export function CategoryModal({ onClose, onSave, onDelete, categories }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={onClose}><X size={20}/></button></div>
                 <div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => onDelete(cat.id)} className="text-red-400"><Trash2 size={16}/></button></div>))}</div>
                 <form onSubmit={onSave} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form>
@@ -53,8 +54,8 @@ export function CategoryModal({ onClose, onSave, onDelete, categories }) {
 
 export function CustomerModal({ onClose, onSave, editingCustomer }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
                 <h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3>
                 <form onSubmit={onSave} className="space-y-3">
                     <input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" />
@@ -70,8 +71,8 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
 
 export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={onClose}><X size={20}/></button></div>
                 <form onSubmit={onSave} className="space-y-4">
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div>
@@ -85,8 +86,8 @@ export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageM
 
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[105] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-3 justify-center mb-2"><Box size={32} className="text-blue-600"/><h3 className="font-bold text-lg text-slate-800">Entrada Stock</h3></div>
                 <div className="bg-slate-100 p-3 rounded-lg"><div className="font-bold text-lg">{scannedProduct.name}</div><div className="text-sm text-slate-500">Stock Actual: {scannedProduct.stock}</div></div>
                 <form onSubmit={onConfirm}>
@@ -101,8 +102,8 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
 
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95 duration-200">
                 <AlertTriangle size={32} className="text-orange-500 mx-auto"/>
                 <h3 className="font-bold text-lg text-slate-800">Cerrar Sesión</h3>
                 <p className="text-sm text-slate-600">⚠️ ¿Estás seguro de que quieres cerrar la sesión? Perderás el acceso hasta que vuelvas a iniciar sesión.</p>
@@ -117,17 +118,14 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
 
 // 7. MODAL DE TRANSACCIÓN MEJORADO (Ahora maneja estado local)
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
-    // Estado local para los items (permite editar en tiempo real)
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     
-    // Función para actualizar un item específico
     const updateItem = (index, field, value) => {
         const newItems = [...localItems];
         newItems[index] = { ...newItems[index], [field]: value };
         setLocalItems(newItems);
     };
 
-    // Función para borrar un item
     const deleteItem = (index) => {
         const newItems = localItems.filter((_, i) => i !== index);
         setLocalItems(newItems);
@@ -135,19 +133,13 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
 
     const handleSave = (e) => {
         e.preventDefault();
-        // Recalcular total
         const newTotal = localItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
-        
-        // Llamar al padre con los datos limpios
-        onSave({
-            items: localItems,
-            total: newTotal
-        });
+        onSave({ items: localItems, total: newTotal });
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center border-b pb-2">
                     <h3 className="font-bold text-lg">Editar Contenido de Boleta</h3>
                     <button onClick={onClose}><X size={20}/></button>
