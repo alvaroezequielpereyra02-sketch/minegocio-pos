@@ -210,7 +210,8 @@ export default function App() {
   const handleShareWhatsApp = async (transaction) => {
     if (!transaction) return;
     const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
-    alert("Función de compartir ticket activa.");
+    // (Reutiliza lógica de contenido similar a PrintTicket, simplificado para el ejemplo)
+    alert("Función de compartir ticket activa (requiere entorno seguro HTTPS y soporte de navegador).");
     handlePrintTicket(transaction); // Fallback visual
   };
 
@@ -226,22 +227,20 @@ export default function App() {
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' }; 
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' }; 
     const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
-    // INICIALIZAMOS amountPaid = total SI ES CONTADO, O 0 SI ES PENDIENTE
     const saleData = { 
         type: 'sale', 
         total: cartTotal, 
-        amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0, // LOGICA INICIAL
+        amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0, 
         items: itemsWithCost, 
         date: serverTimestamp(), 
         clientId: finalClient.id, 
         clientName: finalClient.name, 
         clientRole: finalClient.role, 
         sellerId: user.uid, 
-        paymentStatus: 'pending', // Por defecto pendiente, luego el usuario lo cambia o asumimos pagado? Mejor dejar pendiente o paid según lógica
+        paymentStatus: 'pending', 
         paymentNote: '', 
         paymentMethod: paymentMethod 
     }; 
-    // AJUSTE: Si cobra en el acto, status = paid
     if (paymentMethod === 'cash' || paymentMethod === 'transfer') saleData.paymentStatus = 'paid';
 
     try { 
@@ -252,7 +251,41 @@ export default function App() {
     } catch (error) { alert("Error venta."); } 
   };
 
-  const handleUpdateTransaction = async (e) => { e.preventDefault(); if (!editingTransaction) return; const f = e.target; const updatedItems = editingTransaction.items.map((item, index) => ({ ...item, name: f[`item_name_${index}`].value, qty: parseInt(f[`item_qty_${index}`].value), price: parseFloat(f[`item_price_${index}`].value), cost: item.cost || 0 })); const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.qty), 0); try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { paymentStatus: f.paymentStatus.value, paymentNote: f.paymentNote.value, items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); setEditingTransaction(null); if(selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction({...selectedTransaction, items: updatedItems, total: newTotal}); } catch (error) { alert("Error"); } };
+  // --- FUNCIÓN ACTUALIZADA: Ahora maneja el objeto limpio del modal nuevo ---
+  const handleUpdateTransaction = async (dataOrEvent) => { 
+    if (!editingTransaction) return;
+    
+    // Detectar si viene del modal nuevo (objeto) o viejo (evento form)
+    let updatedItems = [];
+    let newTotal = 0;
+
+    if (dataOrEvent.items && typeof dataOrEvent.total === 'number') {
+        updatedItems = dataOrEvent.items;
+        newTotal = dataOrEvent.total;
+    } else {
+        // Fallback por si acaso, aunque el modal ya no manda eventos
+        return; 
+    }
+
+    try { 
+        await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { 
+            items: updatedItems, 
+            total: newTotal 
+        }); 
+        
+        setIsTransactionModalOpen(false); 
+        
+        // Actualizar visualmente la transacción seleccionada si está abierta
+        if(selectedTransaction && selectedTransaction.id === editingTransaction.id) {
+            setSelectedTransaction(prev => ({...prev, items: updatedItems, total: newTotal}));
+        }
+        
+        setEditingTransaction(null); 
+    } catch (error) { 
+        alert("Error al actualizar"); 
+    } 
+  };
+
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
   const handleDeleteExpense = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
@@ -391,7 +424,16 @@ export default function App() {
         {isCustomerModalOpen && userData.role === 'admin' && <CustomerModal onClose={() => setIsCustomerModalOpen(false)} onSave={handleSaveCustomer} editingCustomer={editingCustomer} />}
         {isStoreModalOpen && userData.role === 'admin' && <StoreModal onClose={() => setIsStoreModalOpen(false)} onSave={handleUpdateStore} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {isAddStockModalOpen && scannedProduct && <AddStockModal onClose={() => {setIsAddStockModalOpen(false); setScannedProduct(null);}} onConfirm={handleAddStock} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
-        {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && <TransactionModal onClose={() => setIsTransactionModalOpen(false)} onSave={handleUpdateTransaction} editingTransaction={editingTransaction} />}
+        
+        {/* MODAL DE EDICIÓN DE TRANSACCIÓN ACTUALIZADO (Ahora recibe editingTransaction correctamente) */}
+        {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && (
+            <TransactionModal 
+                onClose={() => setIsTransactionModalOpen(false)} 
+                onSave={handleUpdateTransaction} 
+                editingTransaction={editingTransaction} 
+            />
+        )}
+        
         {isLogoutConfirmOpen && <LogoutConfirmModal onClose={() => setIsLogoutConfirmOpen(false)} onConfirm={handleFinalLogout} />}
         
         {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><div className="flex gap-2"><button onClick={() => {handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false);}} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Ticket</button></div></div>}
