@@ -3,8 +3,8 @@ import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, Cl
 
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
-      {icon} <span className="text-[10px] uppercase font-bold mt-1">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
+      {icon} <span className="text-[10px] uppercase font-bold mt-1 truncate w-full text-center">{label}</span>
     </button>
   );
 }
@@ -28,11 +28,9 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 
         {userData.role === 'admin' && (
           <>
-            {/* NUEVO BOTÓN: PEDIDOS */}
             <button onClick={() => setActiveTab('orders')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <ClipboardList size={20} /> Pedidos
             </button>
-
             <button onClick={() => setActiveTab('inventory')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'inventory' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Package size={20} /> Inventario
             </button>
@@ -68,16 +66,21 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
+// NAV MÓVIL CON SCROLL (Solución para que aparezcan todos los botones)
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-[50] shadow-lg">
-      <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
+      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
-      {/* NUEVO BOTÓN MÓVIL: PEDIDOS (Solo Admin) */}
-      {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-      {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
-      <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
+
+        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
+      </div>
     </nav>
   );
 }
