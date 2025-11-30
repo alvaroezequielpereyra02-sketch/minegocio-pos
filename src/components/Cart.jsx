@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ShoppingCart, X, Minus, Plus, Trash2, Search } from 'lucide-react';
 
-export default function Cart({
+// OPTIMIZACIÓN: 'memo' evita re-renders si las props no cambian
+const Cart = memo(function Cart({
   cart,
   updateCartQty,
   removeFromCart,
@@ -83,7 +84,7 @@ export default function Cart({
               </div>
             ) : (
               <div>
-                {/* BÚSQUEDA DE CLIENTE MEJORADA */}
+                {/* BÚSQUEDA DE CLIENTE */}
                 <div className="flex items-center gap-2 border border-slate-300 rounded-xl p-3 bg-white transition-colors duration-200 focus-within:border-blue-600 focus-within:shadow-sm">
                   <Search size={18} className="text-slate-400 shrink-0" />
                   <input
@@ -136,4 +137,6 @@ export default function Cart({
       </div>
     </div>
   );
-}
+});
+
+export default Cart;

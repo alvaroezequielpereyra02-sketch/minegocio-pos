@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { Search, ScanBarcode, Image as ImageIcon } from 'lucide-react';
 
-export default function ProductGrid({
+// Usamos memo para que este componente solo se actualice si sus props cambian
+const ProductGrid = memo(function ProductGrid({
     products,
     addToCart,
     searchTerm,
@@ -14,13 +15,23 @@ export default function ProductGrid({
     setBarcodeInput,
     handleBarcodeSubmit
 }) {
+
+    // OPTIMIZACIÓN: Filtramos la lista solo cuando cambian los productos, el término o la categoría.
+    // Esto evita cálculos innecesarios en cada renderizado.
+    const filteredProducts = useMemo(() => {
+        const lowerTerm = searchTerm.toLowerCase();
+        return products.filter(p =>
+            p.name.toLowerCase().includes(lowerTerm) &&
+            (selectedCategory === 'all' || p.categoryId === selectedCategory)
+        );
+    }, [products, searchTerm, selectedCategory]);
+
     return (
         <div className="flex-1 flex flex-col min-h-0">
 
             {/* BARRA DE BÚSQUEDA Y ESCÁNER */}
             <div className="mb-3 flex gap-3">
                 <div className="flex-1">
-                    {/* DISEÑO LIMPIO: Borde gris que pasa a azul, sin anillo difuso */}
                     <div className="flex items-center w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 transition-colors duration-200 focus-within:border-blue-600 focus-within:shadow-sm">
                         <Search className="text-slate-400 w-5 h-5 shrink-0 mr-3" />
                         <input
@@ -61,7 +72,7 @@ export default function ProductGrid({
             {/* LISTADO DE PRODUCTOS */}
             <div className="flex-1 overflow-y-auto pr-2 pb-24 lg:pb-0">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) && (selectedCategory === 'all' || p.categoryId === selectedCategory)).map(product => (
+                    {filteredProducts.map(product => (
                         <button key={product.id} onClick={() => addToCart(product)} className="flex flex-col items-start p-0 rounded-xl border bg-white shadow-sm overflow-hidden active:scale-95 transition-all relative group hover:border-blue-300">
                             <div className="w-full h-32 bg-slate-100 relative">
                                 {product.imageUrl ? <img src={product.imageUrl} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8" /></div>}
@@ -77,4 +88,6 @@ export default function ProductGrid({
             </div>
         </div>
     );
-}
+});
+
+export default ProductGrid;
