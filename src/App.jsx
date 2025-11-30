@@ -28,7 +28,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'tienda-principal';
-const ADMIN_SECRET_CODE = 'ADMIN123';
+
+// --- SEGURIDAD: ELIMINADO CÓDIGO SECRETO DEL FRONTEND ---
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -80,7 +81,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
-  // --- LÓGICA DE NAVEGACIÓN MÓVIL ROBUSTA ---
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL ---
   useEffect(() => {
     const onPopState = (e) => {
       if (selectedTransaction) {
@@ -187,7 +188,19 @@ export default function App() {
 
   // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
-  const handleRegister = async (e) => { e.preventDefault(); const form = e.target; try { const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value); const role = (form.secretCode?.value === ADMIN_SECRET_CODE) ? 'admin' : 'client'; const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role, createdAt: serverTimestamp() }; await setDoc(doc(db, 'users', userCredential.user.uid), newUserData); if (role === 'client') await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() }); } catch (error) { setLoginError(error.message); } };
+
+  // SEGURIDAD MEJORADA: Rol por defecto 'client'. El rol 'admin' se debe asignar manualmente en Firestore Console.
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value);
+      const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role: 'client', createdAt: serverTimestamp() };
+      await setDoc(doc(db, 'users', userCredential.user.uid), newUserData);
+      await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp() });
+    } catch (error) { setLoginError(error.message); }
+  };
+
   const handleResetPassword = async () => { const email = document.querySelector('input[name="email"]').value; if (!email) return setLoginError("Escribe tu correo primero."); try { await sendPasswordResetEmail(auth, email); alert("Correo enviado."); setLoginError(""); } catch (error) { setLoginError("Error al enviar correo."); } };
   const handleFinalLogout = () => { signOut(auth); setCart([]); setUserData(null); setIsLogoutConfirmOpen(false); };
 
@@ -195,7 +208,7 @@ export default function App() {
     if (confirm("⚠️ ¿Estás seguro de cancelar esta venta? Esto no se puede deshacer y el stock no se repondrá automáticamente.")) {
       try {
         await deleteDoc(doc(db, 'stores', appId, 'transactions', id));
-        handleCloseTransactionDetail(); // Usar el handler seguro
+        handleCloseTransactionDetail();
       } catch (error) {
         alert("Error al cancelar venta.");
       }
@@ -315,7 +328,7 @@ export default function App() {
             <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1> <p className="text-slate-500 text-sm">Acceso al Sistema</p>
           </div>
           <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-            {isRegistering && (<><input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" /><div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div><div className="pt-2 border-t mt-2"><p className="text-xs text-slate-400 mb-1">Código Admin (Solo Personal):</p><input name="secretCode" className="w-full p-2 border rounded-lg text-sm" placeholder="Dejar vacío si eres cliente" /></div></>)}
+            {isRegistering && (<><input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" /><div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div><div className="pt-2 border-t mt-2"><p className="text-xs text-slate-400 mb-1">Registro de Clientes</p></div></>)}
             <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" /><input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
             {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button>
