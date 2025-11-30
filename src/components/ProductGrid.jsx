@@ -17,7 +17,7 @@ export default function ProductGrid({
   return (
     <div className="flex-1 flex flex-col min-h-0">
         
-        {/* BARRA DE BÚSQUEDA Y ESCÁNER (DISEÑO MEJORADO) */}{/* BARRA DE BÚSQUEDA Y ESCÁNER (DISEÑO MEJORADO) */}
+        {/* BARRA DE BÚSQUEDA Y ESCÁNER (DISEÑO MEJORADO) */}
         <div className="mb-3 flex gap-3">
             <div className="flex-1">
                 {/* Contenedor con borde limpio y transición suave */}
@@ -78,4 +78,5 @@ export default function ProductGrid({
     </div>
   );
 }
+
 
