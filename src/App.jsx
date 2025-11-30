@@ -80,7 +80,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
-  // --- LÓGICA DE NAVEGACIÓN PARA E MÓVIL ROBUSTA ---
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL ROBUSTA ---
   useEffect(() => {
     const onPopState = (e) => {
       if (selectedTransaction) {
