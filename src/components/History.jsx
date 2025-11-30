@@ -1,17 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { Download, ArrowLeft, Search, Calendar, User, Clock, DollarSign, Filter } from 'lucide-react';
 
-export default function History({ 
-    transactions, 
-    userData, 
-    handleExportCSV, 
-    historySection, 
+export default function History({
+    transactions,
+    userData,
+    handleExportCSV,
+    historySection,
     setHistorySection,
-    onSelectTransaction // Prop nueva para abrir el detalle
+    onSelectTransaction
 }) {
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Función para agrupar transacciones por fecha relativa (Hoy, Ayer, Fecha)
     const groupedTransactions = useMemo(() => {
         const groups = {};
         const today = new Date();
@@ -21,28 +20,25 @@ export default function History({
         const todayStr = today.toLocaleDateString();
         const yesterdayStr = yesterday.toLocaleDateString();
 
-        // 1. Filtrar primero (por sección y búsqueda)
         const filtered = transactions.filter(t => {
             const matchesStatus = (t.paymentStatus || 'pending') === historySection;
-            const matchesSearch = t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  t.items?.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+            const matchesSearch = t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                t.items?.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
             return matchesStatus && matchesSearch;
         });
 
-        // 2. Agrupar después
         filtered.forEach(t => {
             const date = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
             const dateKey = date.toLocaleDateString();
-            
+
             let label = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
             if (dateKey === todayStr) label = "Hoy";
             else if (dateKey === yesterdayStr) label = "Ayer";
 
-            // Capitalizar primera letra
             label = label.charAt(0).toUpperCase() + label.slice(1);
 
             if (!groups[label]) groups[label] = { total: 0, count: 0, items: [] };
-            
+
             groups[label].items.push(t);
             groups[label].total += t.total;
             groups[label].count += 1;
@@ -51,16 +47,14 @@ export default function History({
         return groups;
     }, [transactions, historySection, searchTerm]);
 
-    // --- VISTA DE MENÚ PRINCIPAL (BOTONES GRANDES) ---
     if (historySection === 'menu') {
         return (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
                 <div className="flex justify-between items-center mb-6 flex-shrink-0">
-                    {/* CAMBIO APLICADO: Título actualizado */}
                     <h2 className="text-xl font-bold text-slate-800">Transacciones</h2>
                     {userData.role === 'admin' && (
                         <button onClick={handleExportCSV} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex gap-2 font-bold shadow-sm active:scale-95 transition-transform">
-                            <Download size={16}/> Excel
+                            <Download size={16} /> Excel
                         </button>
                     )}
                 </div>
@@ -83,15 +77,13 @@ export default function History({
         );
     }
 
-    // --- VISTA DE LISTA AGRUPADA (ESTILO IMAGEN 1) ---
     return (
         <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0 bg-slate-50 -m-4">
-            
-            {/* Header Sticky */}
+
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm">
                 <div className="flex items-center gap-3 mb-3">
                     <button onClick={() => setHistorySection('menu')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
-                        <ArrowLeft size={24}/>
+                        <ArrowLeft size={24} />
                     </button>
                     <h3 className="text-xl font-bold capitalize text-slate-800">
                         {historySection === 'paid' ? 'Ventas' : historySection === 'pending' ? 'Pendientes' : 'Parciales'}
@@ -101,11 +93,10 @@ export default function History({
                     </div>
                 </div>
 
-                {/* Buscador */}
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-400 w-5 h-5" />
-                    <input 
-                        className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    <input
+                        className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white focus:border-blue-600 transition-all"
                         placeholder="Item, cliente o monto..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -113,7 +104,6 @@ export default function History({
                 </div>
             </div>
 
-            {/* Lista Agrupada */}
             <div className="flex-1 overflow-y-auto px-4 py-2">
                 {Object.entries(groupedTransactions).length === 0 && (
                     <div className="text-center text-slate-400 mt-10">No se encontraron ventas</div>
@@ -121,7 +111,6 @@ export default function History({
 
                 {Object.entries(groupedTransactions).map(([dateLabel, group]) => (
                     <div key={dateLabel} className="mb-6">
-                        {/* Cabecera del Grupo (Fecha) */}
                         <div className="mb-2 mt-4">
                             <h4 className="text-lg font-bold text-slate-700">{dateLabel}</h4>
                             <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">
@@ -129,15 +118,13 @@ export default function History({
                             </div>
                         </div>
 
-                        {/* Tarjetas de Venta */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
                             {group.items.map(t => (
-                                <button 
-                                    key={t.id} 
+                                <button
+                                    key={t.id}
                                     onClick={() => onSelectTransaction(t)}
                                     className="w-full text-left p-4 hover:bg-slate-50 transition-colors flex items-start gap-3 active:bg-slate-100"
                                 >
-                                    {/* Icono Billete */}
                                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
                                         <DollarSign size={20} />
                                     </div>
@@ -146,14 +133,14 @@ export default function History({
                                         <div className="flex justify-between items-baseline mb-1">
                                             <span className="font-bold text-slate-900 text-lg">${t.total.toLocaleString()}</span>
                                             <span className="text-xs text-slate-400 font-medium">
-                                                {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                                                {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                             </span>
                                         </div>
-                                        
+
                                         <div className="text-xs text-slate-500 truncate mb-1">
                                             {t.items.length} items: {t.items.map(i => i.name).join(', ')}
                                         </div>
-                                        
+
                                         <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
                                             <User size={14} className="text-slate-400" />
                                             <span className="truncate">{t.clientName}</span>
