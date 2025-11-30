@@ -29,7 +29,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'tienda-principal';
 
-// SONIDO DE NOTIFICACIÓN (Campana simple)
+// SONIDO DE NOTIFICACIÓN
 const NOTIFICATION_SOUND = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
 export default function App() {
@@ -147,10 +147,8 @@ export default function App() {
     // LÓGICA MAESTRA DE TRANSACCIONES
     let q;
     if (userData.role === 'admin') {
-      // Admin ve todo (limitado a 500 recientes)
       q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(500));
     } else {
-      // Cliente ve solo SUYO y solo los últimos 6
       q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(6));
     }
 
@@ -161,26 +159,15 @@ export default function App() {
       // NOTIFICACIONES PARA ADMIN
       if (userData.role === 'admin' && !isFirstLoad) {
         snapshot.docChanges().forEach((change) => {
-          // Solo si se agregó una venta nueva
           if (change.type === "added") {
             const newSale = change.doc.data();
-            // FILTRO: Solo notificar si NO lo hizo el admin actual (es decir, lo hizo un cliente)
             if (newSale.sellerId !== user.uid) {
               const msg = `💰 Nuevo pedido de ${newSale.clientName} ($${newSale.total})`;
-
-              // 1. Notificación Visual en App
               setNotification(msg);
               setTimeout(() => setNotification(null), 5000);
-
-              // 2. Sonido
               playNotificationSound();
-
-              // 3. Notificación de Sistema (Celular/PC)
               if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("¡Nuevo Pedido Recibido!", {
-                  body: msg,
-                  icon: "/vite.svg" // Icono genérico
-                });
+                new Notification("¡Nuevo Pedido Recibido!", { body: msg, icon: "/vite.svg" });
               }
             }
           }
@@ -253,7 +240,6 @@ export default function App() {
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
 
-  // FUNCIÓN EXPORTAR CSV QUE FALTABA Y CAUSABA EL ERROR
   const handleExportCSV = async () => {
     if (transactions.length === 0) return alert("No hay datos.");
     const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n');
@@ -375,6 +361,7 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
+          {/* Renderizado de Tabs */}
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={handleBarcodeSubmit} />
@@ -406,12 +393,68 @@ export default function App() {
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button>
               </div>
-              <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => {
-                const debt = getCustomerDebt(c.id); return (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12} /> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12} /> {c.address}</span></div>{debt > 0 && <div className="mt-1 text-xs font-bold text-red-600 bg-red-50 inline-block px-2 py-0.5 rounded">Debe: ${debt}</div>}
-                  <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400"><span>📱 App: {c.platformOrdersCount || 0}</span><span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span></div></div><div className="flex gap-2"><button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>);
-              })}</div>
+
+              <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
+                {customers.map(c => {
+                  const debt = getCustomerDebt(c.id);
+
+                  // LÓGICA DE SEMÁFORO MEJORADA
+                  let lastBuyText = "Sin compras";
+                  let statusColor = "bg-slate-100 text-slate-500";
+
+                  if (c.lastPurchase?.seconds) {
+                    const lastDate = new Date(c.lastPurchase.seconds * 1000);
+                    const daysDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
+
+                    if (daysDiff === 0) lastBuyText = "Hoy";
+                    else if (daysDiff === 1) lastBuyText = "Ayer";
+                    else lastBuyText = `Hace ${daysDiff} días`;
+
+                    // Reglas: <14d (Activo), 14-30d (Inactivo), >30d (Riesgo)
+                    if (daysDiff < 14) statusColor = "bg-green-100 text-green-700"; // Activo
+                    else if (daysDiff < 30) statusColor = "bg-yellow-100 text-yellow-700"; // Inactivo
+                    else statusColor = "bg-red-100 text-red-700"; // Riesgo
+                  }
+
+                  return (
+                    <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-slate-800">{c.name}</div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${statusColor}`}>
+                            {lastBuyText}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-3 text-xs text-slate-500 mt-1">
+                          <span className="flex items-center gap-1"><Phone size={12} /> {c.phone}</span>
+                          <span className="flex items-center gap-1"><MapPin size={12} /> {c.address}</span>
+                        </div>
+
+                        {debt > 0 && <div className="mt-1 text-xs font-bold text-red-600 bg-red-50 inline-block px-2 py-0.5 rounded">Debe: ${debt.toLocaleString()}</div>}
+
+                        <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400">
+                          <span>📱 App: {c.platformOrdersCount || 0}</span>
+                          <span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100">
+                          Editar
+                        </button>
+                        <button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100">
+                          Borrar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {customers.length === 0 && <div className="p-8 text-center text-slate-400 text-sm">No hay clientes registrados</div>}
+              </div>
             </div>
           )}
+
           {activeTab === 'transactions' && (
             <>
               <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
