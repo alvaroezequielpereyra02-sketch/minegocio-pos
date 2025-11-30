@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, limit, where, getDocs } from 'firebase/firestore';
-import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell } from 'lucide-react';
+import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell, Volume2 } from 'lucide-react';
 
+// IMPORTACIÓN DE COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
@@ -13,6 +14,7 @@ import TransactionDetail from './components/TransactionDetail';
 import Orders from './components/Orders';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal } from './components/Modals';
 
+// CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
   authDomain: "minegocio-pos-e35bf.firebaseapp.com",
@@ -26,6 +28,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'tienda-principal';
+
+// SONIDO DE NOTIFICACIÓN (Campana simple)
+const NOTIFICATION_SOUND = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -43,7 +48,7 @@ export default function App() {
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
-  const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false); // Nuevo modal
+  const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -78,8 +83,26 @@ export default function App() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
   // Notificación
-  const [notification, setNotification] = useState(null); // { message: "Nueva venta" }
+  const [notification, setNotification] = useState(null);
 
+  // --- SOLICITAR PERMISO DE NOTIFICACIÓN AL INICIAR ---
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // --- SONIDO ---
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio(NOTIFICATION_SOUND);
+      audio.play().catch(e => console.log("Audio bloqueado por navegador:", e));
+    } catch (error) {
+      console.error("Error reproduciendo sonido", error);
+    }
+  };
+
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL ---
   useEffect(() => {
     const onPopState = (e) => {
       if (selectedTransaction) { e.preventDefault(); setSelectedTransaction(null); }
@@ -99,6 +122,7 @@ export default function App() {
     else setSelectedTransaction(null);
   }, []);
 
+  // --- AUTH & DATA LOADING ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -120,7 +144,7 @@ export default function App() {
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
 
-    // LÓGICA MAESTRA DE TRANSACCIONES (LÍMITE Y NOTIFICACIÓN)
+    // LÓGICA MAESTRA DE TRANSACCIONES
     let q;
     if (userData.role === 'admin') {
       // Admin ve todo (limitado a 500 recientes)
@@ -130,17 +154,35 @@ export default function App() {
       q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(6));
     }
 
-    // Usamos una ref para no disparar notificación en la primera carga
     let isFirstLoad = true;
     const unsubTrans = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Si es admin y hay cambios (y no es la primera carga), notificar
+      // NOTIFICACIONES PARA ADMIN
       if (userData.role === 'admin' && !isFirstLoad) {
         snapshot.docChanges().forEach((change) => {
+          // Solo si se agregó una venta nueva
           if (change.type === "added") {
-            setNotification(`🔔 Nuevo pedido de ${change.doc.data().clientName}`);
-            setTimeout(() => setNotification(null), 4000);
+            const newSale = change.doc.data();
+            // FILTRO: Solo notificar si NO lo hizo el admin actual (es decir, lo hizo un cliente)
+            if (newSale.sellerId !== user.uid) {
+              const msg = `💰 Nuevo pedido de ${newSale.clientName} ($${newSale.total})`;
+
+              // 1. Notificación Visual en App
+              setNotification(msg);
+              setTimeout(() => setNotification(null), 5000);
+
+              // 2. Sonido
+              playNotificationSound();
+
+              // 3. Notificación de Sistema (Celular/PC)
+              if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("¡Nuevo Pedido Recibido!", {
+                  body: msg,
+                  icon: "/vite.svg" // Icono genérico
+                });
+              }
+            }
           }
         });
       }
@@ -151,7 +193,7 @@ export default function App() {
     return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
   }, [user, userData]);
 
-  // --- CÁLCULOS FINANCIEROS ---
+  // --- CÁLCULOS ---
   const balance = useMemo(() => {
     let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -178,7 +220,7 @@ export default function App() {
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
 
-  // --- LOGICA DE REGISTRO SEGURA ---
+  // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
 
   const handleRegister = async (e) => {
@@ -187,28 +229,17 @@ export default function App() {
     const inviteCode = form.inviteCode.value.trim().toUpperCase();
 
     try {
-      // 1. Validar Código
       const codesRef = collection(db, 'stores', appId, 'invitation_codes');
       const q = query(codesRef, where('code', '==', inviteCode), where('status', '==', 'active'));
       const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        throw new Error("Código de invitación inválido o expirado.");
-      }
-
+      if (querySnapshot.empty) throw new Error("Código inválido o usado.");
       const codeDoc = querySnapshot.docs[0];
 
-      // 2. Crear Usuario
       const userCredential = await createUserWithEmailAndPassword(auth, form.email.value, form.password.value);
       const newUserData = { email: form.email.value, name: form.name.value, phone: form.phone.value, address: form.address.value, role: 'client', createdAt: serverTimestamp() };
       await setDoc(doc(db, 'users', userCredential.user.uid), newUserData);
-
-      // 3. Crear Cliente asociado
       await addDoc(collection(db, 'stores', appId, 'customers'), { name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, createdAt: serverTimestamp(), platformOrdersCount: 0, externalOrdersCount: 0 });
-
-      // 4. Quemar Código
       await updateDoc(doc(db, 'stores', appId, 'invitation_codes', codeDoc.id), { status: 'used', usedBy: userCredential.user.uid, usedAt: serverTimestamp() });
-
     } catch (error) { setLoginError(error.message); }
   };
 
@@ -221,6 +252,14 @@ export default function App() {
   const handleDeleteTransaction = useCallback(async (id) => { if (confirm("¿Eliminar venta?")) { try { await deleteDoc(doc(db, 'stores', appId, 'transactions', id)); handleCloseTransactionDetail(); } catch (error) { alert("Error al cancelar."); } } }, [handleCloseTransactionDetail]);
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
+
+  // FUNCIÓN EXPORTAR CSV QUE FALTABA Y CAUSABA EL ERROR
+  const handleExportCSV = async () => {
+    if (transactions.length === 0) return alert("No hay datos.");
+    const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n');
+    const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); l.download = `ventas.csv`; document.body.appendChild(l); l.click(); document.body.removeChild(l);
+  };
+
   const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
   const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
@@ -243,25 +282,18 @@ export default function App() {
       const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
       for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); }
 
-      // TRACKING DE CLIENTE: Incrementar contador
+      // TRACKING CLIENTE
       if (finalClient.role === 'client' || finalClient.role === 'customer') {
-        // Buscar el documento del cliente en la colección customers (no users)
-        // OJO: Si es un cliente registrado por admin, usamos selectedCustomer.id. Si es el usuario logueado, hay que buscar su doc en customers.
-        // Simplificación: Si tenemos selectedCustomer (venta admin), usamos ese ID. Si no, buscamos por email del usuario logueado (más seguro).
         let customerDocId = null;
-
         if (userData.role === 'admin' && selectedCustomer) {
           customerDocId = selectedCustomer.id;
-          // Actualizar contador EXTERNO
           await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { externalOrdersCount: (selectedCustomer.externalOrdersCount || 0) + 1, lastPurchase: serverTimestamp() });
         } else if (userData.role === 'client') {
-          // El cliente se compra a sí mismo. Buscar su registro en 'customers' usando su email (o uid si lo guardaste ahí)
           const q = query(collection(db, 'stores', appId, 'customers'), where('email', '==', userData.email));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
             customerDocId = querySnapshot.docs[0].id;
             const currentCount = querySnapshot.docs[0].data().platformOrdersCount || 0;
-            // Actualizar contador PLATAFORMA
             await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { platformOrdersCount: currentCount + 1, lastPurchase: serverTimestamp() });
           }
         }
@@ -304,7 +336,6 @@ export default function App() {
                   <input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" />
                   <input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" />
                 </div>
-                {/* CAMPO DE INVITACIÓN OBLIGATORIO */}
                 <div className="pt-2 border-t mt-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
                   <p className="text-xs text-blue-600 font-bold mb-1 uppercase">Código de Invitación</p>
                   <input name="inviteCode" required className="w-full p-2 border rounded-lg text-center text-lg tracking-widest font-bold uppercase" placeholder="XXXXXX" />
@@ -326,9 +357,9 @@ export default function App() {
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => setIsLogoutConfirmOpen(true)} />
 
-      {/* Notificación Toast */}
+      {/* Notificación Toast con Sonido */}
       {notification && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in duration-300 flex items-center gap-3">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in duration-300 flex items-center gap-3" onClick={() => setNotification(null)}>
           <Bell size={18} className="text-yellow-400 animate-bounce" />
           <span className="font-bold text-sm">{notification}</span>
         </div>
@@ -344,7 +375,6 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
-          {/* Renderizado de Tabs */}
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={handleBarcodeSubmit} />
@@ -362,7 +392,6 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
-                  {/* Botón para generar invitación */}
                   <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags className="w-4 h-4" /> Cats</button>
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
@@ -371,7 +400,6 @@ export default function App() {
               <ProductGrid products={products} addToCart={handleOpenModal} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
             </div>
           )}
-          {/* CLIENTES: Aquí mostraríamos la data de tracking de compras */}
           {activeTab === 'customers' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
@@ -380,16 +408,10 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border">{customers.map(c => {
                 const debt = getCustomerDebt(c.id); return (<div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12} /> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12} /> {c.address}</span></div>{debt > 0 && <div className="mt-1 text-xs font-bold text-red-600 bg-red-50 inline-block px-2 py-0.5 rounded">Debe: ${debt}</div>}
-                  {/* Stats de Actividad */}
-                  <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400">
-                    <span>📱 App: {c.platformOrdersCount || 0}</span>
-                    <span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span>
-                  </div>
-                </div><div className="flex gap-2"><button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>);
+                  <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400"><span>📱 App: {c.platformOrdersCount || 0}</span><span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span></div></div><div className="flex gap-2"><button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border px-2 py-1 rounded">Edit</button><button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border px-2 py-1 rounded">Del</button></div></div>);
               })}</div>
             </div>
           )}
-
           {activeTab === 'transactions' && (
             <>
               <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
@@ -400,7 +422,6 @@ export default function App() {
 
         {!showMobileCart && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => setIsLogoutConfirmOpen(true)} />}
 
-        {/* MODALES */}
         {isExpenseModalOpen && userData.role === 'admin' && <ExpenseModal onClose={() => setIsExpenseModalOpen(false)} onSave={handleSaveExpense} />}
         {isProductModalOpen && userData.role === 'admin' && <ProductModal onClose={() => setIsProductModalOpen(false)} onSave={handleSaveProduct} onDelete={handleDeleteProduct} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
         {isCategoryModalOpen && userData.role === 'admin' && <CategoryModal onClose={() => setIsCategoryModalOpen(false)} onSave={handleSaveCategory} onDelete={handleDeleteCategory} categories={categories} />}
@@ -409,8 +430,6 @@ export default function App() {
         {isAddStockModalOpen && scannedProduct && <AddStockModal onClose={() => { setIsAddStockModalOpen(false); setScannedProduct(null); }} onConfirm={handleAddStock} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && <TransactionModal onClose={() => setIsTransactionModalOpen(false)} onSave={handleUpdateTransaction} editingTransaction={editingTransaction} />}
         {isLogoutConfirmOpen && <LogoutConfirmModal onClose={() => setIsLogoutConfirmOpen(false)} onConfirm={handleFinalLogout} />}
-
-        {/* Modal de Invitación (Solo Admin) */}
         {isInvitationModalOpen && userData.role === 'admin' && <InvitationModal onClose={() => setIsInvitationModalOpen(false)} onGenerate={handleGenerateCode} />}
 
         {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><div className="flex gap-2"><button onClick={() => { handlePrintTicket(lastTransactionId); setShowCheckoutSuccess(false); }} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Ticket</button></div></div>}
