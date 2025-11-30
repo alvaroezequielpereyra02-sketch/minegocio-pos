@@ -136,11 +136,9 @@ export default function App() {
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
 
-    // OPTIMIZACIÓN: LIMITAR TRANSACCIONES A LAS ÚLTIMAS 500 PARA EVITAR LAG
     const unsubTrans = onSnapshot(query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(500)), (snapshot) => {
       let items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (userData.role !== 'admin') items = items.filter(t => t.clientId === user.uid);
-      // No necesitamos ordenar aquí porque la query ya viene ordenada por fecha desc
       setTransactions(items);
     });
     return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
@@ -186,7 +184,7 @@ export default function App() {
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
 
-  // --- HANDLERS (OPTIMIZADOS CON USECALLBACK) ---
+  // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -237,12 +235,29 @@ export default function App() {
     } catch (error) { alert("Error al actualizar"); }
   };
 
-  // (Funciones de PDF y UpdateStore omitidas en optimización profunda pero se mantienen funcionando)
-  const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'; const methodText = transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro'; const total = transaction.total || 0; const paid = transaction.amountPaid || 0; const debt = total - paid; const debtText = transaction.paymentStatus === 'partial' ? `<div style="margin-top:5px; font-weight:bold; color:#d32f2f;">RESTA POR PAGAR: $${debt.toLocaleString()}</div>` : ''; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${methodText}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${statusText}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div>${debtText}</div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const dynamicHeight = 100 + (transaction.items.length * 10); const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, dynamicHeight] } }).from(element).save(); };
-  const handleShareWhatsApp = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; alert("Función de compartir ticket activa (requiere entorno seguro HTTPS y soporte de navegador)."); handlePrintTicket(transaction); };
+  const handlePrintTicket = async (transaction) => {
+    if (!transaction) return;
+    const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
+    const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
+    const statusText = transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE';
+    const methodText = transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro';
+    const total = transaction.total || 0; const paid = transaction.amountPaid || 0; const debt = total - paid;
+    const debtText = transaction.paymentStatus === 'partial' ? `<div style="margin-top:5px; font-weight:bold; color:#d32f2f;">RESTA POR PAGAR: $${debt.toLocaleString()}</div>` : '';
+    const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${methodText}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${statusText}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div>${debtText}</div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`;
+    const dynamicHeight = 100 + (transaction.items.length * 10);
+    const element = document.createElement('div'); element.innerHTML = content;
+    html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, dynamicHeight] } }).from(element).save();
+  };
+  const handleShareWhatsApp = async (transaction) => {
+    if (!transaction) return;
+    const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default;
+    alert("Función de compartir ticket activa (requiere entorno seguro HTTPS y soporte de navegador).");
+    handlePrintTicket(transaction); // Fallback visual
+  };
+
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
 
-  // OPTIMIZACIÓN: useCallback para funciones de carrito
+  // FUNCIONES DEL CARRITO (Optimizadas y con cartTotal definido en App para usarse en handleCheckout)
   const addToCart = useCallback((product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -254,6 +269,9 @@ export default function App() {
   const setCartItemQty = useCallback((id, newQty) => { const qty = parseInt(newQty); if (!qty || qty < 1) return; setCart(prev => prev.map(item => item.id === id ? { ...item, qty: qty } : item)); }, []);
   const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
 
+  // ¡IMPORTANTE! ESTA LÍNEA ES LA QUE FALTABA O SE PERDIÓ
+  const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
+
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
@@ -261,7 +279,7 @@ export default function App() {
     const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
     const saleData = {
       type: 'sale',
-      total: cartTotal,
+      total: cartTotal, // Aquí se usa cartTotal
       amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0,
       items: itemsWithCost,
       date: serverTimestamp(),
@@ -402,6 +420,7 @@ export default function App() {
                 setHistorySection={setHistorySection}
                 onSelectTransaction={handleOpenTransactionDetail}
               />
+              {/* Renderizamos el detalle sobre todo si está seleccionado */}
               {selectedTransaction && (
                 <TransactionDetail
                   transaction={selectedTransaction}
@@ -431,7 +450,7 @@ export default function App() {
         {isStoreModalOpen && userData.role === 'admin' && <StoreModal onClose={() => setIsStoreModalOpen(false)} onSave={handleUpdateStore} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {isAddStockModalOpen && scannedProduct && <AddStockModal onClose={() => { setIsAddStockModalOpen(false); setScannedProduct(null); }} onConfirm={handleAddStock} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
 
-        {/* Modal de Edición de Boleta */}
+        {/* Modal de Edición de Boleta (Ahora también a nivel raíz) */}
         {isTransactionModalOpen && userData.role === 'admin' && editingTransaction && (
           <TransactionModal
             onClose={() => setIsTransactionModalOpen(false)}
