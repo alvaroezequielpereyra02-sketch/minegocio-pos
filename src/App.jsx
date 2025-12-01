@@ -379,7 +379,6 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
-                  <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags className="w-4 h-4" /> Cats</button>
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
                 </div>
@@ -387,18 +386,24 @@ export default function App() {
               <ProductGrid products={products} addToCart={handleOpenModal} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
             </div>
           )}
+
+          {/* SECCIÓN CLIENTES ACTUALIZADA (Botón Invitación movido aquí) */}
           {activeTab === 'customers' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
-                <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button>
+                <div className="flex gap-2">
+                  {/* BOTÓN DE INVITACIÓN AHORA ESTÁ AQUÍ */}
+                  <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
+                  <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
                 {customers.map(c => {
                   const debt = getCustomerDebt(c.id);
 
-                  // LÓGICA DE SEMÁFORO MEJORADA
+                  // LÓGICA DE SEMÁFORO
                   let lastBuyText = "Sin compras";
                   let statusColor = "bg-slate-100 text-slate-500";
 
@@ -410,10 +415,9 @@ export default function App() {
                     else if (daysDiff === 1) lastBuyText = "Ayer";
                     else lastBuyText = `Hace ${daysDiff} días`;
 
-                    // Reglas: <14d (Activo), 14-30d (Inactivo), >30d (Riesgo)
-                    if (daysDiff < 14) statusColor = "bg-green-100 text-green-700"; // Activo
-                    else if (daysDiff < 30) statusColor = "bg-yellow-100 text-yellow-700"; // Inactivo
-                    else statusColor = "bg-red-100 text-red-700"; // Riesgo
+                    if (daysDiff < 14) statusColor = "bg-green-100 text-green-700";
+                    else if (daysDiff < 30) statusColor = "bg-yellow-100 text-yellow-700";
+                    else statusColor = "bg-red-100 text-red-700";
                   }
 
                   return (
