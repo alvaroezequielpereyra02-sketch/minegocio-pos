@@ -12,7 +12,7 @@ import Dashboard from './components/Dashboard';
 import History from './components/History';
 import TransactionDetail from './components/TransactionDetail';
 import Orders from './components/Orders';
-import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal } from './components/Modals';
+import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal } from './components/Modals';
 
 // CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
@@ -49,6 +49,9 @@ export default function App() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
+
+  // ESTADO DE CARGA (NUEVO)
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -147,8 +150,10 @@ export default function App() {
     // LÓGICA MAESTRA DE TRANSACCIONES
     let q;
     if (userData.role === 'admin') {
+      // Admin ve todo (limitado a 500 recientes)
       q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(500));
     } else {
+      // Cliente ve solo SUYO y solo los últimos 6
       q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(6));
     }
 
@@ -206,6 +211,7 @@ export default function App() {
   }, [transactions, products, expenses, categories]);
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
+  const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
   // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
@@ -239,27 +245,17 @@ export default function App() {
   const handleDeleteTransaction = useCallback(async (id) => { if (confirm("¿Eliminar venta?")) { try { await deleteDoc(doc(db, 'stores', appId, 'transactions', id)); handleCloseTransactionDetail(); } catch (error) { alert("Error al cancelar."); } } }, [handleCloseTransactionDetail]);
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
+  const handleExportCSV = async () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); l.download = `ventas.csv`; document.body.appendChild(l); l.click(); document.body.removeChild(l); };
 
-  const handleExportCSV = async () => {
-    if (transactions.length === 0) return alert("No hay datos.");
-    const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n');
-    const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); l.download = `ventas.csv`; document.body.appendChild(l); l.click(); document.body.removeChild(l);
-  };
-
-  const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
-  const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
-  const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
-
-  const addToCart = useCallback((product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }]; }); }, []);
-  const updateCartQty = useCallback((id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id)), []);
-  const setCartItemQty = useCallback((id, newQty) => { const qty = parseInt(newQty); if (!qty || qty < 1) return; setCart(prev => prev.map(item => item.id === id ? { ...item, qty: qty } : item)); }, []);
-  const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
-  const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
-
+  // --- HANDLE CHECKOUT CON ESTADO DE PROCESAMIENTO ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
+
+    setIsProcessing(true); // ACTIVAR CARGA
+
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
+
     const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
     const saleData = { type: 'sale', total: cartTotal, amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '', paymentMethod: paymentMethod, fulfillmentStatus: 'pending' };
     if (paymentMethod === 'cash' || paymentMethod === 'transfer') saleData.paymentStatus = 'paid';
@@ -268,7 +264,6 @@ export default function App() {
       const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
       for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); }
 
-      // TRACKING CLIENTE
       if (finalClient.role === 'client' || finalClient.role === 'customer') {
         let customerDocId = null;
         if (userData.role === 'admin' && selectedCustomer) {
@@ -288,8 +283,13 @@ export default function App() {
       setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setPaymentMethod('cash');
       setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 4000);
     } catch (error) { alert("Error venta: " + error.message); }
+    finally { setIsProcessing(false); } // DESACTIVAR CARGA
   };
+  // --------------------------------------------------
 
+  const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
+  const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
+  const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
   const handleDeleteExpense = async (id) => { if (confirm("¿Eliminar?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
@@ -351,6 +351,9 @@ export default function App() {
         </div>
       )}
 
+      {/* Pantalla de Carga (Overlay) */}
+      {isProcessing && <ProcessingModal />}
+
       <div className="flex flex-col flex-1 min-w-0 h-full">
         <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
           <button onClick={() => userData.role === 'admin' && setIsStoreModalOpen(true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
@@ -379,6 +382,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
+                  <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags className="w-4 h-4" /> Cats</button>
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
                 </div>
@@ -386,71 +390,36 @@ export default function App() {
               <ProductGrid products={products} addToCart={handleOpenModal} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
             </div>
           )}
-
-          {/* SECCIÓN CLIENTES ACTUALIZADA (Botón Invitación movido aquí) */}
           {activeTab === 'customers' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
-                  {/* BOTÓN DE INVITACIÓN AHORA ESTÁ AQUÍ */}
+                  {/* Botón de Invitación */}
                   <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button>
                 </div>
               </div>
-
               <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
                 {customers.map(c => {
                   const debt = getCustomerDebt(c.id);
-
-                  // LÓGICA DE SEMÁFORO
                   let lastBuyText = "Sin compras";
                   let statusColor = "bg-slate-100 text-slate-500";
-
                   if (c.lastPurchase?.seconds) {
                     const lastDate = new Date(c.lastPurchase.seconds * 1000);
                     const daysDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
-
-                    if (daysDiff === 0) lastBuyText = "Hoy";
-                    else if (daysDiff === 1) lastBuyText = "Ayer";
-                    else lastBuyText = `Hace ${daysDiff} días`;
-
-                    if (daysDiff < 14) statusColor = "bg-green-100 text-green-700";
-                    else if (daysDiff < 30) statusColor = "bg-yellow-100 text-yellow-700";
-                    else statusColor = "bg-red-100 text-red-700";
+                    if (daysDiff === 0) lastBuyText = "Hoy"; else if (daysDiff === 1) lastBuyText = "Ayer"; else lastBuyText = `Hace ${daysDiff} días`;
+                    if (daysDiff < 14) statusColor = "bg-green-100 text-green-700"; else if (daysDiff < 30) statusColor = "bg-yellow-100 text-yellow-700"; else statusColor = "bg-red-100 text-red-700";
                   }
-
                   return (
                     <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <div className="font-bold text-slate-800">{c.name}</div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${statusColor}`}>
-                            {lastBuyText}
-                          </span>
-                        </div>
-
-                        <div className="flex gap-3 text-xs text-slate-500 mt-1">
-                          <span className="flex items-center gap-1"><Phone size={12} /> {c.phone}</span>
-                          <span className="flex items-center gap-1"><MapPin size={12} /> {c.address}</span>
-                        </div>
-
+                        <div className="flex items-center gap-2"><div className="font-bold text-slate-800">{c.name}</div><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${statusColor}`}>{lastBuyText}</span></div>
+                        <div className="flex gap-3 text-xs text-slate-500 mt-1"><span className="flex items-center gap-1"><Phone size={12} /> {c.phone}</span><span className="flex items-center gap-1"><MapPin size={12} /> {c.address}</span></div>
                         {debt > 0 && <div className="mt-1 text-xs font-bold text-red-600 bg-red-50 inline-block px-2 py-0.5 rounded">Debe: ${debt.toLocaleString()}</div>}
-
-                        <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400">
-                          <span>📱 App: {c.platformOrdersCount || 0}</span>
-                          <span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span>
-                        </div>
+                        <div className="flex gap-4 mt-2 text-[10px] uppercase font-bold text-slate-400"><span>📱 App: {c.platformOrdersCount || 0}</span><span>👨‍💼 Admin: {c.externalOrdersCount || 0}</span></div>
                       </div>
-
-                      <div className="flex flex-col gap-2">
-                        <button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100">
-                          Editar
-                        </button>
-                        <button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100">
-                          Borrar
-                        </button>
-                      </div>
+                      <div className="flex flex-col gap-2"><button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100">Editar</button><button onClick={() => handleDeleteCustomer(c.id)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100">Borrar</button></div>
                     </div>
                   );
                 })}
@@ -458,7 +427,6 @@ export default function App() {
               </div>
             </div>
           )}
-
           {activeTab === 'transactions' && (
             <>
               <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />

@@ -1,15 +1,34 @@
-import React, { useState } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2 } from 'lucide-react';
 
-// Estilo base
+// Estilo base para el fondo oscuro de los modales
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
-// --- NUEVO: MODAL PARA GENERAR CÓDIGO DE INVITACIÓN ---
+// --- NUEVO: PANTALLA DE PROCESAMIENTO ---
+export function ProcessingModal() {
+    return (
+        <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000] animate-in fade-in duration-300">
+            <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center border border-slate-100 transform scale-110">
+                {/* Spinner animado personalizado */}
+                <div className="relative mb-6">
+                    <div className="w-20 h-20 border-4 border-slate-100 rounded-full"></div>
+                    <div className="absolute top-0 left-0 w-20 h-20 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="text-blue-600 animate-pulse" size={24} />
+                    </div>
+                </div>
+
+                <h3 className="text-xl font-extrabold text-slate-800 mb-2">Procesando Venta</h3>
+                <p className="text-sm text-slate-400 font-medium">Guardando pedido y actualizando stock...</p>
+            </div>
+        </div>
+    );
+}
+
 export function InvitationModal({ onClose, onGenerate }) {
     const [generatedCode, setGeneratedCode] = useState(null);
 
     const handleGenerate = () => {
-        // Generar código aleatorio de 6 dígitos/letras
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         onGenerate(code);
         setGeneratedCode(code);
@@ -24,18 +43,13 @@ export function InvitationModal({ onClose, onGenerate }) {
         <div className={modalOverlayClass}>
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2">
-                        <Key size={20} /> Nueva Invitación
-                    </h3>
+                    <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2"><Key size={20} /> Nueva Invitación</h3>
                     <button onClick={onClose}><X size={20} /></button>
                 </div>
-
                 {!generatedCode ? (
                     <div className="space-y-4">
-                        <p className="text-sm text-slate-600">Genera un código único para que un nuevo cliente pueda registrarse. Este código solo servirá una vez.</p>
-                        <button onClick={handleGenerate} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md">
-                            Generar Código
-                        </button>
+                        <p className="text-sm text-slate-600">Genera un código único para que un nuevo cliente pueda registrarse.</p>
+                        <button onClick={handleGenerate} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md">Generar Código</button>
                     </div>
                 ) : (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
@@ -43,10 +57,7 @@ export function InvitationModal({ onClose, onGenerate }) {
                             <p className="text-xs text-slate-500 uppercase font-bold mb-1">Código de Acceso</p>
                             <p className="text-3xl font-mono font-black text-slate-800 tracking-widest">{generatedCode}</p>
                         </div>
-                        <p className="text-xs text-slate-500 italic">Compártelo con el cliente. Expira al usarse.</p>
-                        <button onClick={copyToClipboard} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-md flex items-center justify-center gap-2">
-                            <Copy size={18} /> Copiar Código
-                        </button>
+                        <button onClick={copyToClipboard} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-md flex items-center justify-center gap-2"><Copy size={18} /> Copiar Código</button>
                     </div>
                 )}
             </div>
@@ -54,7 +65,6 @@ export function InvitationModal({ onClose, onGenerate }) {
     );
 }
 
-// ... (RESTO DE MODALES IGUALES QUE ANTES) ...
 export function ExpenseModal({ onClose, onSave }) {
     return (
         <div className={modalOverlayClass}>
