@@ -50,7 +50,7 @@ export default function App() {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
 
-  // ESTADO DE CARGA (NUEVO)
+  // ESTADO DE CARGA
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -147,21 +147,16 @@ export default function App() {
     const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
 
-    // LÓGICA MAESTRA DE TRANSACCIONES
     let q;
     if (userData.role === 'admin') {
-      // Admin ve todo (limitado a 500 recientes)
       q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(500));
     } else {
-      // Cliente ve solo SUYO y solo los últimos 6
       q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(6));
     }
 
     let isFirstLoad = true;
     const unsubTrans = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // NOTIFICACIONES PARA ADMIN
       if (userData.role === 'admin' && !isFirstLoad) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
@@ -211,16 +206,26 @@ export default function App() {
   }, [transactions, products, expenses, categories]);
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
+
+  // --- FUNCIONES DEL CARRITO (MOVIDAS AQUÍ ARRIBA PARA EVITAR ERROR DE REFERENCIA) ---
+  const addToCart = useCallback((product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      return existing ? prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...prev, { ...product, qty: 1, imageUrl: product.imageUrl }];
+    });
+  }, []);
+  const updateCartQty = useCallback((id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: item.qty + delta } : item).filter(i => i.qty > 0 || i.id !== id)), []);
+  const setCartItemQty = useCallback((id, newQty) => { const qty = parseInt(newQty); if (!qty || qty < 1) return; setCart(prev => prev.map(item => item.id === id ? { ...item, qty: qty } : item)); }, []);
+  const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
-  // --- HANDLERS ---
+  // --- HANDLERS RESTANTES ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     const form = e.target;
     const inviteCode = form.inviteCode.value.trim().toUpperCase();
-
     try {
       const codesRef = collection(db, 'stores', appId, 'invitation_codes');
       const q = query(codesRef, where('code', '==', inviteCode), where('status', '==', 'active'));
@@ -247,15 +252,12 @@ export default function App() {
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
   const handleExportCSV = async () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); l.download = `ventas.csv`; document.body.appendChild(l); l.click(); document.body.removeChild(l); };
 
-  // --- HANDLE CHECKOUT CON ESTADO DE PROCESAMIENTO ---
+  // --- HANDLE CHECKOUT ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
-
-    setIsProcessing(true); // ACTIVAR CARGA
-
+    setIsProcessing(true);
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
-
     const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
     const saleData = { type: 'sale', total: cartTotal, amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '', paymentMethod: paymentMethod, fulfillmentStatus: 'pending' };
     if (paymentMethod === 'cash' || paymentMethod === 'transfer') saleData.paymentStatus = 'paid';
@@ -283,13 +285,13 @@ export default function App() {
       setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setPaymentMethod('cash');
       setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 4000);
     } catch (error) { alert("Error venta: " + error.message); }
-    finally { setIsProcessing(false); } // DESACTIVAR CARGA
+    finally { setIsProcessing(false); }
   };
-  // --------------------------------------------------
 
   const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
   const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
+
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
   const handleDeleteExpense = async (id) => { if (confirm("¿Eliminar?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
@@ -306,38 +308,7 @@ export default function App() {
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
 
-  if (!user || !userData) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-          <div className="text-center mb-6">
-            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover shadow-sm" /> : <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-2"><Store size={24} /></div>}
-            <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1> <p className="text-slate-500 text-sm">Acceso al Sistema</p>
-          </div>
-          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-            {isRegistering && (
-              <>
-                <input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" />
-                  <input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" />
-                </div>
-                <div className="pt-2 border-t mt-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <p className="text-xs text-blue-600 font-bold mb-1 uppercase">Código de Invitación</p>
-                  <input name="inviteCode" required className="w-full p-2 border rounded-lg text-center text-lg tracking-widest font-bold uppercase" placeholder="XXXXXX" />
-                </div>
-              </>
-            )}
-            <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" /><input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
-            {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button>
-          </form>
-          {!isRegistering && (<button type="button" onClick={handleResetPassword} className="w-full text-slate-400 text-xs hover:text-slate-600 mt-2 flex items-center justify-center gap-1"> <KeyRound size={12} /> ¿Olvidaste tu contraseña? </button>)}
-          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button>
-        </div>
-      </div>
-    );
-  }
+  if (!user || !userData) { return (<div className="min-h-screen bg-slate-100 flex items-center justify-center p-4"> <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md"> <div className="text-center mb-6"> {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover shadow-sm" /> : <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-2"><Store size={24} /></div>} <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1> <p className="text-slate-500 text-sm">Acceso al Sistema</p> </div> <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4"> {isRegistering && (<><input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre Completo" /><div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div><div className="pt-2 border-t mt-2 bg-blue-50 p-3 rounded-lg border border-blue-100"><p className="text-xs text-blue-600 font-bold mb-1 uppercase">Código de Invitación</p><input name="inviteCode" required className="w-full p-2 border rounded-lg text-center text-lg tracking-widest font-bold uppercase" placeholder="XXXXXX" /></div></>)} <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" /><input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" /> {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>} <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button> </form> {!isRegistering && (<button type="button" onClick={handleResetPassword} className="w-full text-slate-400 text-xs hover:text-slate-600 mt-2 flex items-center justify-center gap-1"> <KeyRound size={12} /> ¿Olvidaste tu contraseña? </button>)} <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button> </div> </div>); }
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
@@ -382,7 +353,6 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
-                  <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Tags className="w-4 h-4" /> Cats</button>
                   <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Prod</button>
                 </div>
@@ -395,7 +365,6 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
-                  {/* Botón de Invitación */}
                   <button onClick={() => setIsInvitationModalOpen(true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><KeyRound className="w-4 h-4" /> Invitación</button>
                   <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium"><Plus className="w-4 h-4" /> Cliente</button>
                 </div>
