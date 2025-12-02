@@ -250,7 +250,58 @@ export default function App() {
   const handleDeleteTransaction = useCallback(async (id) => { if (confirm("¿Eliminar venta?")) { try { await deleteDoc(doc(db, 'stores', appId, 'transactions', id)); handleCloseTransactionDetail(); } catch (error) { alert("Error al cancelar."); } } }, [handleCloseTransactionDetail]);
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
-  const handleExportCSV = async () => { if (transactions.length === 0) return alert("No hay datos."); const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(transactions.map(t => `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`)).join('\n'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); l.download = `ventas.csv`; document.body.appendChild(l); l.click(); document.body.removeChild(l); };
+  const handleExportCSV = async () => {
+    // 1. Verificar si hay datos
+    if (transactions.length === 0) return alert("No hay datos para exportar.");
+
+    // 2. Generar el archivo CSV (Lógica original)
+    const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(
+      transactions.map(t =>
+        `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`
+      )
+    ).join('\n');
+
+    // 3. Descargar el archivo
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ventas_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 4. PREGUNTAR SI PURGAR EL SISTEMA (Con retardo para asegurar la descarga)
+    setTimeout(async () => {
+      const confirmPurge = window.confirm(
+        "✅ Excel descargado correctamente.\n\n🗑️ ¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)"
+      );
+
+      if (confirmPurge) {
+        // Doble verificación de seguridad
+        const doubleCheck = window.confirm("⚠️ ¡ADVERTENCIA FINAL!\n\nEsta acción borrará PERMANENTEMENTE todas las ventas registradas y no se puede deshacer.\n\n¿Estás 100% seguro?");
+
+        if (doubleCheck) {
+          setIsProcessing(true); // Activamos la pantalla de carga
+          try {
+            // Borrado masivo usando Promise.all para velocidad
+            const deletePromises = transactions.map(t =>
+              deleteDoc(doc(db, 'stores', appId, 'transactions', t.id))
+            );
+
+            await Promise.all(deletePromises);
+
+            alert("🧹 El sistema se ha purgado correctamente.");
+          } catch (error) {
+            console.error("Error al purgar:", error);
+            alert("Ocurrió un error al intentar borrar algunos datos.");
+          } finally {
+            setIsProcessing(false); // Desactivamos la carga
+          }
+        }
+      }
+    }, 1000); // Espera 1 segundo para no interrumpir la descarga visualmente
+  };
 
   // --- HANDLE CHECKOUT ---
   const handleCheckout = async () => {

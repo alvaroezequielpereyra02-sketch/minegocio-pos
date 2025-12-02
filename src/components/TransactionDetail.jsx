@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Receipt, Mail, Phone, MapPin, CreditCard, ExternalLink, Edit, Save, DollarSign, AlertTriangle } from 'lucide-react';
 
-export default function TransactionDetail({ transaction, onClose, onPrint, onShare, onCancel, customers, onUpdate, onEditItems, userData }) {
+export default function TransactionDetail({
+    transaction,
+    onClose,
+    onPrint,
+    onShare,
+    onCancel,
+    customers,
+    onUpdate,
+    onEditItems,
+    userData
+}) {
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
-    // --- PARCHE DE SEGURIDAD 1: Verificar Admin ---
+    // --- SEGURIDAD: Verificar Admin ---
     const isAdmin = userData?.role === 'admin';
 
     // Estados para el Modal de Pagos
@@ -29,7 +39,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
     const handleSavePayment = () => {
-        // --- PARCHE DE SEGURIDAD 2: Bloquear función si no es admin ---
         if (!isAdmin) return;
 
         let finalAmountPaid = tempAmountPaid;
@@ -44,9 +53,9 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
         setShowPaymentModal(false);
     };
 
-    // --- MODAL DE GESTIÓN DE PAGO (Tu diseño original) ---
+    // --- MODAL INTERNO DE GESTIÓN DE PAGO ---
     const PaymentModal = () => (
-        <div className="fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" style={{ zIndex: 10000 }}>
+        <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
                 <div className="flex justify-between items-center border-b pb-3">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -66,7 +75,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
 
                 {tempStatus === 'partial' && (
                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
-                        <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto que YA PAGÓ el cliente:</label>
+                        <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
                         <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
                             <span className="text-slate-400 font-bold text-lg">$</span>
                             <input
@@ -79,7 +88,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                             />
                         </div>
                         <div className="text-right text-xs text-orange-600 mt-2 font-bold">
-                            Quedan debiendo: ${(total - tempAmountPaid).toLocaleString()}
+                            Restan: ${(total - tempAmountPaid).toLocaleString()}
                         </div>
                     </div>
                 )}
@@ -103,16 +112,15 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     );
 
     return (
-        // CAMBIO 1: z-index muy alto y flex-col seguro
-        <div className="fixed inset-0 z-[5000] bg-slate-900/40 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4 animate-in fade-in duration-200">
+        // CORRECCIÓN CRÍTICA: z-[10000] para estar encima del Sidebar (z-50) y h-[100dvh] para móviles
+        <div className="fixed inset-0 z-[10000] bg-white flex flex-col h-[100dvh] w-full animate-in slide-in-from-bottom duration-300 sm:p-4 sm:bg-slate-900/40 sm:backdrop-blur-sm sm:items-center sm:justify-center">
 
             {showPaymentModal && <PaymentModal />}
 
-            {/* Modal Compartir */}
+            {/* Modal Compartir (Overlay) */}
             {showShareOptions && (
-                <div className="absolute inset-0 z-[6000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
-                        {/* ... contenido igual al original ... */}
+                <div className="absolute inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
                         <div className="p-4 flex justify-between items-start border-b">
                             <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400" /></button>
                             <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
@@ -125,71 +133,123 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* CAMBIO 2: Altura máxima controlada (max-h-[95vh]) para que el footer no se salga */}
-            <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl h-full sm:h-auto sm:max-h-[90vh] flex flex-col relative overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
+            {/* CONTENEDOR TIPO TARJETA (En móvil es Full Screen, en PC es Modal) */}
+            <div className="flex-1 flex flex-col w-full max-w-2xl bg-white sm:rounded-2xl sm:shadow-2xl sm:h-auto sm:max-h-[85vh] overflow-hidden relative">
 
-                {/* Navbar */}
-                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm sm:rounded-t-2xl">
-                    <button onClick={onClose} className="p-3 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100">
-                        <ArrowLeft size={28} className="text-slate-700" />
+                {/* --- HEADER (Ahora fijo arriba) --- */}
+                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
+                    <button
+                        onClick={onClose}
+                        className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95"
+                    >
+                        <ArrowLeft size={26} className="text-slate-700" />
                     </button>
+
                     <div className="flex-1 min-w-0">
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
-                    {/* Botón Editar: Solo visible si isAdmin es true */}
+
+                    {/* Botón Editar Items: SOLO ADMIN y visible en móvil */}
                     {isAdmin && (
-                        <button onClick={() => onEditItems(transaction)} className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm transition-transform active:scale-95">
-                            <Edit size={18} /> <span className="hidden sm:inline">Editar</span>
+                        <button
+                            onClick={() => onEditItems(transaction)}
+                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
+                            title="Editar Pedido"
+                        >
+                            <Edit size={22} />
                         </button>
                     )}
                 </div>
 
-                {/* Contenido con Scroll */}
-                <div className="flex-1 overflow-y-auto bg-white">
-                    {/* ... (Todo el contenido interior igual: Cabecera precio, Pestañas, Items...) ... */}
-                    {/* MANTÉN TU CÓDIGO INTERNO AQUÍ, NO CAMBIA */}
-                    <div className="bg-slate-50 p-8 text-center border-b relative">
-                        {/* ... Código del precio y botones de estado ... */}
+                {/* --- CONTENIDO CON SCROLL --- */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-safe">
+                    {/* Cabecera de Precio */}
+                    <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
-                        <div className={`text-5xl font-extrabold tracking-tight ${displayColor}`}>${displayAmount.toLocaleString()}</div>
-                        {/* ... Resto de la lógica de estado ... */}
-                        <div className="mt-6 flex justify-center">
+                        <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>
+                            ${displayAmount.toLocaleString()}
+                        </div>
+
+                        {/* Botón Estado de Pago */}
+                        <div className="flex justify-center">
                             {isAdmin ? (
-                                <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setShowPaymentModal(true); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                <button
+                                    onClick={() => {
+                                        setTempStatus(transaction.paymentStatus);
+                                        setTempAmountPaid(transaction.amountPaid || 0);
+                                        setTempNote(transaction.paymentNote || '');
+                                        setShowPaymentModal(true);
+                                    }}
+                                    className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' :
+                                        transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                            'bg-red-100 text-red-700 border-red-200'
+                                        }`}
+                                >
                                     {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
                                     <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
                                 </button>
                             ) : (
-                                <div className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                    {transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PAGO PARCIAL' : 'PENDIENTE DE PAGO'}
+                                <div className={`px-5 py-2 rounded-full font-bold text-sm border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                    {transaction.paymentStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'}
                                 </div>
                             )}
                         </div>
                     </div>
-                    {/* Pestañas y contenido de tabs... (igual que tu archivo original) */}
-                    <div className="flex border-b sticky top-0 bg-white z-50 shadow-sm">
+
+                    {/* Pestañas Sticky */}
+                    <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                                 {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
                             </button>
                         ))}
                     </div>
-                    <div className="p-6">
+
+                    {/* Contenido Pestañas */}
+                    <div className="p-4 bg-white min-h-[300px]">
                         {activeTab === 'items' && (
-                            <div className="space-y-4">{transaction.items.map((item, index) => (<div key={index} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-colors"><div className="bg-blue-50 text-blue-700 font-bold w-10 h-10 rounded-lg flex items-center justify-center shrink-0">{item.qty}</div><div className="flex-1 min-w-0"><div className="font-bold text-slate-800 leading-tight">{item.name}</div><div className="text-xs text-slate-400 mt-1">${item.price.toLocaleString()} c/u</div></div><div className="text-lg font-bold text-slate-700">${(item.price * item.qty).toLocaleString()}</div></div>))}</div>
+                            <div className="space-y-3">
+                                {transaction.items.map((item, index) => (
+                                    <div key={index} className="flex gap-3 items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                        <div className="bg-white border border-slate-200 text-slate-700 font-bold w-9 h-9 rounded flex items-center justify-center shrink-0 text-sm">{item.qty}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-slate-800 text-sm leading-tight">{item.name}</div>
+                                            <div className="text-xs text-slate-400 mt-0.5">${item.price.toLocaleString()} un.</div>
+                                        </div>
+                                        <div className="font-bold text-slate-800">${(item.price * item.qty).toLocaleString()}</div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
-                        {/* ... resto de tabs ... */}
-                        {activeTab === 'details' && (<div className="space-y-6"><div className="grid grid-cols-2 gap-4"><div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Método</div><div className="font-bold text-slate-700">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div></div><div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700">{dateObj.toLocaleDateString()}</div></div></div><div><h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Nota Interna</h4><div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas registradas."}</div></div></div>)}
-                        {activeTab === 'client' && (<div className="space-y-6"><div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl"><div className="w-12 h-12 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold">{clientName.charAt(0).toUpperCase()}</div><div><div className="font-bold text-slate-800 text-lg">{clientName}</div><div className="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-1">Cliente</div></div></div><div className="space-y-3">{clientData.phone ? (<div className="flex gap-2"><a href={`tel:${clientData.phone}`} className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-400"><Phone size={18} className="text-slate-400" /><span className="font-bold text-slate-700">{clientData.phone}</span></a><a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="w-14 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center text-green-600"><MessageCircle size={24} /></a></div>) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg">Sin teléfono</div>}{clientData.address ? (<div className="flex gap-2"><div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg"><MapPin size={18} className="text-slate-400" /><span className="font-bold text-slate-700">{clientData.address}</span></div><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600"><ExternalLink size={24} /></a></div>) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg">Sin dirección</div>}</div></div>)}
+
+                        {activeTab === 'details' && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Método</div><div className="font-bold text-slate-700 text-sm">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div></div>
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700 text-sm">{dateObj.toLocaleDateString()}</div></div>
+                                </div>
+                                <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas adicionales."}</div>
+                            </div>
+                        )}
+
+                        {activeTab === 'client' && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                                    <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
+                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente Registrado</div></div>
+                                </div>
+                                {clientData.phone && <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold"><MessageCircle size={18} /> WhatsApp</a>}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Footer Fijo y Visible */}
+                {/* --- FOOTER (Ahora fijo abajo, encima de todo) --- */}
                 {!showShareOptions && (
-                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-6 sm:pb-4">
+                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)] pb-safe-area">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
-                            <Share2 size={20} /> Compartir
+                            <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>
 
                         {/* Botón Cancelar: SOLO ADMIN */}
