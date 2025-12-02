@@ -207,7 +207,7 @@ export default function App() {
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
 
-  // --- FUNCIONES DEL CARRITO (MOVIDAS AQUÍ ARRIBA PARA EVITAR ERROR DE REFERENCIA) ---
+  // --- FUNCIONES DEL CARRITO ---
   const addToCart = useCallback((product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -219,7 +219,7 @@ export default function App() {
   const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
-  // --- HANDLERS RESTANTES ---
+  // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
 
   const handleRegister = async (e) => {
@@ -312,7 +312,18 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
-      <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => setIsLogoutConfirmOpen(true)} onEditStore={() => setIsStoreModalOpen(true)} />
+      {/* SOLUCIÓN 1: Aquí agregamos 'onEditStore' para que funcione el click en el logo de PC.
+         Y 'userData' ya se pasaba, lo cual está bien.
+      */}
+      <Sidebar
+        user={user}
+        userData={userData}
+        storeProfile={storeProfile}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={() => setIsLogoutConfirmOpen(true)}
+        onEditStore={() => setIsStoreModalOpen(true)} // <-- CORRECCIÓN #1
+      />
 
       {/* Notificación Toast con Sonido */}
       {notification && (
@@ -399,8 +410,22 @@ export default function App() {
           {activeTab === 'transactions' && (
             <>
               <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
-              {selectedTransaction && <TransactionDetail transaction={selectedTransaction} onClose={handleCloseTransactionDetail} onPrint={handlePrintTicket} onShare={handleShareWhatsApp} onCancel={handleDeleteTransaction} customers={customers} onUpdate={handleQuickUpdateTransaction} onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }} />}
-              userData={userData}
+              {selectedTransaction && (
+                <TransactionDetail
+                  transaction={selectedTransaction}
+                  onClose={handleCloseTransactionDetail}
+                  onPrint={handlePrintTicket}
+                  onShare={handleShareWhatsApp}
+                  onCancel={handleDeleteTransaction}
+                  customers={customers}
+                  onUpdate={handleQuickUpdateTransaction}
+                  onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }}
+
+                  // SOLUCIÓN 2: Pasamos userData. Al hacer esto, el botón de Editar/Cancelar 
+                  // aparecerá porque TransactionDetail ahora sabrá que eres admin.
+                  userData={userData} // <-- CORRECCIÓN #2
+                />
+              )}
             </>
           )}
         </main>
