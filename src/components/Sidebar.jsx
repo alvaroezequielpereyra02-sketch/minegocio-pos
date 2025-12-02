@@ -9,19 +9,19 @@ function NavButton({ active, onClick, icon, label }) {
   );
 }
 
-// 1. Agregamos 'onEditStore' a las props
+// 1. Agregamos 'onEditStore' a las props para poder abrir el modal
 export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore }) {
   if (!userData) return null;
 
   return (
     <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0">
-      {/* 2. Header convertido en botón para Editar Perfil en PC */}
+      {/* 2. Convertimos el encabezado en botón para editar perfil en PC */}
       <button
         onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}
         className="w-full text-left p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800 hover:bg-slate-50 transition-colors"
-        title="Clic para editar perfil"
+        title="Editar Perfil"
       >
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white overflow-hidden shrink-0">
+        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white overflow-hidden">
           {storeProfile.logoUrl ? (
             <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
           ) : (
@@ -76,7 +76,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// NAV MÓVIL
+// NAV MÓVIL CON SCROLL
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
@@ -85,7 +85,7 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-        {/* 3. Corrección de etiqueta: Transacciones */}
+        {/* 3. CAMBIO: Etiqueta corregida a "Transacciones" */}
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}

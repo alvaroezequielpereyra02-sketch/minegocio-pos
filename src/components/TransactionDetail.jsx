@@ -6,7 +6,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
-    // Helper para saber si es admin
+    // --- PARCHE DE SEGURIDAD 1: Verificar Admin ---
     const isAdmin = userData?.role === 'admin';
 
     // Estados para el Modal de Pagos
@@ -29,6 +29,9 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
     const handleSavePayment = () => {
+        // --- PARCHE DE SEGURIDAD 2: Bloquear función si no es admin ---
+        if (!isAdmin) return;
+
         let finalAmountPaid = tempAmountPaid;
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
@@ -41,9 +44,9 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
         setShowPaymentModal(false);
     };
 
-    // --- MODAL DE GESTIÓN DE PAGO ---
+    // --- MODAL DE GESTIÓN DE PAGO (Tu diseño original) ---
     const PaymentModal = () => (
-        <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" style={{ zIndex: 10000 }}>
             <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
                 <div className="flex justify-between items-center border-b pb-3">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -100,20 +103,20 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     );
 
     return (
-        // Contenedor principal FIJO a la pantalla (z-index alto para tapar todo)
-        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm z-[9000] flex justify-center items-end sm:items-center animate-in fade-in duration-200 p-0 sm:p-4">
+        // --- PARCHE VISUAL 1: Usar Flex Column y altura fija para arreglar botones saltarines ---
+        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-end sm:items-center z-[9999] animate-in fade-in duration-200 p-0 sm:p-4">
 
             {showPaymentModal && <PaymentModal />}
 
-            {/* Modal Compartir */}
+            {/* Modal Compartir (Original) */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[10001] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom p-4">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h3 className="text-lg font-bold text-slate-800">Compartir</h3>
+                    <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
+                        <div className="p-4 flex justify-between items-start border-b">
                             <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400" /></button>
+                            <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2 rounded-xl">
+                        <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
                             <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
                             <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
                         </div>
@@ -121,10 +124,10 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* TARJETA PRINCIPAL (Flexbox Estricto) */}
+            {/* --- PARCHE VISUAL 2: Estructura de tarjeta controlada (h-100dvh) --- */}
             <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl h-[100dvh] sm:h-[85vh] flex flex-col relative overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
 
-                {/* 1. Navbar FIJO arriba */}
+                {/* Navbar (Fijo gracias a flex-col y shrink-0) */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm sm:rounded-t-2xl">
                     <button
                         onClick={onClose}
@@ -150,11 +153,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     )}
                 </div>
 
-                {/* 2. CONTENIDO con SCROLL (ocupa el espacio del medio) */}
-                <div className="flex-1 overflow-y-auto bg-slate-50/30">
+                {/* --- PARCHE VISUAL 3: Contenido con Scroll propio (flex-1 overflow-y-auto) --- */}
+                <div className="flex-1 overflow-y-auto pb-6">
 
                     {/* Cabecera de Precio */}
-                    <div className="bg-white p-8 text-center border-b relative">
+                    <div className="bg-slate-50 p-8 text-center border-b relative">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-5xl font-extrabold tracking-tight ${displayColor}`}>
                             ${displayAmount.toLocaleString()}
@@ -167,7 +170,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                             </div>
                         )}
 
-                        {/* Botón Estado: SOLO ADMIN (Cliente ve estado estático) */}
+                        {/* Botón Estado: PROTEGIDO (Solo Admin) */}
                         <div className="mt-6 flex justify-center">
                             {isAdmin ? (
                                 <button
@@ -197,7 +200,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         </div>
                     </div>
 
-                    {/* Pestañas (Sticky) */}
+                    {/* Pestañas (Sticky interno) */}
                     <div className="flex border-b sticky top-0 bg-white z-50 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -206,11 +209,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         ))}
                     </div>
 
-                    <div className="p-6 pb-6">
+                    <div className="p-6">
                         {activeTab === 'items' && (
                             <div className="space-y-4">
                                 {transaction.items.map((item, index) => (
-                                    <div key={index} className="flex gap-4 items-start p-3 bg-white hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-colors shadow-sm">
+                                    <div key={index} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-colors">
                                         <div className="bg-blue-50 text-blue-700 font-bold w-10 h-10 rounded-lg flex items-center justify-center shrink-0">{item.qty}</div>
                                         <div className="flex-1 min-w-0">
                                             <div className="font-bold text-slate-800 leading-tight">{item.name}</div>
@@ -225,11 +228,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         {activeTab === 'details' && (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                                         <div className="text-xs text-slate-400 mb-1">Método</div>
                                         <div className="font-bold text-slate-700">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div>
                                     </div>
-                                    <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                                         <div className="text-xs text-slate-400 mb-1">Fecha</div>
                                         <div className="font-bold text-slate-700">{dateObj.toLocaleDateString()}</div>
                                     </div>
@@ -271,11 +274,17 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     </div>
                 </div>
 
-                {/* 3. Footer FIJO abajo (Fuera del scroll) */}
+                {/* --- PARCHE VISUAL 4: Footer Fijo (sin absolute, ahora usa flex) --- */}
                 {!showShareOptions && (
                     <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-[100] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-safe-area">
-                        <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100 transition-colors"><Share2 size={20} /> Compartir</button>
-                        <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors">Cancelar</button>
+                        <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100"><Share2 size={20} /> Compartir</button>
+
+                        {/* --- PARCHE DE SEGURIDAD 3: Botón cancelar solo para Admin --- */}
+                        {isAdmin && (
+                            <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
+                                Cancelar
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
