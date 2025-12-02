@@ -3,7 +3,7 @@
   "name": "MiNegocio POS & Inventario",
   "icons": [
     {
-      "src": "logo192-v2.png",
+      "src": "/logo192-v2.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"

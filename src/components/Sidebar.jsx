@@ -86,7 +86,8 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
+        {/* CAMBIO AQUÍ: De "Historial" a "Transacciones" */}
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}

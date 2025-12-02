@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Receipt, Mail, Phone, MapPin, CreditCard, ExternalLink, Edit, Save, DollarSign, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Share2, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
 
 export default function TransactionDetail({ transaction, onClose, onPrint, onShare, onCancel, customers, onUpdate, onEditItems, userData }) {
     const [showShareOptions, setShowShareOptions] = useState(false);
@@ -32,7 +32,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
         setShowPaymentModal(false);
     };
 
-    // Modal interno de pagos
+    // --- MODAL INTERNO DE PAGO ---
     const PaymentModal = () => (
         <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -68,9 +68,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     );
 
     return (
-        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-end sm:items-center z-[9999] animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-end sm:items-center z-[9999] animate-in fade-in duration-200 p-0 sm:p-4">
+
             {showPaymentModal && <PaymentModal />}
 
+            {/* Modal Compartir (Z-index superior para tapar los botones de abajo) */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[10001] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -86,11 +88,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* ESTRUCTURA PRINCIPAL OPTIMIZADA (Flex Column estricto) */}
+            {/* ESTRUCTURA DE LA TARJETA (Flex estricto para Header - Contenido - Footer) */}
             <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl h-[100dvh] sm:h-[85vh] flex flex-col relative overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
 
-                {/* 1. HEADER (Fijo arriba, no scrollea) */}
-                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm sm:rounded-t-2xl">
+                {/* 1. HEADER (Estático) */}
+                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
                     <button onClick={onClose} className="p-3 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100" aria-label="Volver">
                         <ArrowLeft size={28} className="text-slate-700" />
                     </button>
@@ -98,6 +100,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
+                    {/* Botón Editar solo para Admin */}
                     {isAdmin && (
                         <button onClick={() => onEditItems(transaction)} className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg flex items-center gap-1.5 font-bold text-sm shadow-sm transition-transform active:scale-95">
                             <Edit size={18} /> <span className="hidden sm:inline">Editar</span>
@@ -105,8 +108,8 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     )}
                 </div>
 
-                {/* 2. CONTENIDO (Ocupa el espacio restante y tiene su propio scroll) */}
-                <div className="flex-1 overflow-y-auto bg-white">
+                {/* 2. CONTENIDO (Scrollable) */}
+                <div className="flex-1 overflow-y-auto bg-white relative">
                     {/* Cabecera de Precio */}
                     <div className="bg-slate-50 p-8 text-center border-b relative">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
@@ -130,7 +133,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         </div>
                     </div>
 
-                    {/* Pestañas (Sticky solo dentro del contenedor de scroll) */}
+                    {/* Pestañas (Sticky interno) */}
                     <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 pb-3 pt-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -185,13 +188,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     </div>
                 </div>
 
-                {/* 3. FOOTER (Fijo abajo, fuera del scroll, siempre visible) */}
-                {!showShareOptions && (
-                    <div className="shrink-0 p-4 border-t bg-white flex gap-3 sm:rounded-b-2xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-                        <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100 transition-colors"><Share2 size={20} /> Compartir</button>
-                        <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors">Cancelar</button>
-                    </div>
-                )}
+                {/* 3. FOOTER (Estático) */}
+                <div className="shrink-0 p-4 border-t bg-white flex gap-3 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe-area">
+                    <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100 transition-colors"><Share2 size={20} /> Compartir</button>
+                    <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors">Cancelar</button>
+                </div>
             </div>
         </div>
     );
