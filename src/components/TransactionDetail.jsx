@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -51,8 +51,9 @@ export default function TransactionDetail({
     };
 
     return (
-        // WRAPPER PRINCIPAL: Fijo a la pantalla completa.
-        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center items-end sm:items-center animate-in slide-in-from-bottom duration-200">
+        // WRAPPER PRINCIPAL: 'fixed inset-0' asegura que ocupe toda la pantalla sin recalcular alturas raras.
+        // En móvil es fondo blanco sólido. En PC tiene fondo oscuro transparente.
+        <div className="fixed inset-0 z-[10000] flex justify-center sm:items-center bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm animate-in slide-in-from-bottom duration-200">
 
             {/* MODAL DE PAGO (Overlay) */}
             {showPaymentModal && (
@@ -107,11 +108,15 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* TARJETA PRINCIPAL (ESTRUCTURA FLEXBOX SÓLIDA) */}
-            {/* Usamos 'flex flex-col' para que el footer sea parte del flujo, no un elemento flotante */}
-            <div className="w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+            {/* TARJETA PRINCIPAL - ESTRUCTURA FLEXBOX SÓLIDA */}
+            {/* CLAVE DEL ÉXITO: 
+               1. w-full h-full: Ocupa todo el contenedor fijo (la pantalla).
+               2. flex flex-col: Estructura de columna.
+               3. Sin 'absolute' en el footer.
+            */}
+            <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
 
-                {/* 1. HEADER (Fijo, no se encoge) */}
+                {/* 1. HEADER (Fijo arriba, no se encoge 'shrink-0') */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -127,7 +132,7 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* 2. CONTENIDO SCROLLABLE (Ocupa el espacio sobrante) */}
+                {/* 2. CONTENIDO SCROLLABLE (Ocupa el espacio sobrante 'flex-1') */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/50">
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
@@ -203,8 +208,8 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* 3. FOOTER (Flex Item - NO ABSOLUTE) */}
-                {/* Al ser un item flex con 'shrink-0', siempre estará pegado al final del contenedor sin flotar */}
+                {/* 3. FOOTER (Fijo abajo, no se encoge 'shrink-0') */}
+                {/* Al usar Flexbox y quitar el 'absolute', este bloque siempre estará al final sólido */}
                 {!showShareOptions && (
                     <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
