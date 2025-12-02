@@ -447,9 +447,10 @@ export default function App() {
           )}
         </main>
 
-        {!showMobileCart && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => setIsLogoutConfirmOpen(true)} />}
+        {/* MODIFICACIÓN AQUÍ: Ocultamos MobileNav si hay una transacción seleccionada */}
+        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => setIsLogoutConfirmOpen(true)} />}
 
-        {/* --- MOVIDO AL ROOT DEL LAYOUT PARA Z-INDEX CORRECTO --- */}
+        {/* TransactionDetail MOVED outside main/nav for z-index */}
         {selectedTransaction && (
           <TransactionDetail
             transaction={selectedTransaction}
