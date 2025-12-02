@@ -12,7 +12,8 @@ import Dashboard from './components/Dashboard';
 import History from './components/History';
 import TransactionDetail from './components/TransactionDetail';
 import Orders from './components/Orders';
-import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal } from './components/Modals';
+// Importamos ConfirmModal
+import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
 // CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
@@ -49,6 +50,9 @@ export default function App() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isInvitationModalOpen, setIsInvitationModalOpen] = useState(false);
+
+  // ESTADO PARA CONFIRMACIONES PERSONALIZADAS
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   // ESTADO DE CARGA
   const [isProcessing, setIsProcessing] = useState(false);
@@ -219,6 +223,20 @@ export default function App() {
   const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
+  // --- HELPERS PARA CONFIRMACIÓN ---
+  const requestConfirm = (title, message, action, isDanger = false) => {
+    setConfirmConfig({
+      title,
+      message,
+      onConfirm: async () => {
+        setConfirmConfig(null);
+        await action();
+      },
+      onCancel: () => setConfirmConfig(null),
+      isDanger
+    });
+  };
+
   // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
 
@@ -247,13 +265,31 @@ export default function App() {
 
   const handleResetPassword = async () => { const email = document.querySelector('input[name="email"]').value; if (!email) return setLoginError("Escribe tu correo primero."); try { await sendPasswordResetEmail(auth, email); alert("Correo enviado."); setLoginError(""); } catch (error) { setLoginError("Error al enviar correo."); } };
   const handleFinalLogout = () => { signOut(auth); setCart([]); setUserData(null); setIsLogoutConfirmOpen(false); };
-  const handleDeleteTransaction = useCallback(async (id) => { if (confirm("¿Eliminar venta?")) { try { await deleteDoc(doc(db, 'stores', appId, 'transactions', id)); handleCloseTransactionDetail(); } catch (error) { alert("Error al cancelar."); } } }, [handleCloseTransactionDetail]);
+
+  const handleDeleteTransaction = useCallback((id) => {
+    requestConfirm(
+      "Eliminar Venta",
+      "¿Estás seguro de que deseas eliminar esta venta?\nEsta acción no se puede deshacer.",
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'stores', appId, 'transactions', id));
+          handleCloseTransactionDetail();
+        } catch (error) {
+          alert("Error al cancelar.");
+        }
+      },
+      true
+    );
+  }, [handleCloseTransactionDetail]);
+
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
 
-  // --- NUEVA FUNCIÓN: EXPORTAR Y PURGAR ---
+  // --- NUEVA FUNCIÓN: EXPORTAR Y PURGAR (Con Modal Nativo) ---
   const handleExportCSV = async () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
+
+    // 1. Descarga del CSV
     const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(
       transactions.map(t =>
         `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`
@@ -269,34 +305,44 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
 
-    // PREGUNTAR SI PURGAR EL SISTEMA (Con retardo)
-    setTimeout(async () => {
-      const confirmPurge = window.confirm("✅ Excel descargado.\n\n🗑️ ¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)");
-      if (confirmPurge) {
-        const doubleCheck = window.confirm("⚠️ ¡ADVERTENCIA FINAL!\n\nSe borrarán TODAS las ventas permanentemente.\n\n¿Estás 100% seguro?");
-        if (doubleCheck) {
-          setIsProcessing(true);
-          try {
-            const deletePromises = transactions.map(t => deleteDoc(doc(db, 'stores', appId, 'transactions', t.id)));
-            await Promise.all(deletePromises);
-            alert("🧹 El sistema se ha purgado correctamente.");
-          } catch (error) {
-            console.error("Error al purgar:", error);
-            alert("Error al intentar borrar algunos datos.");
-          } finally {
-            setIsProcessing(false);
-          }
-        }
-      }
+    // 2. Proceso de purgado con Modales Nativos
+    setTimeout(() => {
+      requestConfirm(
+        "¿Purgar Sistema?",
+        "✅ Excel descargado correctamente.\n\n¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)",
+        () => {
+          // Segunda confirmación
+          setTimeout(() => {
+            requestConfirm(
+              "⚠️ ADVERTENCIA FINAL",
+              "Se borrarán TODAS las ventas permanentemente.\n\n¿Estás 100% seguro?",
+              async () => {
+                setIsProcessing(true);
+                try {
+                  const deletePromises = transactions.map(t => deleteDoc(doc(db, 'stores', appId, 'transactions', t.id)));
+                  await Promise.all(deletePromises);
+                  setNotification("🧹 Sistema purgado correctamente");
+                  setTimeout(() => setNotification(null), 3000);
+                } catch (error) {
+                  console.error("Error al purgar:", error);
+                  alert("Error al intentar borrar algunos datos.");
+                } finally {
+                  setIsProcessing(false);
+                }
+              },
+              true
+            );
+          }, 300);
+        },
+        true
+      );
     }, 1000);
   };
 
-  // --- HANDLE CHECKOUT (CORREGIDO: PAGO PENDIENTE POR DEFECTO) ---
+  // --- HANDLE CHECKOUT ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
-
-    // Identificar Cliente
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
     if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
     else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
@@ -309,20 +355,18 @@ export default function App() {
     const saleData = {
       type: 'sale',
       total: cartTotal,
-      amountPaid: 0, // CAMBIO: Empieza en 0 por defecto (Pendiente)
+      amountPaid: 0,
       items: itemsWithCost,
       date: serverTimestamp(),
       clientId: finalClient.id,
       clientName: finalClient.name,
       clientRole: finalClient.role,
       sellerId: user.uid,
-      paymentStatus: 'pending', // CAMBIO: Siempre pendiente al iniciar
+      paymentStatus: 'pending',
       paymentNote: '',
       paymentMethod: paymentMethod,
       fulfillmentStatus: 'pending'
     };
-
-    // NOTA: He eliminado la línea que auto-marcaba como 'paid' para que todo sea pendiente por defecto.
 
     try {
       const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
@@ -352,20 +396,24 @@ export default function App() {
 
   const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
   const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
+
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
 
   const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
-  const handleDeleteExpense = async (id) => { if (confirm("¿Eliminar?")) await deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
+  const handleDeleteExpense = async (id) => { requestConfirm("¿Eliminar Gasto?", "¿Seguro que deseas borrar este gasto?", async () => await deleteDoc(doc(db, 'stores', appId, 'expenses', id)), true); };
+
   const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
   const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if (editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e) { alert("Error"); } };
   const handleSaveCategory = async (e) => { e.preventDefault(); if (e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
-  const handleDeleteProduct = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'products', id)); };
-  const handleDeleteCategory = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'categories', id)); };
-  const handleDeleteCustomer = async (id) => { if (confirm('¿Borrar?')) await deleteDoc(doc(db, 'stores', appId, 'customers', id)); };
+
+  const handleDeleteProduct = async (id) => { requestConfirm("¿Eliminar Producto?", "¿Seguro que deseas borrar este producto?", async () => await deleteDoc(doc(db, 'stores', appId, 'products', id)), true); };
+  const handleDeleteCategory = async (id) => { requestConfirm("¿Eliminar Categoría?", "¿Seguro que deseas borrar esta categoría?", async () => await deleteDoc(doc(db, 'stores', appId, 'categories', id)), true); };
+  const handleDeleteCustomer = async (id) => { requestConfirm("¿Eliminar Cliente?", "¿Seguro que deseas borrar este cliente?", async () => await deleteDoc(doc(db, 'stores', appId, 'customers', id)), true); };
+
   const handleFileChange = (e) => { const f = e.target.files[0]; if (f && f.size <= 800000) { const r = new FileReader(); r.onloadend = () => setPreviewImage(r.result); r.readAsDataURL(f); } };
   const handleOpenModal = (p = null) => { setEditingProduct(p); setPreviewImage(p?.imageUrl || ''); setImageMode(p?.imageUrl?.startsWith('data:') ? 'file' : 'link'); setIsProductModalOpen(true); };
   const handleBarcodeSubmit = (e) => { e.preventDefault(); if (!barcodeInput) return; const product = products.find(p => p.barcode === barcodeInput); if (product) { addToCart(product); setBarcodeInput(''); } else { alert("Producto no encontrado."); setBarcodeInput(''); } };
-  const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { if (confirm("Producto no existe. ¿Crear nuevo?")) { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); } setInventoryBarcodeInput(''); } };
+  const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { requestConfirm("Producto no existe", "¿Crear nuevo producto con este código?", () => { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); }); setInventoryBarcodeInput(''); } };
   const handleAddStock = async (e) => { e.preventDefault(); const qty = parseInt(e.target.qty.value) || 0; if (scannedProduct && qty !== 0) { const newStock = scannedProduct.stock + qty; try { await updateDoc(doc(db, 'stores', appId, 'products', scannedProduct.id), { stock: newStock }); } catch (e) { alert("Error al actualizar stock"); } } setIsAddStockModalOpen(false); setScannedProduct(null); };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando...</div>;
@@ -383,6 +431,17 @@ export default function App() {
         onLogout={() => setIsLogoutConfirmOpen(true)}
         onEditStore={() => setIsStoreModalOpen(true)}
       />
+
+      {/* MODAL DE CONFIRMACIÓN GLOBAL */}
+      {confirmConfig && (
+        <ConfirmModal
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={confirmConfig.onCancel}
+          isDanger={confirmConfig.isDanger}
+        />
+      )}
 
       {/* Notificación Toast con Sonido */}
       {notification && (

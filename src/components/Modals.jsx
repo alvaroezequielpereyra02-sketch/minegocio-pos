@@ -1,8 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2 } from 'lucide-react';
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle } from 'lucide-react';
 
 // Estilo base para el fondo oscuro de los modales
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
+
+// --- NUEVO: MODAL DE CONFIRMACIÓN GENÉRICO ---
+export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
+    return (
+        <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200 border border-slate-100">
+                <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                    {isDanger ? <AlertTriangle size={24} /> : <AlertCircle size={24} />}
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">{message}</p>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 py-3 text-slate-700 font-bold bg-slate-100 rounded-xl hover:bg-slate-200 active:scale-95 transition-transform"
+                    >
+                        {cancelText}
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md active:scale-95 transition-transform ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    >
+                        {confirmText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // --- NUEVO: PANTALLA DE PROCESAMIENTO ---
 export function ProcessingModal() {
@@ -18,8 +48,8 @@ export function ProcessingModal() {
                     </div>
                 </div>
 
-                <h3 className="text-xl font-extrabold text-slate-800 mb-2">Procesando Venta</h3>
-                <p className="text-sm text-slate-400 font-medium">Guardando pedido y actualizando stock...</p>
+                <h3 className="text-xl font-extrabold text-slate-800 mb-2">Procesando</h3>
+                <p className="text-sm text-slate-400 font-medium">Por favor espere...</p>
             </div>
         </div>
     );
@@ -35,8 +65,19 @@ export function InvitationModal({ onClose, onGenerate }) {
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(generatedCode);
-        alert("Código copiado al portapapeles");
+        // Fallback for clipboard if navigator fails (common in iframes)
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(generatedCode).then(() => alert("Código copiado")).catch(() => { });
+        } else {
+            // Simple fallback
+            const textArea = document.createElement("textarea");
+            textArea.value = generatedCode;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            alert("Código copiado al portapapeles");
+        }
     };
 
     return (
@@ -161,6 +202,7 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
+// Este ya no se usaría tanto si implementamos el genérico, pero lo dejamos por si acaso
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>

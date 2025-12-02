@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    /* Evita el efecto de rebote elástico en toda la página (iOS/Android) */
+    overscroll-behavior: none;
+}
+
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -10,4 +15,48 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: #f1f5f9;
+
+    /* TRUCOS PARA SENSACIÓN NATIVA */
+
+    /* 1. Evita que el usuario seleccione texto (botones, menús) accidentalmente */
+    -webkit-user-select: none;
+    user-select: none;
+
+    /* 2. Elimina el destello azul/gris al tocar botones en móviles */
+    -webkit-tap-highlight-color: transparent;
+
+    /* 3. Previene el zoom accidental al hacer doble tap */
+    touch-action: manipulation;
+}
+
+/* Reactiva la selección de texto SOLO donde es necesario (inputs) */
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* OCULTAR BARRAS DE SCROLL (Pero permitir scroll) */
+
+/* Para Chrome, Safari y Opera */
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* Para Firefox, IE y Edge */
+* {
+    -ms-overflow-style: none;
+    /* IE y Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+/* UTILIDADES EXTRA DE ANIMACIÓN */
+.animate-in {
+    animation-fill-mode: forwards;
+}
+
+/* Previene parpadeos blancos en transiciones 3D en móviles */
+* {
+    -webkit-backface-visibility: hidden;
 }
