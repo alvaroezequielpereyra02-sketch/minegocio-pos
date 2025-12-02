@@ -77,7 +77,8 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// NAV MÓVIL CON SCROLL (Sin cambios)
+// Al final de src/components/Sidebar.jsx
+
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
@@ -86,8 +87,9 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-        {/* CAMBIO AQUÍ: De "Historial" a "Transacciones" */}
+        {/* --- AQUÍ ESTÁ EL CAMBIO --- */}
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />
+        {/* --------------------------- */}
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}

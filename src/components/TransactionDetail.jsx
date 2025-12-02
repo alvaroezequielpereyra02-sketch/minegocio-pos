@@ -8,11 +8,12 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
 
     const isAdmin = userData?.role === 'admin';
 
-    // Estados y lógica
+    // Estados
     const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
 
+    // Cálculos
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
     const debt = total - paid;
@@ -31,7 +32,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
         setShowPaymentModal(false);
     };
 
-    // --- MODAL PAGOS ---
+    // Modal de Pago
     const PaymentModal = () => (
         <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -39,7 +40,6 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><DollarSign size={20} className="text-blue-600" /> Gestionar Pago</h3>
                     <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                 </div>
-                {/* ... lógica del modal de pagos igual ... */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
                     <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border ${tempStatus === 'paid' ? 'bg-green-600 text-white' : 'bg-white'}`}>✅ PAGADO</button>
                     <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border ${tempStatus === 'partial' ? 'bg-orange-500 text-white' : 'bg-white'}`}>⚠️ PARCIAL</button>
@@ -58,56 +58,56 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     );
 
     return (
-        // CONTENEDOR PRINCIPAL: Fijo y sin scroll global
-        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-end sm:items-center z-[9000] animate-in fade-in duration-200">
-
+        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm z-[9000] flex justify-center items-end sm:items-center animate-in fade-in duration-200">
             {showPaymentModal && <PaymentModal />}
 
-            {/* Modal Compartir */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[10001] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
-                        <div className="p-4 flex justify-between items-start border-b">
+                    <div className="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom p-4">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-slate-800">Compartir</h3>
                             <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400" /></button>
-                            <h3 className="font-bold text-slate-800">COMPARTIR</h3>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
-                            <button onClick={() => onPrint(transaction)} className="p-4 bg-white border rounded-xl flex flex-col items-center gap-2"><FileText size={24} className="text-red-500" /> PDF</button>
-                            <button onClick={() => onShare(transaction)} className="p-4 bg-white border rounded-xl flex flex-col items-center gap-2"><MessageCircle size={24} className="text-green-500" /> WhatsApp</button>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => onPrint(transaction)} className="p-4 border rounded-xl flex flex-col items-center gap-2 hover:bg-slate-50"><FileText size={24} className="text-red-500" /> PDF</button>
+                            <button onClick={() => onShare(transaction)} className="p-4 border rounded-xl flex flex-col items-center gap-2 hover:bg-slate-50"><MessageCircle size={24} className="text-green-500" /> WhatsApp</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* TARJETA ESTRUCTURAL (Flex Column) */}
-            {/* h-[100dvh] fuerza que ocupe TODA la pantalla en celular, evitando barras extrañas */}
-            <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl h-[100dvh] sm:h-[85vh] flex flex-col relative overflow-hidden">
+            {/* CONTENEDOR PRINCIPAL: Usamos height: 100% y relative para posicionamiento absoluto interno */}
+            <div className="bg-white w-full max-w-2xl h-full sm:h-[85vh] sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
 
-                {/* 1. HEADER (No se mueve) */}
-                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10">
+                {/* 1. HEADER FIJO (Absolute Top) */}
+                <div className="absolute top-0 left-0 right-0 h-16 bg-white border-b flex items-center px-4 gap-3 z-20">
                     <button onClick={onClose} className="p-2 bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
                     <div className="flex-1">
-                        <div className="text-xs text-slate-500">Venta</div>
+                        <div className="text-xs text-slate-500">Detalle</div>
                         <div className="font-bold text-slate-800">#{transaction.id.slice(0, 8)}</div>
                     </div>
+                    {/* Botón Editar (Solo Admin) */}
                     {isAdmin && <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Edit size={20} /></button>}
                 </div>
 
-                {/* 2. CONTENIDO SCROLLABLE (Solo esto se mueve) */}
-                <div className="flex-1 overflow-y-auto bg-white p-0">
-                    {/* Resumen Precio */}
-                    <div className="bg-slate-50 p-6 text-center border-b">
+                {/* 2. CONTENIDO SCROLLABLE (Absolute Middle) */}
+                {/* Dejamos 64px arriba (top-16) y 80px abajo (bottom-20) para header y footer */}
+                <div className="absolute top-16 bottom-20 left-0 right-0 overflow-y-auto bg-slate-50/50">
+                    <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{displayLabel}</div>
                         <div className={`text-4xl font-black ${displayColor}`}>${displayAmount.toLocaleString()}</div>
-                        {isAdmin && (
-                            <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setShowPaymentModal(true); }} className="mt-4 px-4 py-1 bg-white border rounded-full text-xs font-bold shadow-sm">
-                                Estado: {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Parcial' : '❌ Pendiente'}
+                        {/* Estado clickable solo para admin */}
+                        {isAdmin ? (
+                            <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setShowPaymentModal(true); }} className="mt-4 px-3 py-1 border rounded-full text-xs font-bold bg-slate-50">
+                                {transaction.paymentStatus.toUpperCase()} ✎
                             </button>
+                        ) : (
+                            <div className="mt-4 px-3 py-1 border rounded-full text-xs font-bold bg-slate-50 inline-block">{transaction.paymentStatus.toUpperCase()}</div>
                         )}
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex border-b sticky top-0 bg-white z-10">
+                    <div className="flex border-b bg-white sticky top-0 z-10">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>
                                 {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
@@ -115,41 +115,32 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                         ))}
                     </div>
 
-                    {/* Info */}
-                    <div className="p-4 pb-4">
-                        {activeTab === 'items' && (
-                            <div className="space-y-3">
-                                {transaction.items.map((item, i) => (
-                                    <div key={i} className="flex justify-between items-center p-2 border-b last:border-0">
-                                        <div className="flex gap-3">
-                                            <span className="font-bold text-blue-600 w-6">{item.qty}x</span>
-                                            <span>{item.name}</span>
-                                        </div>
-                                        <div className="font-bold">${(item.price * item.qty).toLocaleString()}</div>
-                                    </div>
-                                ))}
+                    <div className="p-4">
+                        {activeTab === 'items' && transaction.items.map((item, i) => (
+                            <div key={i} className="flex justify-between p-3 bg-white mb-2 rounded border shadow-sm">
+                                <div><span className="font-bold text-blue-600 mr-2">{item.qty}x</span> {item.name}</div>
+                                <div className="font-bold">${(item.price * item.qty).toLocaleString()}</div>
                             </div>
-                        )}
+                        ))}
                         {activeTab === 'details' && (
-                            <div className="space-y-4">
-                                <div className="p-3 bg-slate-50 rounded border"><span className="text-xs text-slate-400 block">Fecha</span><b>{dateObj.toLocaleDateString()}</b></div>
-                                <div className="p-3 bg-slate-50 rounded border"><span className="text-xs text-slate-400 block">Pago</span><b>{transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</b></div>
-                                {transaction.paymentNote && <div className="p-3 bg-yellow-50 text-yellow-800 text-sm italic border border-yellow-200 rounded">"{transaction.paymentNote}"</div>}
+                            <div className="bg-white p-4 rounded border shadow-sm space-y-2">
+                                <div><span className="text-slate-400 text-xs">Fecha:</span> <b>{dateObj.toLocaleDateString()}</b></div>
+                                <div><span className="text-slate-400 text-xs">Pago:</span> <b>{transaction.paymentMethod}</b></div>
+                                {transaction.paymentNote && <div className="p-2 bg-yellow-50 text-yellow-800 text-sm mt-2 rounded">"{transaction.paymentNote}"</div>}
                             </div>
                         )}
                         {activeTab === 'client' && (
-                            <div className="space-y-4 text-center p-4">
-                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl font-bold mx-auto">{clientName.charAt(0)}</div>
-                                <h3 className="text-xl font-bold">{clientName}</h3>
-                                {clientData.phone && <a href={`https://wa.me/${clientData.phone}`} className="block w-full py-2 bg-green-50 text-green-600 font-bold rounded-lg border border-green-200">WhatsApp</a>}
-                                {clientData.address && <a href={`https://maps.google.com/?q=${clientData.address}`} className="block w-full py-2 bg-blue-50 text-blue-600 font-bold rounded-lg border border-blue-200">Mapa</a>}
+                            <div className="bg-white p-4 rounded border shadow-sm text-center">
+                                <div className="text-xl font-bold mb-2">{clientName}</div>
+                                {clientData.phone && <a href={`https://wa.me/${clientData.phone}`} className="block w-full py-2 bg-green-100 text-green-700 rounded mb-2 font-bold">WhatsApp</a>}
+                                {clientData.address && <a href={`http://maps.google.com/?q=${clientData.address}`} className="block w-full py-2 bg-blue-100 text-blue-700 rounded font-bold">Mapa</a>}
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* 3. FOOTER (Fijo abajo, fuera del scroll) */}
-                <div className="shrink-0 p-4 bg-white border-t flex gap-3 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] z-20 pb-safe">
+                {/* 3. FOOTER FIJO (Absolute Bottom) */}
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-white border-t flex items-center px-4 gap-3 z-20">
                     <button onClick={() => setShowShareOptions(true)} className="flex-1 py-3 border-2 border-slate-200 rounded-xl font-bold text-slate-600 flex items-center justify-center gap-2">
                         <Share2 size={18} /> Compartir
                     </button>
