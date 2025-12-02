@@ -7,11 +7,14 @@ export default function TransactionDetail({
     onPrint,
     onShare,
     onCancel,
-    customers,
+    customers = [], // Default to empty array to prevent find errors
     onUpdate,
     onEditItems,
     userData
 }) {
+    // 1. Guard clause: If transaction is undefined/null, don't render anything to prevent crashes.
+    if (!transaction) return null;
+
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
@@ -20,9 +23,10 @@ export default function TransactionDetail({
     const isAdmin = userData?.role === 'admin';
 
     // Estados para el Modal de Pagos
-    const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
-    const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
-    const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
+    // Use optional chaining or defaults to prevent "reading property of undefined"
+    const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
+    const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
+    const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
 
     // Cálculos
     const total = transaction.total || 0;
@@ -53,72 +57,72 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
-    // --- MODAL INTERNO DE GESTIÓN DE PAGO ---
-    const PaymentModal = () => (
-        <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
-                <div className="flex justify-between items-center border-b pb-3">
-                    <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                        <DollarSign size={20} className="text-blue-600" /> Gestionar Pago
-                    </h3>
-                    <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
-                </div>
+    return (
+        // position: fixed para asegurar que cubra todo sin moverse
+        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center items-end sm:items-center animate-in slide-in-from-bottom duration-200">
 
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                        <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'paid' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}>✅ PAGADO</button>
-                        <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'partial' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}>⚠️ PARCIAL</button>
-                        <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
-                    </div>
-                </div>
+            {/* --- MODAL INTERNO DE GESTIÓN DE PAGO (INLINED) --- */}
+            {/* Moving this logic directly into the JSX prevents "Component inside Component" re-render bugs */}
+            {showPaymentModal && (
+                <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                <DollarSign size={20} className="text-blue-600" /> Gestionar Pago
+                            </h3>
+                            <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
+                        </div>
 
-                {tempStatus === 'partial' && (
-                    <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
-                        <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
-                        <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
-                            <span className="text-slate-400 font-bold text-lg">$</span>
-                            <input
-                                type="number"
-                                className="w-full outline-none text-xl font-bold text-slate-800"
-                                value={tempAmountPaid}
-                                onChange={(e) => setTempAmountPaid(Number(e.target.value))}
-                                placeholder="0"
-                                autoFocus
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
+                            <div className="grid grid-cols-3 gap-2 mt-2">
+                                <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'paid' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}>✅ PAGADO</button>
+                                <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'partial' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}>⚠️ PARCIAL</button>
+                                <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
+                            </div>
+                        </div>
+
+                        {tempStatus === 'partial' && (
+                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
+                                <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
+                                <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
+                                    <span className="text-slate-400 font-bold text-lg">$</span>
+                                    <input
+                                        type="number"
+                                        className="w-full outline-none text-xl font-bold text-slate-800"
+                                        value={tempAmountPaid}
+                                        onChange={(e) => setTempAmountPaid(Number(e.target.value))}
+                                        placeholder="0"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="text-right text-xs text-orange-600 mt-2 font-bold">
+                                    Restan: ${(total - tempAmountPaid).toLocaleString()}
+                                </div>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
+                            <textarea
+                                className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                                rows="2"
+                                placeholder="Detalles del pago..."
+                                value={tempNote}
+                                onChange={(e) => setTempNote(e.target.value)}
                             />
                         </div>
-                        <div className="text-right text-xs text-orange-600 mt-2 font-bold">
-                            Restan: ${(total - tempAmountPaid).toLocaleString()}
-                        </div>
+
+                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">
+                            Guardar Cambios
+                        </button>
                     </div>
-                )}
-
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
-                    <textarea
-                        className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-                        rows="2"
-                        placeholder="Detalles del pago..."
-                        value={tempNote}
-                        onChange={(e) => setTempNote(e.target.value)}
-                    />
                 </div>
-
-                <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">
-                    Guardar Cambios
-                </button>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="fixed inset-0 z-[10000] bg-white flex flex-col h-full w-full animate-in slide-in-from-bottom duration-300 sm:p-4 sm:bg-slate-900/40 sm:backdrop-blur-sm sm:items-center sm:justify-center">
-
-            {showPaymentModal && <PaymentModal />}
+            )}
 
             {/* Modal Compartir (Overlay) */}
             {showShareOptions && (
-                <div className="absolute inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
+                <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
                         <div className="p-4 flex justify-between items-start border-b">
                             <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400" /></button>
@@ -133,36 +137,29 @@ export default function TransactionDetail({
             )}
 
             {/* CONTENEDOR PRINCIPAL */}
-            <div className="flex-1 flex flex-col w-full max-w-2xl bg-white sm:rounded-2xl sm:shadow-2xl sm:h-auto sm:max-h-[85vh] overflow-hidden relative shadow-2xl">
+            {/* h-[100dvh] para usar altura dinámica real y position relative para contener el footer absoluto */}
+            <div className="w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative flex flex-col overflow-hidden">
 
-                {/* --- HEADER --- */}
+                {/* --- HEADER (Fijo arriba) --- */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
-                    <button
-                        onClick={onClose}
-                        className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95"
-                    >
+                    <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
                     </button>
-
                     <div className="flex-1 min-w-0">
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
-
-                    {/* Botón Editar Items: SOLO ADMIN */}
+                    {/* Botón Editar: Solo visible si Admin */}
                     {isAdmin && (
-                        <button
-                            onClick={() => onEditItems(transaction)}
-                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
-                            title="Editar Pedido"
-                        >
+                        <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95">
                             <Edit size={22} />
                         </button>
                     )}
                 </div>
 
                 {/* --- CONTENIDO CON SCROLL --- */}
-                <div className="flex-1 overflow-y-auto bg-slate-50/50">
+                {/* pb-24 para dar espacio al footer absoluto y evitar que tape contenido */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-24">
 
                     {/* Cabecera de Precio */}
                     <div className="bg-white p-6 text-center border-b mb-2">
@@ -171,11 +168,12 @@ export default function TransactionDetail({
                             ${displayAmount.toLocaleString()}
                         </div>
 
-                        {/* Botón Estado de Pago */}
+                        {/* Botón Estado */}
                         <div className="flex justify-center">
                             {isAdmin ? (
                                 <button
                                     onClick={() => {
+                                        // Reset temp state when opening modal
                                         setTempStatus(transaction.paymentStatus);
                                         setTempAmountPaid(transaction.amountPaid || 0);
                                         setTempNote(transaction.paymentNote || '');
@@ -197,7 +195,7 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
-                    {/* Pestañas Sticky */}
+                    {/* Pestañas */}
                     <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -233,7 +231,7 @@ export default function TransactionDetail({
                             </div>
                         )}
 
-                        {/* --- AQUÍ ESTÁ LA CORRECCIÓN DE LA DIRECCIÓN Y WHATSAPP --- */}
+                        {/* SECCIÓN CLIENTE (Corregida con Whatsapp y Maps) */}
                         {activeTab === 'client' && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
@@ -241,14 +239,12 @@ export default function TransactionDetail({
                                     <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente Registrado</div></div>
                                 </div>
 
-                                {/* WHATSAPP */}
                                 {clientData.phone && (
                                     <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold hover:bg-green-100 transition-colors">
                                         <MessageCircle size={18} /> WhatsApp ({clientData.phone})
                                     </a>
                                 )}
 
-                                {/* DIRECCIÓN Y MAPS (RESTAURADO) */}
                                 {clientData.address ? (
                                     <div className="flex gap-2">
                                         <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
@@ -267,14 +263,14 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* --- FOOTER (BOTONES) --- */}
+                {/* --- FOOTER (ABSOLUTO) --- */}
+                {/* position absolute bottom-0 para fijarlo "a la fuerza" al final del contenedor */}
                 {!showShareOptions && (
-                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] pb-6">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white flex gap-3 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>
 
-                        {/* Botón Cancelar: SOLO ADMIN */}
                         {isAdmin && (
                             <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
                                 Cancelar
