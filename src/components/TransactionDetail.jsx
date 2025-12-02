@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Receipt, Mail, Phone, MapPin, CreditCard, ExternalLink, Edit, Save, DollarSign, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Share2, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -112,8 +112,7 @@ export default function TransactionDetail({
     );
 
     return (
-        // CORRECCIÓN CRÍTICA: z-[10000] para estar encima del Sidebar (z-50) y h-[100dvh] para móviles
-        <div className="fixed inset-0 z-[10000] bg-white flex flex-col h-[100dvh] w-full animate-in slide-in-from-bottom duration-300 sm:p-4 sm:bg-slate-900/40 sm:backdrop-blur-sm sm:items-center sm:justify-center">
+        <div className="fixed inset-0 z-[10000] bg-white flex flex-col h-full w-full animate-in slide-in-from-bottom duration-300 sm:p-4 sm:bg-slate-900/40 sm:backdrop-blur-sm sm:items-center sm:justify-center">
 
             {showPaymentModal && <PaymentModal />}
 
@@ -133,10 +132,10 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* CONTENEDOR TIPO TARJETA (En móvil es Full Screen, en PC es Modal) */}
-            <div className="flex-1 flex flex-col w-full max-w-2xl bg-white sm:rounded-2xl sm:shadow-2xl sm:h-auto sm:max-h-[85vh] overflow-hidden relative">
+            {/* CONTENEDOR PRINCIPAL */}
+            <div className="flex-1 flex flex-col w-full max-w-2xl bg-white sm:rounded-2xl sm:shadow-2xl sm:h-auto sm:max-h-[85vh] overflow-hidden relative shadow-2xl">
 
-                {/* --- HEADER (Ahora fijo arriba) --- */}
+                {/* --- HEADER --- */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
                     <button
                         onClick={onClose}
@@ -150,7 +149,7 @@ export default function TransactionDetail({
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
 
-                    {/* Botón Editar Items: SOLO ADMIN y visible en móvil */}
+                    {/* Botón Editar Items: SOLO ADMIN */}
                     {isAdmin && (
                         <button
                             onClick={() => onEditItems(transaction)}
@@ -163,7 +162,8 @@ export default function TransactionDetail({
                 </div>
 
                 {/* --- CONTENIDO CON SCROLL --- */}
-                <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-safe">
+                <div className="flex-1 overflow-y-auto bg-slate-50/50">
+
                     {/* Cabecera de Precio */}
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
@@ -233,21 +233,43 @@ export default function TransactionDetail({
                             </div>
                         )}
 
+                        {/* --- AQUÍ ESTÁ LA CORRECCIÓN DE LA DIRECCIÓN Y WHATSAPP --- */}
                         {activeTab === 'client' && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                                     <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
                                     <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente Registrado</div></div>
                                 </div>
-                                {clientData.phone && <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold"><MessageCircle size={18} /> WhatsApp</a>}
+
+                                {/* WHATSAPP */}
+                                {clientData.phone && (
+                                    <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold hover:bg-green-100 transition-colors">
+                                        <MessageCircle size={18} /> WhatsApp ({clientData.phone})
+                                    </a>
+                                )}
+
+                                {/* DIRECCIÓN Y MAPS (RESTAURADO) */}
+                                {clientData.address ? (
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                                            <MapPin size={18} className="text-slate-400" />
+                                            <span className="font-bold text-slate-700 text-sm">{clientData.address}</span>
+                                        </div>
+                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-100">
+                                            <ExternalLink size={24} />
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg text-sm">Sin dirección registrada</div>
+                                )}
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* --- FOOTER (Ahora fijo abajo, encima de todo) --- */}
+                {/* --- FOOTER (BOTONES) --- */}
                 {!showShareOptions && (
-                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)] pb-safe-area">
+                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] pb-6">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>

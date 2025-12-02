@@ -250,18 +250,16 @@ export default function App() {
   const handleDeleteTransaction = useCallback(async (id) => { if (confirm("¿Eliminar venta?")) { try { await deleteDoc(doc(db, 'stores', appId, 'transactions', id)); handleCloseTransactionDetail(); } catch (error) { alert("Error al cancelar."); } } }, [handleCloseTransactionDetail]);
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
-  const handleExportCSV = async () => {
-    // 1. Verificar si hay datos
-    if (transactions.length === 0) return alert("No hay datos para exportar.");
 
-    // 2. Generar el archivo CSV (Lógica original)
+  // --- NUEVA FUNCIÓN: EXPORTAR Y PURGAR ---
+  const handleExportCSV = async () => {
+    if (transactions.length === 0) return alert("No hay datos para exportar.");
     const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(
       transactions.map(t =>
         `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`
       )
     ).join('\n');
 
-    // 3. Descargar el archivo
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -271,36 +269,26 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
 
-    // 4. PREGUNTAR SI PURGAR EL SISTEMA (Con retardo para asegurar la descarga)
+    // PREGUNTAR SI PURGAR EL SISTEMA (Con retardo)
     setTimeout(async () => {
-      const confirmPurge = window.confirm(
-        "✅ Excel descargado correctamente.\n\n🗑️ ¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)"
-      );
-
+      const confirmPurge = window.confirm("✅ Excel descargado.\n\n🗑️ ¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)");
       if (confirmPurge) {
-        // Doble verificación de seguridad
-        const doubleCheck = window.confirm("⚠️ ¡ADVERTENCIA FINAL!\n\nEsta acción borrará PERMANENTEMENTE todas las ventas registradas y no se puede deshacer.\n\n¿Estás 100% seguro?");
-
+        const doubleCheck = window.confirm("⚠️ ¡ADVERTENCIA FINAL!\n\nSe borrarán TODAS las ventas permanentemente.\n\n¿Estás 100% seguro?");
         if (doubleCheck) {
-          setIsProcessing(true); // Activamos la pantalla de carga
+          setIsProcessing(true);
           try {
-            // Borrado masivo usando Promise.all para velocidad
-            const deletePromises = transactions.map(t =>
-              deleteDoc(doc(db, 'stores', appId, 'transactions', t.id))
-            );
-
+            const deletePromises = transactions.map(t => deleteDoc(doc(db, 'stores', appId, 'transactions', t.id)));
             await Promise.all(deletePromises);
-
             alert("🧹 El sistema se ha purgado correctamente.");
           } catch (error) {
             console.error("Error al purgar:", error);
-            alert("Ocurrió un error al intentar borrar algunos datos.");
+            alert("Error al intentar borrar algunos datos.");
           } finally {
-            setIsProcessing(false); // Desactivamos la carga
+            setIsProcessing(false);
           }
         }
       }
-    }, 1000); // Espera 1 segundo para no interrumpir la descarga visualmente
+    }, 1000);
   };
 
   // --- HANDLE CHECKOUT ---
@@ -363,9 +351,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
-      {/* SOLUCIÓN 1: Aquí agregamos 'onEditStore' para que funcione el click en el logo de PC.
-         Y 'userData' ya se pasaba, lo cual está bien.
-      */}
       <Sidebar
         user={user}
         userData={userData}
@@ -373,7 +358,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={() => setIsLogoutConfirmOpen(true)}
-        onEditStore={() => setIsStoreModalOpen(true)} // <-- CORRECCIÓN #1
+        onEditStore={() => setIsStoreModalOpen(true)}
       />
 
       {/* Notificación Toast con Sonido */}
@@ -397,7 +382,6 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
-          {/* Renderizado de Tabs */}
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={handleBarcodeSubmit} />
@@ -459,30 +443,28 @@ export default function App() {
             </div>
           )}
           {activeTab === 'transactions' && (
-            <>
-              <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
-              {selectedTransaction && (
-                <TransactionDetail
-                  transaction={selectedTransaction}
-                  onClose={handleCloseTransactionDetail}
-                  onPrint={handlePrintTicket}
-                  onShare={handleShareWhatsApp}
-                  onCancel={handleDeleteTransaction}
-                  customers={customers}
-                  onUpdate={handleQuickUpdateTransaction}
-                  onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }}
-
-                  // SOLUCIÓN 2: Pasamos userData. Al hacer esto, el botón de Editar/Cancelar 
-                  // aparecerá porque TransactionDetail ahora sabrá que eres admin.
-                  userData={userData} // <-- CORRECCIÓN #2
-                />
-              )}
-            </>
+            <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
           )}
         </main>
 
         {!showMobileCart && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => setIsLogoutConfirmOpen(true)} />}
 
+        {/* --- MOVIDO AL ROOT DEL LAYOUT PARA Z-INDEX CORRECTO --- */}
+        {selectedTransaction && (
+          <TransactionDetail
+            transaction={selectedTransaction}
+            onClose={handleCloseTransactionDetail}
+            onPrint={handlePrintTicket}
+            onShare={handleShareWhatsApp}
+            onCancel={handleDeleteTransaction}
+            customers={customers}
+            onUpdate={handleQuickUpdateTransaction}
+            onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }}
+            userData={userData}
+          />
+        )}
+
+        {/* Modales */}
         {isExpenseModalOpen && userData.role === 'admin' && <ExpenseModal onClose={() => setIsExpenseModalOpen(false)} onSave={handleSaveExpense} />}
         {isProductModalOpen && userData.role === 'admin' && <ProductModal onClose={() => setIsProductModalOpen(false)} onSave={handleSaveProduct} onDelete={handleDeleteProduct} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
         {isCategoryModalOpen && userData.role === 'admin' && <CategoryModal onClose={() => setIsCategoryModalOpen(false)} onSave={handleSaveCategory} onDelete={handleDeleteCategory} categories={categories} />}
