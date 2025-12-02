@@ -7,33 +7,27 @@ export default function TransactionDetail({
     onPrint,
     onShare,
     onCancel,
-    customers = [], // Default to empty array to prevent find errors
+    customers = [],
     onUpdate,
     onEditItems,
     userData
 }) {
-    // 1. Guard clause: If transaction is undefined/null, don't render anything to prevent crashes.
     if (!transaction) return null;
 
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
-    // --- SEGURIDAD: Verificar Admin ---
     const isAdmin = userData?.role === 'admin';
 
-    // Estados para el Modal de Pagos
-    // Use optional chaining or defaults to prevent "reading property of undefined"
     const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
 
-    // Cálculos
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
     const debt = total - paid;
 
-    // Lógica visual
     const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
     const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
     const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
@@ -44,7 +38,6 @@ export default function TransactionDetail({
 
     const handleSavePayment = () => {
         if (!isAdmin) return;
-
         let finalAmountPaid = tempAmountPaid;
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
@@ -58,11 +51,10 @@ export default function TransactionDetail({
     };
 
     return (
-        // position: fixed para asegurar que cubra todo sin moverse
+        // WRAPPER PRINCIPAL: Fijo a la pantalla completa.
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center items-end sm:items-center animate-in slide-in-from-bottom duration-200">
 
-            {/* --- MODAL INTERNO DE GESTIÓN DE PAGO (INLINED) --- */}
-            {/* Moving this logic directly into the JSX prevents "Component inside Component" re-render bugs */}
+            {/* MODAL DE PAGO (Overlay) */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -72,7 +64,6 @@ export default function TransactionDetail({
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
-
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -81,46 +72,26 @@ export default function TransactionDetail({
                                 <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
                             </div>
                         </div>
-
                         {tempStatus === 'partial' && (
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
                                 <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
                                 <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
                                     <span className="text-slate-400 font-bold text-lg">$</span>
-                                    <input
-                                        type="number"
-                                        className="w-full outline-none text-xl font-bold text-slate-800"
-                                        value={tempAmountPaid}
-                                        onChange={(e) => setTempAmountPaid(Number(e.target.value))}
-                                        placeholder="0"
-                                        autoFocus
-                                    />
+                                    <input type="number" className="w-full outline-none text-xl font-bold text-slate-800" value={tempAmountPaid} onChange={(e) => setTempAmountPaid(Number(e.target.value))} placeholder="0" autoFocus />
                                 </div>
-                                <div className="text-right text-xs text-orange-600 mt-2 font-bold">
-                                    Restan: ${(total - tempAmountPaid).toLocaleString()}
-                                </div>
+                                <div className="text-right text-xs text-orange-600 mt-2 font-bold">Restan: ${(total - tempAmountPaid).toLocaleString()}</div>
                             </div>
                         )}
-
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
-                            <textarea
-                                className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-                                rows="2"
-                                placeholder="Detalles del pago..."
-                                value={tempNote}
-                                onChange={(e) => setTempNote(e.target.value)}
-                            />
+                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Detalles del pago..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
-
-                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">
-                            Guardar Cambios
-                        </button>
+                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
                     </div>
                 </div>
             )}
 
-            {/* Modal Compartir (Overlay) */}
+            {/* MODAL COMPARTIR (Overlay) */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -136,11 +107,11 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* CONTENEDOR PRINCIPAL */}
-            {/* h-[100dvh] para usar altura dinámica real y position relative para contener el footer absoluto */}
-            <div className="w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative flex flex-col overflow-hidden">
+            {/* TARJETA PRINCIPAL (ESTRUCTURA FLEXBOX SÓLIDA) */}
+            {/* Usamos 'flex flex-col' para que el footer sea parte del flujo, no un elemento flotante */}
+            <div className="w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
 
-                {/* --- HEADER (Fijo arriba) --- */}
+                {/* 1. HEADER (Fijo, no se encoge) */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -149,7 +120,6 @@ export default function TransactionDetail({
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
-                    {/* Botón Editar: Solo visible si Admin */}
                     {isAdmin && (
                         <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95">
                             <Edit size={22} />
@@ -157,33 +127,14 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* --- CONTENIDO CON SCROLL --- */}
-                {/* pb-24 para dar espacio al footer absoluto y evitar que tape contenido */}
-                <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-24">
-
-                    {/* Cabecera de Precio */}
+                {/* 2. CONTENIDO SCROLLABLE (Ocupa el espacio sobrante) */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/50">
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
-                        <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>
-                            ${displayAmount.toLocaleString()}
-                        </div>
-
-                        {/* Botón Estado */}
+                        <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
                         <div className="flex justify-center">
                             {isAdmin ? (
-                                <button
-                                    onClick={() => {
-                                        // Reset temp state when opening modal
-                                        setTempStatus(transaction.paymentStatus);
-                                        setTempAmountPaid(transaction.amountPaid || 0);
-                                        setTempNote(transaction.paymentNote || '');
-                                        setShowPaymentModal(true);
-                                    }}
-                                    className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' :
-                                        transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                            'bg-red-100 text-red-700 border-red-200'
-                                        }`}
-                                >
+                                <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setShowPaymentModal(true); }} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
                                     {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
                                     <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
                                 </button>
@@ -195,7 +146,6 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
-                    {/* Pestañas */}
                     <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -204,7 +154,6 @@ export default function TransactionDetail({
                         ))}
                     </div>
 
-                    {/* Contenido Pestañas */}
                     <div className="p-4 bg-white min-h-[300px]">
                         {activeTab === 'items' && (
                             <div className="space-y-3">
@@ -220,7 +169,6 @@ export default function TransactionDetail({
                                 ))}
                             </div>
                         )}
-
                         {activeTab === 'details' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
@@ -230,47 +178,38 @@ export default function TransactionDetail({
                                 <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas adicionales."}</div>
                             </div>
                         )}
-
-                        {/* SECCIÓN CLIENTE (Corregida con Whatsapp y Maps) */}
                         {activeTab === 'client' && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                                     <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
                                     <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente Registrado</div></div>
                                 </div>
-
                                 {clientData.phone && (
                                     <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold hover:bg-green-100 transition-colors">
                                         <MessageCircle size={18} /> WhatsApp ({clientData.phone})
                                     </a>
                                 )}
-
                                 {clientData.address ? (
                                     <div className="flex gap-2">
                                         <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
                                             <MapPin size={18} className="text-slate-400" />
                                             <span className="font-bold text-slate-700 text-sm">{clientData.address}</span>
                                         </div>
-                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-100">
-                                            <ExternalLink size={24} />
-                                        </a>
+                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-100"><ExternalLink size={24} /></a>
                                     </div>
-                                ) : (
-                                    <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg text-sm">Sin dirección registrada</div>
-                                )}
+                                ) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg text-sm">Sin dirección registrada</div>}
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* --- FOOTER (ABSOLUTO) --- */}
-                {/* position absolute bottom-0 para fijarlo "a la fuerza" al final del contenedor */}
+                {/* 3. FOOTER (Flex Item - NO ABSOLUTE) */}
+                {/* Al ser un item flex con 'shrink-0', siempre estará pegado al final del contenedor sin flotar */}
                 {!showShareOptions && (
-                    <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white flex gap-3 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>
-
                         {isAdmin && (
                             <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
                                 Cancelar
