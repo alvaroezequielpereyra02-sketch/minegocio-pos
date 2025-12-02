@@ -9,17 +9,28 @@ function NavButton({ active, onClick, icon, label }) {
   );
 }
 
-export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout }) {
+// 1. Agregamos 'onEditStore' a las props recibidas
+export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore }) {
   if (!userData) return null;
 
   return (
     <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0">
-      <div className="p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-          <Store size={18} />
+      {/* 2. Convertimos el div del encabezado en un button para hacerlo clicable */}
+      <button
+        onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}
+        className="w-full text-left p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800 hover:bg-slate-50 transition-colors"
+        title={userData.role === 'admin' ? "Clic para editar perfil" : ""}
+      >
+        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white overflow-hidden shrink-0">
+          {/* 3. Lógica para mostrar la imagen si existe, o el ícono por defecto */}
+          {storeProfile.logoUrl ? (
+            <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
+          ) : (
+            <Store size={18} />
+          )}
         </div>
         <span className="truncate">{storeProfile.name}</span>
-      </div>
+      </button>
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         <button onClick={() => setActiveTab('pos')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'pos' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
@@ -66,7 +77,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// NAV MÓVIL CON SCROLL (Solución para que aparezcan todos los botones)
+// NAV MÓVIL CON SCROLL (Sin cambios)
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">

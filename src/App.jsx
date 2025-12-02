@@ -326,7 +326,15 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
-      <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => setIsLogoutConfirmOpen(true)} />
+      <Sidebar
+        user={user}
+        userData={userData}
+        storeProfile={storeProfile}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={() => setIsLogoutConfirmOpen(true)}
+        onEditStore={() => setIsStoreModalOpen(true)} // ✅ Aquí está la modificación
+      />
 
       {/* Notificación Toast con Sonido */}
       {notification && (

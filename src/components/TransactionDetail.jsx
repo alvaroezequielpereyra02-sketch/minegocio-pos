@@ -100,7 +100,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
     );
 
     return (
-        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-start sm:items-center overflow-y-auto animate-in fade-in duration-200" style={{ zIndex: 9999 }}>
+        <div className="fixed inset-0 bg-slate-100/90 backdrop-blur-sm flex justify-center items-center overflow-hidden animate-in fade-in duration-200" style={{ zIndex: 9999 }}>
 
             {showPaymentModal && <PaymentModal />}
 
@@ -120,11 +120,11 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                 </div>
             )}
 
-            {/* TARJETA PRINCIPAL (BOLETA) */}
-            <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-[600px] sm:h-auto flex flex-col relative animate-in slide-in-from-bottom-10 duration-300">
+            {/* TARJETA PRINCIPAL (BOLETA) - AHORA CON ALTURA FIJA Y SCROLL INTERNO */}
+            <div className="w-full max-w-2xl bg-white sm:rounded-2xl shadow-2xl h-[100dvh] sm:h-[85vh] flex flex-col relative overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
 
                 {/* Navbar */}
-                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b sticky top-0 z-[105] shadow-sm sm:rounded-t-2xl">
+                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-[105] shadow-sm sm:rounded-t-2xl">
                     <button
                         onClick={onClose}
                         className="p-3 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100"
@@ -149,6 +149,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     )}
                 </div>
 
+                {/* CONTENIDO CON SCROLL */}
                 <div className="flex-1 overflow-y-auto pb-24">
 
                     {/* Cabecera de Precio */}
@@ -269,7 +270,7 @@ export default function TransactionDetail({ transaction, onClose, onPrint, onSha
                     </div>
                 </div>
 
-                {/* Footer FIJO - SE OCULTA SI HAY MODAL COMPARTIR */}
+                {/* Footer FIJO - Siempre visible */}
                 {!showShareOptions && (
                     <div className="p-4 border-t bg-white flex gap-3 sm:rounded-b-2xl absolute bottom-0 left-0 right-0 z-[100] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100"><Share2 size={20} /> Compartir</button>
