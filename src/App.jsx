@@ -291,15 +291,38 @@ export default function App() {
     }, 1000);
   };
 
-  // --- HANDLE CHECKOUT ---
+  // --- HANDLE CHECKOUT (CORREGIDO: PAGO PENDIENTE POR DEFECTO) ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
+
+    // Identificar Cliente
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
-    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' }; else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
-    const itemsWithCost = cart.map(i => { const originalProduct = products.find(p => p.id === i.id); return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 }; });
-    const saleData = { type: 'sale', total: cartTotal, amountPaid: paymentMethod === 'cash' || paymentMethod === 'transfer' ? cartTotal : 0, items: itemsWithCost, date: serverTimestamp(), clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending', paymentNote: '', paymentMethod: paymentMethod, fulfillmentStatus: 'pending' };
-    if (paymentMethod === 'cash' || paymentMethod === 'transfer') saleData.paymentStatus = 'paid';
+    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
+    else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
+
+    const itemsWithCost = cart.map(i => {
+      const originalProduct = products.find(p => p.id === i.id);
+      return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
+    });
+
+    const saleData = {
+      type: 'sale',
+      total: cartTotal,
+      amountPaid: 0, // CAMBIO: Empieza en 0 por defecto (Pendiente)
+      items: itemsWithCost,
+      date: serverTimestamp(),
+      clientId: finalClient.id,
+      clientName: finalClient.name,
+      clientRole: finalClient.role,
+      sellerId: user.uid,
+      paymentStatus: 'pending', // CAMBIO: Siempre pendiente al iniciar
+      paymentNote: '',
+      paymentMethod: paymentMethod,
+      fulfillmentStatus: 'pending'
+    };
+
+    // NOTA: He eliminado la línea que auto-marcaba como 'paid' para que todo sea pendiente por defecto.
 
     try {
       const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
@@ -447,7 +470,6 @@ export default function App() {
           )}
         </main>
 
-        {/* MODIFICACIÓN AQUÍ: Ocultamos MobileNav si hay una transacción seleccionada */}
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => setIsLogoutConfirmOpen(true)} />}
 
         {/* TransactionDetail MOVED outside main/nav for z-index */}

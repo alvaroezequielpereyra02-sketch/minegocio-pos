@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, Share2, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -51,11 +51,12 @@ export default function TransactionDetail({
     };
 
     return (
-        // WRAPPER PRINCIPAL: 'fixed inset-0' asegura que ocupe toda la pantalla sin recalcular alturas raras.
-        // En móvil es fondo blanco sólido. En PC tiene fondo oscuro transparente.
-        <div className="fixed inset-0 z-[10000] flex justify-center sm:items-center bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm animate-in slide-in-from-bottom duration-200">
+        // WRAPPER EXTERNO:
+        // En móvil: fixed inset-0 (ocupa toda la pantalla real).
+        // En PC: Flex centrado con fondo oscuro.
+        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
 
-            {/* MODAL DE PAGO (Overlay) */}
+            {/* MODAL DE PAGO (Overlay Interno) */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -92,7 +93,7 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* MODAL COMPARTIR (Overlay) */}
+            {/* MODAL COMPARTIR (Overlay Interno) */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -108,15 +109,14 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* TARJETA PRINCIPAL - ESTRUCTURA FLEXBOX SÓLIDA */}
-            {/* CLAVE DEL ÉXITO: 
-               1. w-full h-full: Ocupa todo el contenedor fijo (la pantalla).
-               2. flex flex-col: Estructura de columna.
-               3. Sin 'absolute' en el footer.
+            {/* ESTRUCTURA SÓLIDA DE TARJETA/PANTALLA */}
+            {/* En móvil: w-full h-full (ocupa el 100% del contenedor padre fixed).
+                En PC: sm:h-auto sm:max-h-[85vh] (se comporta como modal).
+                Flex-col: Organiza Header - Body - Footer verticalmente.
             */}
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
 
-                {/* 1. HEADER (Fijo arriba, no se encoge 'shrink-0') */}
+                {/* 1. HEADER: Fijo (shrink-0) */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -132,7 +132,7 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* 2. CONTENIDO SCROLLABLE (Ocupa el espacio sobrante 'flex-1') */}
+                {/* 2. BODY SCROLLABLE: Ocupa todo el espacio disponible (flex-1) */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/50">
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
@@ -159,7 +159,7 @@ export default function TransactionDetail({
                         ))}
                     </div>
 
-                    <div className="p-4 bg-white min-h-[300px]">
+                    <div className="p-4 bg-white min-h-[300px] pb-10">
                         {activeTab === 'items' && (
                             <div className="space-y-3">
                                 {transaction.items.map((item, index) => (
@@ -208,10 +208,10 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* 3. FOOTER (Fijo abajo, no se encoge 'shrink-0') */}
-                {/* Al usar Flexbox y quitar el 'absolute', este bloque siempre estará al final sólido */}
+                {/* 3. FOOTER: Fijo (shrink-0) */}
+                {/* Al usar shrink-0, este bloque nunca se encoge ni flota, siempre está al final de la columna */}
                 {!showShareOptions && (
-                    <div className="p-4 border-t bg-white flex gap-3 shrink-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+                    <div className="shrink-0 p-4 border-t bg-white flex gap-3 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] pb-safe-area">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>
