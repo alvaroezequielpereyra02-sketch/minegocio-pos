@@ -400,6 +400,7 @@ export default function App() {
             <>
               <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
               {selectedTransaction && <TransactionDetail transaction={selectedTransaction} onClose={handleCloseTransactionDetail} onPrint={handlePrintTicket} onShare={handleShareWhatsApp} onCancel={handleDeleteTransaction} customers={customers} onUpdate={handleQuickUpdateTransaction} onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }} />}
+              userData={userData}
             </>
           )}
         </main>
