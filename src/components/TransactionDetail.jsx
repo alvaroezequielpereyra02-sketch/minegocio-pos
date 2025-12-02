@@ -51,12 +51,9 @@ export default function TransactionDetail({
     };
 
     return (
-        // WRAPPER EXTERNO:
-        // En móvil: fixed inset-0 (ocupa toda la pantalla real).
-        // En PC: Flex centrado con fondo oscuro.
-        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* MODAL DE PAGO (Overlay Interno) */}
+            {/* --- MODALES INTERNOS (Overlay) --- */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -76,7 +73,7 @@ export default function TransactionDetail({
                         </div>
                         {tempStatus === 'partial' && (
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
-                                <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
+                                <div className="text-xs font-bold text-orange-700 uppercase mb-1">Monto YA PAGADO:</div>
                                 <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
                                     <span className="text-slate-400 font-bold text-lg">$</span>
                                     <input type="number" className="w-full outline-none text-xl font-bold text-slate-800" value={tempAmountPaid} onChange={(e) => setTempAmountPaid(Number(e.target.value))} placeholder="0" autoFocus />
@@ -86,14 +83,13 @@ export default function TransactionDetail({
                         )}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
-                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Detalles del pago..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
+                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Detalles..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
-                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
+                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg">Guardar Cambios</button>
                     </div>
                 </div>
             )}
 
-            {/* MODAL COMPARTIR (Overlay Interno) */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -102,22 +98,19 @@ export default function TransactionDetail({
                             <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
-                            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
-                            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
+                            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
+                            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ESTRUCTURA SÓLIDA DE TARJETA/PANTALLA */}
-            {/* En móvil: w-full h-full (ocupa el 100% del contenedor padre fixed).
-                En PC: sm:h-auto sm:max-h-[85vh] (se comporta como modal).
-                Flex-col: Organiza Header - Body - Footer verticalmente.
-            */}
-            <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+            {/* --- CONTENEDOR PRINCIPAL (ESTILO NATIVO) --- */}
+            <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden">
 
-                {/* 1. HEADER: Fijo (shrink-0) */}
-                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shrink-0 z-10 shadow-sm">
+                {/* 1. HEADER FIJO (fixed top) */}
+                {/* En PC usamos sticky, en móvil fixed para evitar rebotes */}
+                <div className="fixed top-0 left-0 right-0 sm:absolute z-20 bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
                     </button>
@@ -132,8 +125,8 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* 2. BODY SCROLLABLE: Ocupa todo el espacio disponible (flex-1) */}
-                <div className="flex-1 overflow-y-auto bg-slate-50/50">
+                {/* 2. BODY CON SCROLL (padding top/bottom para no tapar) */}
+                <div className="h-full overflow-y-auto bg-slate-50/50 pt-16 pb-28 sm:pb-20">
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
@@ -151,7 +144,7 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
-                    <div className="flex border-b sticky top-0 bg-white z-10 shadow-sm">
+                    <div className="flex border-b sticky top-16 bg-white z-10 shadow-sm">
                         {['items', 'details', 'client'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                                 {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
@@ -159,7 +152,7 @@ export default function TransactionDetail({
                         ))}
                     </div>
 
-                    <div className="p-4 bg-white min-h-[300px] pb-10">
+                    <div className="p-4 bg-white min-h-[300px]">
                         {activeTab === 'items' && (
                             <div className="space-y-3">
                                 {transaction.items.map((item, index) => (
@@ -208,10 +201,10 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* 3. FOOTER: Fijo (shrink-0) */}
-                {/* Al usar shrink-0, este bloque nunca se encoge ni flota, siempre está al final de la columna */}
+                {/* 3. FOOTER FIJO (fixed bottom) */}
+                {/* En PC usamos absolute, en móvil fixed para garantizar que se pegue al borde */}
                 {!showShareOptions && (
-                    <div className="shrink-0 p-4 border-t bg-white flex gap-3 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] pb-safe-area">
+                    <div className="fixed bottom-0 left-0 right-0 sm:absolute z-30 bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir</span>
                         </button>
