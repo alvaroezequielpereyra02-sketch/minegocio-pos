@@ -12,7 +12,6 @@ import Dashboard from './components/Dashboard';
 import History from './components/History';
 import TransactionDetail from './components/TransactionDetail';
 import Orders from './components/Orders';
-// Importamos ConfirmModal
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
 // CONFIGURACIÓN FIREBASE
@@ -285,7 +284,7 @@ export default function App() {
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
 
-  // --- NUEVA FUNCIÓN: EXPORTAR Y PURGAR (Con Modal Nativo) ---
+  // --- FUNCIÓN: EXPORTAR Y PURGAR ---
   const handleExportCSV = async () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
@@ -305,13 +304,12 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
 
-    // 2. Proceso de purgado con Modales Nativos
+    // 2. Proceso de purgado
     setTimeout(() => {
       requestConfirm(
         "¿Purgar Sistema?",
         "✅ Excel descargado correctamente.\n\n¿Deseas ELIMINAR TODO EL HISTORIAL de ventas para limpiar el sistema?\n\n(Úsalo solo si ya guardaste tu respaldo)",
         () => {
-          // Segunda confirmación
           setTimeout(() => {
             requestConfirm(
               "⚠️ ADVERTENCIA FINAL",
@@ -339,63 +337,64 @@ export default function App() {
     }, 1000);
   };
 
-  // --- HANDLE CHECKOUT ---
-  const handleCheckout = async () => {
-    if (!user || cart.length === 0) return;
+  // --- NUEVA LÓGICA: COMPARTIR PDF POR WHATSAPP (Web Share API) ---
+  const handleShareWhatsApp = async (transaction) => {
+    if (!transaction) return;
     setIsProcessing(true);
-    let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
-    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
-    else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
-
-    const itemsWithCost = cart.map(i => {
-      const originalProduct = products.find(p => p.id === i.id);
-      return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
-    });
-
-    const saleData = {
-      type: 'sale',
-      total: cartTotal,
-      amountPaid: 0,
-      items: itemsWithCost,
-      date: serverTimestamp(),
-      clientId: finalClient.id,
-      clientName: finalClient.name,
-      clientRole: finalClient.role,
-      sellerId: user.uid,
-      paymentStatus: 'pending',
-      paymentNote: '',
-      paymentMethod: paymentMethod,
-      fulfillmentStatus: 'pending'
-    };
 
     try {
-      const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
-      for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); }
+      // 1. Generar contenido HTML (Reutilizamos lógica de impresión)
+      const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
+      const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`;
+      const element = document.createElement('div');
+      element.innerHTML = content;
 
-      if (finalClient.role === 'client' || finalClient.role === 'customer') {
-        let customerDocId = null;
-        if (userData.role === 'admin' && selectedCustomer) {
-          customerDocId = selectedCustomer.id;
-          await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { externalOrdersCount: (selectedCustomer.externalOrdersCount || 0) + 1, lastPurchase: serverTimestamp() });
-        } else if (userData.role === 'client') {
-          const q = query(collection(db, 'stores', appId, 'customers'), where('email', '==', userData.email));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            customerDocId = querySnapshot.docs[0].id;
-            const currentCount = querySnapshot.docs[0].data().platformOrdersCount || 0;
-            await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { platformOrdersCount: currentCount + 1, lastPurchase: serverTimestamp() });
-          }
-        }
+      // 2. Importar html2pdf
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = html2pdfModule.default;
+
+      // 3. Generar PDF como BLOB
+      const opt = {
+        margin: [0, 0, 0, 0],
+        filename: `ticket-${transaction.id.slice(0, 5)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] }
+      };
+
+      const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+
+      // 4. Crear archivo para compartir
+      const file = new File([pdfBlob], `ticket-${transaction.id.slice(0, 5)}.pdf`, { type: 'application/pdf' });
+
+      // 5. Usar Web Share API
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Comprobante de Venta',
+          text: `Adjunto comprobante de venta de ${storeProfile.name}`
+        });
+      } else {
+        // Fallback para PC: Descargar y avisar
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ticket-${transaction.id.slice(0, 5)}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("Tu dispositivo no soporta compartir archivos directamente. El PDF se ha descargado.");
       }
 
-      setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setPaymentMethod('cash');
-      setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 4000);
-    } catch (error) { alert("Error venta: " + error.message); }
-    finally { setIsProcessing(false); }
+    } catch (error) {
+      console.error("Error al compartir PDF:", error);
+      alert("Error al generar el PDF.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdfModule = await import('html2pdf.js'); const html2pdf = html2pdfModule.default; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
-  const handleShareWhatsApp = async (transaction) => { handlePrintTicket(transaction); };
 
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
 
