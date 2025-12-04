@@ -337,23 +337,77 @@ export default function App() {
     }, 1000);
   };
 
+  // --- HANDLE CHECKOUT (RESTAURADO) ---
+  const handleCheckout = async () => {
+    if (!user || cart.length === 0) return;
+    setIsProcessing(true);
+
+    // Identificar Cliente
+    let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
+    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
+    else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
+
+    const itemsWithCost = cart.map(i => {
+      const originalProduct = products.find(p => p.id === i.id);
+      return { ...i, cost: originalProduct ? (originalProduct.cost || 0) : 0 };
+    });
+
+    const saleData = {
+      type: 'sale',
+      total: cartTotal,
+      amountPaid: 0, // Pendiente por defecto
+      items: itemsWithCost,
+      date: serverTimestamp(),
+      clientId: finalClient.id,
+      clientName: finalClient.name,
+      clientRole: finalClient.role,
+      sellerId: user.uid,
+      paymentStatus: 'pending', // Pendiente por defecto
+      paymentNote: '',
+      paymentMethod: paymentMethod,
+      fulfillmentStatus: 'pending'
+    };
+
+    try {
+      const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
+      for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); }
+
+      if (finalClient.role === 'client' || finalClient.role === 'customer') {
+        let customerDocId = null;
+        if (userData.role === 'admin' && selectedCustomer) {
+          customerDocId = selectedCustomer.id;
+          await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { externalOrdersCount: (selectedCustomer.externalOrdersCount || 0) + 1, lastPurchase: serverTimestamp() });
+        } else if (userData.role === 'client') {
+          const q = query(collection(db, 'stores', appId, 'customers'), where('email', '==', userData.email));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            customerDocId = querySnapshot.docs[0].id;
+            const currentCount = querySnapshot.docs[0].data().platformOrdersCount || 0;
+            await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { platformOrdersCount: currentCount + 1, lastPurchase: serverTimestamp() });
+          }
+        }
+      }
+
+      setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setPaymentMethod('cash');
+      setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } }); setShowCheckoutSuccess(true); setTimeout(() => setShowCheckoutSuccess(false), 4000);
+    } catch (error) { alert("Error venta: " + error.message); }
+    finally { setIsProcessing(false); }
+  };
+
   // --- NUEVA LÓGICA: COMPARTIR PDF POR WHATSAPP (Web Share API) ---
   const handleShareWhatsApp = async (transaction) => {
     if (!transaction) return;
     setIsProcessing(true);
 
     try {
-      // 1. Generar contenido HTML (Reutilizamos lógica de impresión)
       const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente';
       const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`;
       const element = document.createElement('div');
       element.innerHTML = content;
 
-      // 2. Importar html2pdf
       const html2pdfModule = await import('html2pdf.js');
       const html2pdf = html2pdfModule.default;
 
-      // 3. Generar PDF como BLOB
       const opt = {
         margin: [0, 0, 0, 0],
         filename: `ticket-${transaction.id.slice(0, 5)}.pdf`,
@@ -363,11 +417,8 @@ export default function App() {
       };
 
       const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-
-      // 4. Crear archivo para compartir
       const file = new File([pdfBlob], `ticket-${transaction.id.slice(0, 5)}.pdf`, { type: 'application/pdf' });
 
-      // 5. Usar Web Share API
       if (navigator.share && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -375,7 +426,6 @@ export default function App() {
           text: `Adjunto comprobante de venta de ${storeProfile.name}`
         });
       } else {
-        // Fallback para PC: Descargar y avisar
         const url = URL.createObjectURL(pdfBlob);
         const link = document.createElement('a');
         link.href = url;
