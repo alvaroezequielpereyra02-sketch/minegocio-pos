@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -109,7 +109,6 @@ export default function TransactionDetail({
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden">
 
                 {/* 1. HEADER FIJO (fixed top) */}
-                {/* En PC usamos sticky, en móvil fixed para evitar rebotes */}
                 <div className="fixed top-0 left-0 right-0 sm:absolute z-20 bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -201,8 +200,7 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* 3. FOOTER FIJO (fixed bottom) */}
-                {/* En PC usamos absolute, en móvil fixed para garantizar que se pegue al borde */}
+                {/* 3. FOOTER FIJO ABAJO (fixed bottom) */}
                 {!showShareOptions && (
                     <div className="fixed bottom-0 left-0 right-0 sm:absolute z-30 bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">

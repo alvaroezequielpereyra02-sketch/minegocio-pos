@@ -34,7 +34,7 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
     );
 }
 
-// --- NUEVO: PANTALLA DE PROCESAMIENTO ---
+// --- PANTALLA DE PROCESAMIENTO ---
 export function ProcessingModal() {
     return (
         <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000] animate-in fade-in duration-300">
@@ -65,11 +65,9 @@ export function InvitationModal({ onClose, onGenerate }) {
     };
 
     const copyToClipboard = () => {
-        // Fallback for clipboard if navigator fails (common in iframes)
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(generatedCode).then(() => alert("Código copiado")).catch(() => { });
         } else {
-            // Simple fallback
             const textArea = document.createElement("textarea");
             textArea.value = generatedCode;
             document.body.appendChild(textArea);
