@@ -52,6 +52,15 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
+    // Función auxiliar para abrir el modal y resetear estados temporales
+    const openPaymentModal = () => {
+        setTempStatus(transaction.paymentStatus);
+        setTempAmountPaid(transaction.amountPaid || 0);
+        setTempNote(transaction.paymentNote || '');
+        setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
+        setShowPaymentModal(true);
+    };
+
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
@@ -148,7 +157,7 @@ export default function TransactionDetail({
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
                         <div className="flex justify-center">
                             {isAdmin ? (
-                                <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setTempPaymentMethod(transaction.paymentMethod || 'unspecified'); setShowPaymentModal(true); }} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                <button onClick={openPaymentModal} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
                                     {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
                                     <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
                                 </button>
@@ -186,7 +195,18 @@ export default function TransactionDetail({
                         {activeTab === 'details' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Método</div><div className="font-bold text-slate-700 text-sm">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : 'A definir'}</div></div>
+                                    {/* CAMBIO: Hacemos clickeable el método de pago para editarlo rápido y mostramos "A definir" */}
+                                    <div
+                                        onClick={() => isAdmin && openPaymentModal()}
+                                        className={`p-3 bg-slate-50 rounded-lg border border-slate-100 ${isAdmin ? 'cursor-pointer hover:border-blue-300 transition-colors' : ''}`}
+                                    >
+                                        <div className="text-xs text-slate-400 mb-1 flex items-center gap-1">
+                                            Método {isAdmin && <Edit size={10} />}
+                                        </div>
+                                        <div className={`font-bold text-sm ${transaction.paymentMethod === 'unspecified' ? 'text-orange-600' : 'text-slate-700'}`}>
+                                            {transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : '❓ A definir'}
+                                        </div>
+                                    </div>
                                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700 text-sm">{dateObj.toLocaleDateString()}</div></div>
                                 </div>
                                 <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas adicionales."}</div>
