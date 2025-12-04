@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ClipboardList, CheckCircle, Clock, AlertTriangle, Download, Package, Search, Square, CheckSquare, Truck, Filter, Edit3, Save, X, Minus, Plus } from 'lucide-react';
+// CORRECCIÓN: Importamos html2pdf estáticamente al inicio
+import html2pdf from 'html2pdf.js';
 
 export default function Orders({ transactions, products, categories, onUpdateTransaction }) {
     const [filterStatus, setFilterStatus] = useState('all');
@@ -49,7 +51,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         const grouped = {};
         Object.values(needs).forEach(item => {
             const missing = item.required - item.stock;
-            // Incluimos en el reporte si falta stock O si se necesita separar (picking)
             if (missing > 0) {
                 if (!grouped[item.category]) grouped[item.category] = [];
                 grouped[item.category].push({ ...item, missing });
@@ -62,8 +63,8 @@ export default function Orders({ transactions, products, categories, onUpdateTra
 
     const handleDownloadReport = async () => {
         if (totalMissingItems === 0) return alert("✅ No hay faltantes de stock críticos.");
-        const html2pdfModule = await import('html2pdf.js');
-        const html2pdf = html2pdfModule.default;
+
+        // CORRECCIÓN: Usamos la importación estática, ya no necesitamos await import()
 
         let rows = '';
         Object.keys(shoppingReport).sort().forEach(cat => {
@@ -86,7 +87,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         html2pdf().set({ margin: 10, filename: `stock_faltante.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4' } }).from(element).save();
     };
 
-    // 3. MANEJO DE EDICIÓN VISUAL
+    // 3. MANEJO DE EDICIÓN VISUAL (Cantidades)
     const startEditing = (orderId, idx, currentQty) => {
         setEditingItem({ orderId, itemIndex: idx, qty: currentQty });
     };
@@ -99,7 +100,9 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         // Validar límites
         let finalQty = qty;
         if (finalQty < 0) finalQty = 0;
-        if (finalQty > item.qty) finalQty = item.qty;
+        // Permitimos empacar MENOS, pero no más de lo pedido originalmente por lógica básica, 
+        // aunque si quieres permitir agregar, quita la siguiente línea:
+        // if (finalQty > item.qty) finalQty = item.qty; 
 
         newItems[itemIndex] = { ...item, packedQty: finalQty, packed: finalQty === item.qty };
 
@@ -122,7 +125,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         const isFull = (item.packedQty || 0) === item.qty;
         const nextQty = isFull ? 0 : item.qty;
 
-        // Simulamos el estado de edición para reutilizar lógica, pero guardamos directo
         const newItems = [...order.items];
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
 
@@ -133,8 +135,39 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         await onUpdateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
     };
 
+    // --- NUEVA LÓGICA DE ACTUALIZACIÓN DE ESTADO Y SINCRONIZACIÓN ---
     const updateStatus = async (transaction, newStatus) => {
-        await onUpdateTransaction(transaction.id, { fulfillmentStatus: newStatus });
+        let updateData = { fulfillmentStatus: newStatus };
+
+        // Si marcamos como "Listo" o "Entregado", actualizamos la BOLETA REAL
+        if (newStatus === 'ready' || newStatus === 'delivered') {
+            const confirmedItems = transaction.items.map(item => {
+                // Si existe packedQty (lo que se armó), esa se vuelve la cantidad oficial.
+                // Si no se tocó (undefined), asumimos que se armó todo lo pedido (item.qty).
+                const finalQuantity = (item.packedQty !== undefined) ? item.packedQty : item.qty;
+
+                return {
+                    ...item,
+                    qty: finalQuantity, // Actualizamos la cantidad oficial
+                    packedQty: finalQuantity, // Aseguramos que coincidan
+                    packed: true
+                };
+            });
+
+            // Recalcular el TOTAL monetario de la transacción
+            const newTotal = confirmedItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+
+            updateData.items = confirmedItems;
+            updateData.total = newTotal;
+
+            // Si la venta ya estaba marcada como PAGADA, ajustamos el monto pagado al nuevo total
+            // para evitar saldos negativos o confusiones.
+            if (transaction.paymentStatus === 'paid') {
+                updateData.amountPaid = newTotal;
+            }
+        }
+
+        await onUpdateTransaction(transaction.id, updateData);
     };
 
     return (
@@ -165,6 +198,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                 {filteredOrders.length === 0 && <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center"><ClipboardList size={48} className="mb-2 opacity-20" /><p>No hay pedidos en esta vista.</p></div>}
 
                 {filteredOrders.map(order => {
+                    // Calculamos progreso visual basado en packedQty vs qty original
                     const totalReq = order.items.reduce((a, i) => a + i.qty, 0);
                     const totalPack = order.items.reduce((a, i) => a + (i.packedQty || (i.packed ? i.qty : 0)), 0);
                     const progress = totalReq > 0 ? Math.round((totalPack / totalReq) * 100) : 0;
@@ -194,10 +228,11 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                             {/* LISTA DE ITEMS (Checklist mejorada) */}
                             <div className="divide-y divide-slate-50">
                                 {order.items.map((item, idx) => {
-                                    const packed = item.packedQty || (item.packed ? item.qty : 0);
+                                    const packed = item.packedQty !== undefined ? item.packedQty : (item.packed ? item.qty : 0);
                                     const isEditing = editingItem.orderId === order.id && editingItem.itemIndex === idx;
                                     const isComplete = packed === item.qty;
                                     const isPartial = packed > 0 && packed < item.qty;
+                                    const isModified = packed !== item.qty && packed > 0;
 
                                     return (
                                         <div key={idx} className={`flex items-center p-3 gap-3 transition-colors ${isComplete ? 'bg-green-50/30' : isPartial ? 'bg-orange-50' : 'hover:bg-slate-50'}`}>
@@ -212,8 +247,14 @@ export default function Orders({ transactions, products, categories, onUpdateTra
 
                                             {/* 2. Nombre del Producto */}
                                             <div className="flex-1 min-w-0" onClick={() => !isEditing && startEditing(order.id, idx, packed)}>
-                                                <div className={`font-medium text-sm leading-tight ${isComplete ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{item.name}</div>
-                                                {isPartial && !isEditing && <div className="text-xs text-orange-600 font-bold mt-0.5">Faltan {item.qty - packed} unidades</div>}
+                                                <div className={`font-medium text-sm leading-tight ${isComplete ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                                    {item.name}
+                                                </div>
+                                                {isModified && !isEditing && (
+                                                    <div className="text-xs text-orange-600 font-bold mt-0.5">
+                                                        Editado: {packed} de {item.qty}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* 3. Control de Cantidad (Editable) */}
@@ -221,7 +262,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                                 <div className="flex items-center bg-white border border-blue-500 rounded-lg shadow-md overflow-hidden animate-in zoom-in-95 duration-150">
                                                     <button onClick={() => setEditingItem(prev => ({ ...prev, qty: Math.max(0, prev.qty - 1) }))} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600"><Minus size={14} /></button>
                                                     <div className="w-10 text-center font-bold text-slate-800">{editingItem.qty}</div>
-                                                    <button onClick={() => setEditingItem(prev => ({ ...prev, qty: Math.min(item.qty, prev.qty + 1) }))} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600"><Plus size={14} /></button>
+                                                    <button onClick={() => setEditingItem(prev => ({ ...prev, qty: prev.qty + 1 }))} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600"><Plus size={14} /></button>
                                                     <button onClick={() => saveEditing(order)} className="p-2 bg-blue-600 text-white hover:bg-blue-700"><Save size={14} /></button>
                                                 </div>
                                             ) : (
@@ -242,7 +283,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                             {status !== 'ready' && (
                                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-end">
                                     <button onClick={() => updateStatus(order, 'ready')} className="w-full py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-600 font-bold text-sm hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all flex items-center justify-center gap-2">
-                                        <CheckCircle size={18} /> Marcar Pedido Completo
+                                        <CheckCircle size={18} /> Confirmar Armado y Actualizar Boleta
                                     </button>
                                 </div>
                             )}
