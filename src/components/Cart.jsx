@@ -113,6 +113,7 @@ const Cart = memo(function Cart({
         <div className="space-y-3">
           <div className="flex gap-2">
             <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl bg-white text-sm font-bold text-slate-700 outline-none focus:border-blue-600 focus:ring-0 cursor-pointer transition-colors">
+              <option value="unspecified">❓ A definir</option>
               <option value="cash">💵 Efectivo</option>
               <option value="transfer">🏦 Transferencia</option>
             </select>
@@ -127,8 +128,8 @@ const Cart = memo(function Cart({
             onClick={handleCheckout}
             disabled={cart.length === 0}
             className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg transition-all transform active:scale-[0.98] ${cart.length > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200'
-                : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+              ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200'
+              : 'bg-slate-300 text-slate-500 cursor-not-allowed'
               }`}
           >
             Cobrar

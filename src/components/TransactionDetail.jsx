@@ -23,6 +23,7 @@ export default function TransactionDetail({
     const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
+    const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction?.paymentMethod || 'unspecified');
 
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
@@ -45,7 +46,8 @@ export default function TransactionDetail({
         onUpdate(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
-            paymentNote: tempNote
+            paymentNote: tempNote,
+            paymentMethod: tempPaymentMethod
         });
         setShowPaymentModal(false);
     };
@@ -53,7 +55,7 @@ export default function TransactionDetail({
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* --- MODALES INTERNOS (Overlay) --- */}
+            {/* --- MODAL PAGO (CON SELECTOR) --- */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -63,6 +65,21 @@ export default function TransactionDetail({
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
+
+                        {/* Selector de Método de Pago */}
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
+                            <select
+                                value={tempPaymentMethod}
+                                onChange={(e) => setTempPaymentMethod(e.target.value)}
+                                className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none"
+                            >
+                                <option value="unspecified">❓ A definir</option>
+                                <option value="cash">💵 Efectivo</option>
+                                <option value="transfer">🏦 Transferencia</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -73,7 +90,7 @@ export default function TransactionDetail({
                         </div>
                         {tempStatus === 'partial' && (
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
-                                <div className="text-xs font-bold text-orange-700 uppercase mb-1">Monto YA PAGADO:</div>
+                                <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
                                 <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
                                     <span className="text-slate-400 font-bold text-lg">$</span>
                                     <input type="number" className="w-full outline-none text-xl font-bold text-slate-800" value={tempAmountPaid} onChange={(e) => setTempAmountPaid(Number(e.target.value))} placeholder="0" autoFocus />
@@ -85,7 +102,7 @@ export default function TransactionDetail({
                             <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
                             <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Detalles..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
-                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg">Guardar Cambios</button>
+                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
                     </div>
                 </div>
             )}
@@ -98,17 +115,17 @@ export default function TransactionDetail({
                             <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
-                            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
-                            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
+                            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
+                            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* --- CONTENEDOR PRINCIPAL (ESTILO NATIVO) --- */}
+            {/* CONTENEDOR PRINCIPAL - ESTRATEGIA FIXED POSITION */}
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden">
 
-                {/* 1. HEADER FIJO (fixed top) */}
+                {/* 1. HEADER FIJO ARRIBA */}
                 <div className="fixed top-0 left-0 right-0 sm:absolute z-20 bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -131,7 +148,7 @@ export default function TransactionDetail({
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
                         <div className="flex justify-center">
                             {isAdmin ? (
-                                <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setShowPaymentModal(true); }} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                <button onClick={() => { setTempStatus(transaction.paymentStatus); setTempAmountPaid(transaction.amountPaid || 0); setTempNote(transaction.paymentNote || ''); setTempPaymentMethod(transaction.paymentMethod || 'unspecified'); setShowPaymentModal(true); }} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
                                     {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
                                     <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
                                 </button>
@@ -169,7 +186,7 @@ export default function TransactionDetail({
                         {activeTab === 'details' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Método</div><div className="font-bold text-slate-700 text-sm">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div></div>
+                                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Método</div><div className="font-bold text-slate-700 text-sm">{transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : 'A definir'}</div></div>
                                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700 text-sm">{dateObj.toLocaleDateString()}</div></div>
                                 </div>
                                 <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas adicionales."}</div>
