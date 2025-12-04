@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { ClipboardList, CheckCircle, Clock, AlertTriangle, Download, Package, Search, Square, CheckSquare, Truck, Filter, Edit3, Save, X, Minus, Plus } from 'lucide-react';
-// CORRECCIÓN: Importamos html2pdf estáticamente al inicio
 import html2pdf from 'html2pdf.js';
 
 export default function Orders({ transactions, products, categories, onUpdateTransaction }) {
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Estado local para manejar la edición de cantidad INLINE (sin ventanas emergentes)
+    // Estado local para manejar la edición de cantidad INLINE
     const [editingItem, setEditingItem] = useState({ orderId: null, itemIndex: null, qty: 0 });
 
     // 1. FILTRAR PEDIDOS ACTIVOS
@@ -28,7 +27,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         });
     }, [activeOrders, filterStatus, searchTerm]);
 
-    // 2. REPORTE DE STOCK (POR CATEGORÍAS)
+    // 2. REPORTE DE STOCK
     const shoppingReport = useMemo(() => {
         const needs = {};
         activeOrders.forEach(order => {
@@ -47,7 +46,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
             });
         });
 
-        // Agrupar por categoría
         const grouped = {};
         Object.values(needs).forEach(item => {
             const missing = item.required - item.stock;
@@ -63,8 +61,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
 
     const handleDownloadReport = async () => {
         if (totalMissingItems === 0) return alert("✅ No hay faltantes de stock críticos.");
-
-        // CORRECCIÓN: Usamos la importación estática, ya no necesitamos await import()
 
         let rows = '';
         Object.keys(shoppingReport).sort().forEach(cat => {
@@ -87,6 +83,18 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         html2pdf().set({ margin: 10, filename: `stock_faltante.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4' } }).from(element).save();
     };
 
+    // --- LÓGICA DE ESTADO AUTOMÁTICO (En Proceso) ---
+    const calculateNewStatus = (items) => {
+        const totalReq = items.reduce((acc, i) => acc + i.qty, 0);
+        const totalPack = items.reduce((acc, i) => acc + (i.packedQty || 0), 0);
+
+        // Si hay algo empacado pero no todo, o si está lleno pero aún no confirmado como 'ready'
+        if (totalPack > 0 && totalPack < totalReq) return 'partial';
+        if (totalPack >= totalReq) return 'partial'; // Se queda en parcial hasta que el humano confirme "Listo"
+
+        return 'pending';
+    };
+
     // 3. MANEJO DE EDICIÓN VISUAL (Cantidades)
     const startEditing = (orderId, idx, currentQty) => {
         setEditingItem({ orderId, itemIndex: idx, qty: currentQty });
@@ -97,23 +105,18 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         const newItems = [...order.items];
         const item = newItems[itemIndex];
 
-        // Validar límites
-        let finalQty = qty;
-        if (finalQty < 0) finalQty = 0;
-        // Permitimos empacar MENOS, pero no más de lo pedido originalmente por lógica básica, 
-        // aunque si quieres permitir agregar, quita la siguiente línea:
-        // if (finalQty > item.qty) finalQty = item.qty; 
+        // Validar que no sea negativo
+        let finalQty = Math.max(0, qty);
 
-        newItems[itemIndex] = { ...item, packedQty: finalQty, packed: finalQty === item.qty };
+        // Actualizamos lo empacado
+        newItems[itemIndex] = {
+            ...item,
+            packedQty: finalQty,
+            packed: finalQty === item.qty // Solo visual, no determinante
+        };
 
-        // Recalcular estado global
-        const totalReq = newItems.reduce((acc, i) => acc + i.qty, 0);
-        const totalPack = newItems.reduce((acc, i) => acc + (i.packedQty || 0), 0);
-        let newStatus = order.fulfillmentStatus;
-
-        if (totalPack === 0) newStatus = 'pending';
-        else if (totalPack < totalReq) newStatus = 'partial';
-        else newStatus = 'ready';
+        // Calculamos estado automático para moverlo a "En Proceso" si corresponde
+        const newStatus = calculateNewStatus(newItems);
 
         await onUpdateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
         setEditingItem({ orderId: null, itemIndex: null, qty: 0 });
@@ -122,48 +125,50 @@ export default function Orders({ transactions, products, categories, onUpdateTra
     // Tilde rápido (0 -> Todo -> 0)
     const handleQuickToggle = async (order, idx) => {
         const item = order.items[idx];
-        const isFull = (item.packedQty || 0) === item.qty;
-        const nextQty = isFull ? 0 : item.qty;
+        const currentPacked = item.packedQty || 0;
+        // Si ya tiene algo empacado, lo ponemos a 0. Si está en 0, lo llenamos al máximo (qty)
+        const nextQty = currentPacked > 0 ? 0 : item.qty;
 
         const newItems = [...order.items];
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
 
-        const totalReq = newItems.reduce((acc, i) => acc + i.qty, 0);
-        const totalPack = newItems.reduce((acc, i) => acc + (i.packedQty || 0), 0);
-        let newStatus = totalPack === totalReq ? 'ready' : totalPack > 0 ? 'partial' : 'pending';
+        const newStatus = calculateNewStatus(newItems);
 
         await onUpdateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
     };
 
-    // --- NUEVA LÓGICA DE ACTUALIZACIÓN DE ESTADO Y SINCRONIZACIÓN ---
+    // --- LÓGICA DE CONFIRMACIÓN FINAL (Sincronizar Boleta) ---
     const updateStatus = async (transaction, newStatus) => {
         let updateData = { fulfillmentStatus: newStatus };
 
-        // Si marcamos como "Listo" o "Entregado", actualizamos la BOLETA REAL
+        // Al marcar como "Listo" o "Entregado", reescribimos la boleta oficial
         if (newStatus === 'ready' || newStatus === 'delivered') {
+
             const confirmedItems = transaction.items.map(item => {
-                // Si existe packedQty (lo que se armó), esa se vuelve la cantidad oficial.
-                // Si no se tocó (undefined), asumimos que se armó todo lo pedido (item.qty).
-                const finalQuantity = (item.packedQty !== undefined) ? item.packedQty : item.qty;
+                // Si packedQty existe (se tocó), usamos eso. Si no, asumimos 0 (si se confirma sin tocar nada) 
+                // OJO: Si quieres asumir que "Confirmar" sin tocar nada significa "Todo completo", cambia el 0 por item.qty abajo.
+                // En tu lógica de "me faltó 1", asumiremos que lo que dice packedQty es la verdad absoluta.
+
+                const finalQuantity = (item.packedQty !== undefined) ? item.packedQty : 0;
 
                 return {
                     ...item,
-                    qty: finalQuantity, // Actualizamos la cantidad oficial
-                    packedQty: finalQuantity, // Aseguramos que coincidan
+                    qty: finalQuantity, // <-- Aquí ocurre la magia: La cantidad pedida ahora es la cantidad entregada
+                    packedQty: finalQuantity,
                     packed: true
                 };
-            });
+            }).filter(item => item.qty > 0); // Opcional: Si quedó en 0, lo quitamos de la boleta para limpiar? O lo dejamos en 0?
+            // Si prefieres dejarlo en 0, quita el .filter()
 
-            // Recalcular el TOTAL monetario de la transacción
+            // Recalcular el TOTAL monetario de la transacción con las nuevas cantidades
             const newTotal = confirmedItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
 
             updateData.items = confirmedItems;
             updateData.total = newTotal;
 
-            // Si la venta ya estaba marcada como PAGADA, ajustamos el monto pagado al nuevo total
-            // para evitar saldos negativos o confusiones.
+            // Ajustar deuda si es necesario
             if (transaction.paymentStatus === 'paid') {
-                updateData.amountPaid = newTotal;
+                updateData.amountPaid = newTotal; // Si ya pagó, asumimos que se ajusta el saldo
             }
         }
 
@@ -198,9 +203,11 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                 {filteredOrders.length === 0 && <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center"><ClipboardList size={48} className="mb-2 opacity-20" /><p>No hay pedidos en esta vista.</p></div>}
 
                 {filteredOrders.map(order => {
-                    // Calculamos progreso visual basado en packedQty vs qty original
+                    // Calculamos progreso visual
                     const totalReq = order.items.reduce((a, i) => a + i.qty, 0);
-                    const totalPack = order.items.reduce((a, i) => a + (i.packedQty || (i.packed ? i.qty : 0)), 0);
+                    // Usamos packedQty si existe, sino 0 para visualización inicial
+                    const totalPack = order.items.reduce((a, i) => a + (i.packedQty || 0), 0);
+
                     const progress = totalReq > 0 ? Math.round((totalPack / totalReq) * 100) : 0;
                     const status = order.fulfillmentStatus || 'pending';
 
@@ -225,19 +232,24 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                 </div>
                             </div>
 
-                            {/* LISTA DE ITEMS (Checklist mejorada) */}
+                            {/* LISTA DE ITEMS (Checklist) */}
                             <div className="divide-y divide-slate-50">
                                 {order.items.map((item, idx) => {
-                                    const packed = item.packedQty !== undefined ? item.packedQty : (item.packed ? item.qty : 0);
+                                    // packedQty es la verdad de la milanesa en el armado. Si no existe, es 0.
+                                    const packed = item.packedQty !== undefined ? item.packedQty : 0;
+
                                     const isEditing = editingItem.orderId === order.id && editingItem.itemIndex === idx;
                                     const isComplete = packed === item.qty;
                                     const isPartial = packed > 0 && packed < item.qty;
-                                    const isModified = packed !== item.qty && packed > 0;
+
+                                    // Visualmente tachado si se completó lo pedido
+                                    // Visualmente alerta si se empacó menos de lo pedido pero ya se cerró la edición
+                                    const isShort = packed < item.qty && packed > 0;
 
                                     return (
                                         <div key={idx} className={`flex items-center p-3 gap-3 transition-colors ${isComplete ? 'bg-green-50/30' : isPartial ? 'bg-orange-50' : 'hover:bg-slate-50'}`}>
 
-                                            {/* 1. Checkbox (Tocar para completar todo) */}
+                                            {/* 1. Checkbox (Tocar para completar todo o vaciar) */}
                                             <button
                                                 onClick={() => handleQuickToggle(order, idx)}
                                                 className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 active:scale-90 shadow-sm ${isComplete ? 'bg-green-500 border-green-500 text-white' : isPartial ? 'bg-white border-orange-400 text-orange-500' : 'bg-white border-slate-200 text-transparent'}`}
@@ -245,15 +257,18 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                                 {isComplete ? <CheckSquare size={20} strokeWidth={3} /> : isPartial ? <span className="font-bold text-sm">!</span> : null}
                                             </button>
 
-                                            {/* 2. Nombre del Producto */}
+                                            {/* 2. Nombre del Producto y Estado */}
                                             <div className="flex-1 min-w-0" onClick={() => !isEditing && startEditing(order.id, idx, packed)}>
                                                 <div className={`font-medium text-sm leading-tight ${isComplete ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                                                     {item.name}
                                                 </div>
-                                                {isModified && !isEditing && (
+                                                {isShort && !isEditing && (
                                                     <div className="text-xs text-orange-600 font-bold mt-0.5">
-                                                        Editado: {packed} de {item.qty}
+                                                        Solo {packed} de {item.qty}
                                                     </div>
+                                                )}
+                                                {packed === 0 && !isEditing && (
+                                                    <div className="text-xs text-slate-400 mt-0.5">Pendiente de armar</div>
                                                 )}
                                             </div>
 
@@ -283,7 +298,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                             {status !== 'ready' && (
                                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-end">
                                     <button onClick={() => updateStatus(order, 'ready')} className="w-full py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-600 font-bold text-sm hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all flex items-center justify-center gap-2">
-                                        <CheckCircle size={18} /> Confirmar Armado y Actualizar Boleta
+                                        <CheckCircle size={18} /> Confirmar Armado
                                     </button>
                                 </div>
                             )}
