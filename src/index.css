@@ -2,13 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+
 :root {
-    /* Evita el efecto de rebote elástico en toda la página (iOS/Android) */
-    overscroll-behavior: none;
+    /* Forzar altura completa real */
+    min-height: 100%;
+    height: 100%;
+    /* Evitar rebote */
+    overscroll-behavior-y: none;
 }
+
+
+html {
+    height: 100%;
+    background-color: #f1f5f9;
+    /* Color de fondo gris claro de tu app */
+}
+
 
 body {
     margin: 0;
+    /* Altura mínima del 100% del viewport */
+    min-height: 100vh;
+    /* Soporte para muescas y áreas seguras */
+    padding-bottom: env(safe-area-inset-bottom);
+
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
         sans-serif;
@@ -16,47 +33,44 @@ body {
     -moz-osx-font-smoothing: grayscale;
     background-color: #f1f5f9;
 
-    /* TRUCOS PARA SENSACIÓN NATIVA */
-
-    /* 1. Evita que el usuario seleccione texto (botones, menús) accidentalmente */
+    /* TRUCOS APP NATIVA */
     -webkit-user-select: none;
     user-select: none;
-
-    /* 2. Elimina el destello azul/gris al tocar botones en móviles */
     -webkit-tap-highlight-color: transparent;
-
-    /* 3. Previene el zoom accidental al hacer doble tap */
     touch-action: manipulation;
 }
 
-/* Reactiva la selección de texto SOLO donde es necesario (inputs) */
+
+/* IMPORTANTE: Asegurar que el contenedor raíz (#root) ocupe todo el espacio */
+#root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+
 input,
 textarea {
     -webkit-user-select: text;
     user-select: text;
 }
 
-/* OCULTAR BARRAS DE SCROLL (Pero permitir scroll) */
 
-/* Para Chrome, Safari y Opera */
+/* OCULTAR BARRAS */
 ::-webkit-scrollbar {
     display: none;
 }
 
-/* Para Firefox, IE y Edge */
 * {
     -ms-overflow-style: none;
-    /* IE y Edge */
     scrollbar-width: none;
-    /* Firefox */
 }
 
-/* UTILIDADES EXTRA DE ANIMACIÓN */
+
 .animate-in {
     animation-fill-mode: forwards;
 }
 
-/* Previene parpadeos blancos en transiciones 3D en móviles */
 * {
     -webkit-backface-visibility: hidden;
 }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
-// IMPORTANTE: Importamos initializeFirestore y las configuraciones de caché
+// Importamos enableIndexedDbPersistence (versión compatibilidad antigua) o configuraciones nuevas según versión
 import { initializeFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, limit, where, getDocs, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell, WifiOff } from 'lucide-react';
+import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell, Volume2, WifiOff } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 // IMPORTACIÓN DE COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -28,8 +29,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// --- CONFIGURACIÓN DE PERSISTENCIA OFFLINE ---
-// Esto permite que la app guarde datos localmente si se va el internet
+// Habilitar caché persistente para Offline
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
@@ -44,7 +44,9 @@ export default function App() {
   const [userData, setUserData] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
-  const [isOnline, setIsOnline] = useState(navigator.onLine); // Estado de conexión
+
+  // Estado de conexión
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Tabs y Modales
   const [activeTab, setActiveTab] = useState('pos');
@@ -60,6 +62,8 @@ export default function App() {
 
   // ESTADO PARA CONFIRMACIONES PERSONALIZADAS
   const [confirmConfig, setConfirmConfig] = useState(null);
+
+  // ESTADO DE CARGA
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -93,25 +97,31 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('unspecified');
+
+  // Notificación
   const [notification, setNotification] = useState(null);
 
-  // --- DETECTAR CONEXIÓN ---
+  // --- MONITOR DE CONEXIÓN ---
   useEffect(() => {
-    const handleStatusChange = () => setIsOnline(navigator.onLine);
-    window.addEventListener('online', handleStatusChange);
-    window.addEventListener('offline', handleStatusChange);
+    const handleOnline = () => { setIsOnline(true); setNotification("🟢 Conexión restaurada"); setTimeout(() => setNotification(null), 3000); };
+    const handleOffline = () => { setIsOnline(false); setNotification("🔴 Sin conexión (Modo Offline)"); setTimeout(() => setNotification(null), 3000); };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
-      window.removeEventListener('online', handleStatusChange);
-      window.removeEventListener('offline', handleStatusChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
+  // --- SOLICITAR PERMISO DE NOTIFICACIÓN AL INICIAR ---
   useEffect(() => {
     if ("Notification" in window && Notification.permission !== "granted") {
       Notification.requestPermission();
     }
   }, []);
 
+  // --- SONIDO ---
   const playNotificationSound = () => {
     try {
       const audio = new Audio(NOTIFICATION_SOUND);
@@ -121,6 +131,7 @@ export default function App() {
     }
   };
 
+  // --- LÓGICA DE NAVEGACIÓN MÓVIL ---
   useEffect(() => {
     const onPopState = (e) => {
       if (selectedTransaction) { e.preventDefault(); setSelectedTransaction(null); }
@@ -145,13 +156,17 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Para offline: intenta leer de caché si no hay red
+        // Intentar cargar usuario, con fallback offline silencioso
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (!userDoc.exists()) { await signOut(auth); setUserData(null); setUser(null); }
-          else { setUserData(userDoc.data()); }
+          if (userDoc.exists()) {
+            setUserData(userDoc.data());
+          } else if (navigator.onLine) {
+            // Si hay internet y no existe, salir. Si no hay internet, mantener sesión (puede ser caché)
+            await signOut(auth); setUserData(null); setUser(null);
+          }
         } catch (e) {
-          console.log("Modo offline: No se pudo verificar usuario fresco, asumiendo sesión válida.");
+          console.log("Error auth offline (ignorable):", e);
         }
       } else { setUserData(null); }
       setAuthLoading(false);
@@ -160,7 +175,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || !userData) return;
+    if (!user) return;
+    // En modo offline, onSnapshot lee de la caché local automáticamente
     const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (doc) => { if (doc.exists()) setStoreProfile(doc.data()); });
     const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (snap) => setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
     const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (snap) => setCategories(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
@@ -168,7 +184,10 @@ export default function App() {
     const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (snap) => setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
 
     let q;
-    if (userData.role === 'admin') {
+    // Pequeña optimización: si no hay userData (ej: carga offline inicial lenta), asumir rol basico o esperar
+    const role = userData?.role || 'client';
+
+    if (role === 'admin') {
       q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(500));
     } else {
       q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(6));
@@ -177,11 +196,11 @@ export default function App() {
     let isFirstLoad = true;
     const unsubTrans = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      if (userData.role === 'admin' && !isFirstLoad) {
+      if (role === 'admin' && !isFirstLoad) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const newSale = change.doc.data();
-            // Evitar notificación de mis propias ventas offline que se acaban de sincronizar
+            // IMPORTANTE: hasPendingWrites es true si el cambio es local (offline). No notificar.
             if (newSale.sellerId !== user.uid && !snapshot.metadata.hasPendingWrites) {
               const msg = `💰 Nuevo pedido de ${newSale.clientName} ($${newSale.total})`;
               setNotification(msg);
@@ -196,8 +215,9 @@ export default function App() {
     });
 
     return () => { unsubProfile(); unsubProducts(); unsubTrans(); unsubCats(); unsubCustomers(); unsubExpenses(); };
-  }, [user, userData]);
+  }, [user, userData]); // Dependencia userData añadida
 
+  // --- CÁLCULOS ---
   const balance = useMemo(() => {
     let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -224,6 +244,7 @@ export default function App() {
 
   const getCustomerDebt = (customerId) => transactions.filter(t => t.clientId === customerId && t.paymentStatus === 'pending').reduce((acc, t) => acc + t.total, 0);
 
+  // --- FUNCIONES DEL CARRITO ---
   const addToCart = useCallback((product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -235,6 +256,7 @@ export default function App() {
   const removeFromCart = useCallback((id) => setCart(prev => prev.filter(item => item.id !== id)), []);
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.qty), 0), [cart]);
 
+  // --- HELPERS PARA CONFIRMACIÓN ---
   const requestConfirm = (title, message, action, isDanger = false) => {
     setConfirmConfig({
       title,
@@ -248,6 +270,7 @@ export default function App() {
     });
   };
 
+  // --- HANDLERS ---
   const handleLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); } catch (error) { setLoginError("Credenciales incorrectas."); } };
 
   const handleRegister = async (e) => {
@@ -295,8 +318,11 @@ export default function App() {
   const handleQuickUpdateTransaction = useCallback(async (id, data) => { try { await updateDoc(doc(db, 'stores', appId, 'transactions', id), data); if (selectedTransaction && selectedTransaction.id === id) setSelectedTransaction(prev => ({ ...prev, ...data })); } catch (error) { alert("Error al actualizar."); } }, [selectedTransaction]);
   const handleUpdateTransaction = async (dataOrEvent) => { if (!editingTransaction) return; let updatedItems = []; let newTotal = 0; if (dataOrEvent.items && typeof dataOrEvent.total === 'number') { updatedItems = dataOrEvent.items; newTotal = dataOrEvent.total; } else { return; } try { await updateDoc(doc(db, 'stores', appId, 'transactions', editingTransaction.id), { items: updatedItems, total: newTotal }); setIsTransactionModalOpen(false); if (selectedTransaction && selectedTransaction.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, items: updatedItems, total: newTotal })); setEditingTransaction(null); } catch (error) { alert("Error"); } };
 
+  // --- FUNCIÓN: EXPORTAR Y PURGAR ---
   const handleExportCSV = async () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
+
+    // 1. Descarga del CSV
     const csv = ["Fecha,Cliente,Estado,Total,Pagado,Productos"].concat(
       transactions.map(t =>
         `${new Date(t.date?.seconds * 1000).toLocaleDateString()},${t.clientName},${t.paymentStatus || 'pending'},${t.total},${t.amountPaid || 0},"${t.items?.map(i => `${i.qty} ${i.name}`).join('|')}"`
@@ -312,6 +338,7 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
 
+    // 2. Proceso de purgado
     setTimeout(() => {
       requestConfirm(
         "¿Purgar Sistema?",
@@ -344,13 +371,15 @@ export default function App() {
     }, 1000);
   };
 
+  // --- HANDLE CHECKOUT (CORREGIDO PARA OFFLINE) ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
-    setIsProcessing(true);
+    setIsProcessing(true); // Mostramos el loader visualmente
 
+    // Datos básicos para crear la venta
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
-    if (userData.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
-    else if (userData.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
+    if (userData?.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
+    else if (userData?.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
 
     const itemsWithCost = cart.map(i => {
       const originalProduct = products.find(p => p.id === i.id);
@@ -373,35 +402,62 @@ export default function App() {
       fulfillmentStatus: 'pending'
     };
 
+    // EJECUCIÓN ROBUSTA PARA OFFLINE
+    // No usamos try-catch bloqueante porque en offline addDoc no falla, solo "encola".
     try {
-      // Las funciones de Firestore funcionan offline y se sincronizan al volver
+      // 1. Crear Transacción (esto es instantáneo en caché local)
       const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
-      for (const item of cart) { const p = products.find(prod => prod.id === item.id); if (p) await updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }); }
 
+      // 2. Actualizar Stock (también instantáneo localmente)
+      cart.forEach(item => {
+        const p = products.find(prod => prod.id === item.id);
+        if (p) {
+          // Usamos catch individual para que un error no detenga todo el flujo
+          updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty }).catch(err => console.log("Error actualizando stock:", err));
+        }
+      });
+
+      // 3. Actualizar Cliente (opcional)
       if (finalClient.role === 'client' || finalClient.role === 'customer') {
         let customerDocId = null;
-        if (userData.role === 'admin' && selectedCustomer) {
+        if (userData?.role === 'admin' && selectedCustomer) {
           customerDocId = selectedCustomer.id;
-          await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { externalOrdersCount: (selectedCustomer.externalOrdersCount || 0) + 1, lastPurchase: serverTimestamp() });
-        } else if (userData.role === 'client') {
-          const q = query(collection(db, 'stores', appId, 'customers'), where('email', '==', userData.email));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            customerDocId = querySnapshot.docs[0].id;
-            const currentCount = querySnapshot.docs[0].data().platformOrdersCount || 0;
-            await updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), { platformOrdersCount: currentCount + 1, lastPurchase: serverTimestamp() });
-          }
+        } else if (userData?.role === 'client') {
+          // Buscar ID del cliente (si ya tenemos customers cargados, mejor buscarlos en memoria)
+          const found = customers.find(c => c.email === userData.email);
+          if (found) customerDocId = found.id;
+        }
+
+        if (customerDocId) {
+          updateDoc(doc(db, 'stores', appId, 'customers', customerDocId), {
+            externalOrdersCount: (selectedCustomer?.externalOrdersCount || 0) + 1,
+            lastPurchase: serverTimestamp()
+          }).catch(err => console.log("Error cliente update:", err));
         }
       }
 
-      setCart([]); setSelectedCustomer(null); setCustomerSearch(''); setShowMobileCart(false); setPaymentMethod('unspecified');
+      // 4. Limpiar Interfaz INMEDIATAMENTE (No esperamos confirmación de red)
+      setCart([]);
+      setSelectedCustomer(null);
+      setCustomerSearch('');
+      setShowMobileCart(false);
+      setPaymentMethod('unspecified');
+
       setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } });
+
+      // Quitamos el loader rápido para que el usuario siga trabajando
+      setIsProcessing(false);
       setShowCheckoutSuccess(true);
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
-    } catch (error) { alert("Error venta: " + error.message); }
-    finally { setIsProcessing(false); }
+
+    } catch (error) {
+      console.error("Error crítico en checkout:", error);
+      alert("Hubo un problema al guardar la venta. Intenta de nuevo.");
+      setIsProcessing(false);
+    }
   };
 
+  // --- COMPARTIR PDF POR WHATSAPP (Web Share API) ---
   const handleShareWhatsApp = async (transaction) => {
     if (!transaction) return;
     setIsProcessing(true);
@@ -412,7 +468,14 @@ export default function App() {
       const element = document.createElement('div');
       element.innerHTML = content;
 
+      // Usar window.html2pdf (versión CDN)
       const html2pdf = window.html2pdf;
+
+      if (!html2pdf) {
+        alert("La librería de PDF no está cargada (¿Estás offline?). Intenta de nuevo cuando tengas internet.");
+        setIsProcessing(false);
+        return;
+      }
 
       const opt = {
         margin: [0, 0, 0, 0],
@@ -439,7 +502,7 @@ export default function App() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        alert("Tu dispositivo no soporta compartir archivos directamente. El PDF se ha descargado.");
+        alert("PDF descargado (Compartir no soportado en este navegador).");
       }
 
     } catch (error) {
@@ -450,7 +513,7 @@ export default function App() {
     }
   };
 
-  const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdf = window.html2pdf; const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
+  const handlePrintTicket = async (transaction) => { if (!transaction) return; const html2pdf = window.html2pdf; if (!html2pdf) return alert("Librería PDF no disponible offline"); const date = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'Reciente'; const content = `<div style="font-family: sans-serif; padding: 10px; width: 100%; background-color: white; color: black;"><div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:10px;">${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="max-width:50px; max-height:50px; margin-bottom:5px; display:block; margin: 0 auto;" />` : ''}<div style="font-size:14px; font-weight:bold; margin-top:5px; text-transform:uppercase;">${storeProfile.name}</div><div style="font-size:10px; margin-top:2px;">Comprobante de Venta</div></div><div style="font-size:11px; margin-bottom:10px; line-height: 1.4;"><div><strong>Fecha:</strong> ${date}</div><div><strong>Cliente:</strong> ${transaction.clientName || 'Consumidor Final'}</div><div><strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div></div><div style="text-align:center; font-weight:bold; font-size:12px; margin-bottom:15px; border:1px solid #000; padding:5px; background-color:#f8f8f8;">ESTADO: ${transaction.paymentStatus === 'paid' ? 'PAGADO' : transaction.paymentStatus === 'partial' ? 'PARCIAL' : 'PENDIENTE'}</div><table style="width:100%; border-collapse: collapse; font-size:10px;"><thead><tr style="border-bottom: 2px solid #000;"><th style="text-align:left; padding: 5px 0; width:10%;">Cant</th><th style="text-align:left; padding: 5px 2px; width:50%;">Producto</th><th style="text-align:right; padding: 5px 0; width:20%;">Unit</th><th style="text-align:right; padding: 5px 0; width:20%;">Total</th></tr></thead><tbody>${transaction.items.map(i => `<tr style="border-bottom: 1px solid #ddd;"><td style="text-align:center; padding: 8px 0; vertical-align:top;">${i.qty}</td><td style="text-align:left; padding: 8px 2px; vertical-align:top; word-wrap: break-word;">${i.name}</td><td style="text-align:right; padding: 8px 0; vertical-align:top;">$${i.price}</td><td style="text-align:right; padding: 8px 0; vertical-align:top; font-weight:bold;">$${i.price * i.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;"><div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;"><span>TOTAL:</span><span>$${transaction.total}</span></div></div>${transaction.paymentNote ? `<div style="margin-top:15px; font-style:italic; font-size:10px; border:1px dashed #aaa; padding:5px;">Nota: ${transaction.paymentNote}</div>` : ''}<div style="text-align:center; margin-top:25px; font-size:10px; color:#666;">¡Gracias por su compra!<br/><strong>${storeProfile.name}</strong></div></div>`; const element = document.createElement('div'); element.innerHTML = content; html2pdf().set({ margin: [0, 0, 0, 0], filename: `ticket-${transaction.id.slice(0, 5)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: [80, 100 + (transaction.items.length * 10)] } }).from(element).save(); };
 
   const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
 
@@ -486,6 +549,13 @@ export default function App() {
         onLogout={() => setIsLogoutConfirmOpen(true)}
         onEditStore={() => setIsStoreModalOpen(true)}
       />
+
+      {/* Indicador de Estado de Red */}
+      {!isOnline && (
+        <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90">
+          <WifiOff size={12} className="inline mr-1" /> MODO OFFLINE: Los datos se sincronizarán al volver la conexión
+        </div>
+      )}
 
       {/* MODAL DE CONFIRMACIÓN GLOBAL */}
       {confirmConfig && (
