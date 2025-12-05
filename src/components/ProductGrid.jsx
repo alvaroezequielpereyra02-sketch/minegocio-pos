@@ -25,6 +25,7 @@ const ProductGrid = memo(function ProductGrid({
     handleBarcodeSubmit
 }) {
 
+    // OPTIMIZACIÓN: Filtramos la lista solo cuando cambian los productos, el término o la categoría.
     const filteredProducts = useMemo(() => {
         const lowerTerm = searchTerm.toLowerCase();
         return products.filter(p =>
@@ -33,18 +34,18 @@ const ProductGrid = memo(function ProductGrid({
         );
     }, [products, searchTerm, selectedCategory]);
 
-    // Renderizador de cada celda (Producto)
+    // Renderizador de cada celda (Producto) para react-window
     const Cell = ({ columnIndex, rowIndex, style, data }) => {
         const { products, columnCount } = data;
         const index = rowIndex * columnCount + columnIndex;
 
-        // Si el índice se pasa del total de productos, renderizar vacío
+        // Si el índice se pasa del total de productos (celda vacía al final), no renderizar nada
         if (index >= products.length) return null;
 
         const product = products[index];
 
-        // Ajuste para simular 'gap' (espacio entre celdas)
-        const gutter = 10;
+        // Ajuste para simular 'gap' (espacio entre celdas) dentro del estilo absoluto
+        const gutter = 8; // Espacio en píxeles
         const itemStyle = {
             ...style,
             left: style.left + gutter,
@@ -61,7 +62,13 @@ const ProductGrid = memo(function ProductGrid({
                 >
                     <div className="w-full h-32 bg-slate-100 relative shrink-0">
                         {product.imageUrl ? (
-                            <img src={product.imageUrl} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} />
+                            <img
+                                src={product.imageUrl}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                                alt={product.name}
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-300">
                                 <ImageIcon className="w-8 h-8" />
