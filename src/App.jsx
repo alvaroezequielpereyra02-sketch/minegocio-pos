@@ -7,7 +7,7 @@ import { useAuth } from './hooks/useAuth';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
-import { usePrinter } from './hooks/usePrinter'; // <--- ESTE ES EL ARCHIVO QUE FALTABA
+import { usePrinter } from './hooks/usePrinter';
 
 // COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -63,6 +63,9 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
+  // NUEVO ESTADO PARA EL RANGO DE FECHAS (Semana/Mes)
+  const [dashboardDateRange, setDashboardDateRange] = useState('week');
+
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
     store: false, stock: false, expense: false, logout: false, invitation: false
@@ -81,15 +84,15 @@ export default function App() {
     updateStoreProfile, generateInvitationCode
   } = useInventory(user);
 
+  // Pasamos dateRange al hook de transacciones
   const {
-    transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, balance
-  } = useTransactions(user, userData, products, expenses, categories);
+    transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
+  } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
 
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
   } = useCart();
 
-  // Inicializar hook de impresora
   const printer = usePrinter();
 
   // ESTADOS DE SELECCIÓN/EDICIÓN
@@ -126,6 +129,80 @@ export default function App() {
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
+  const handleExportData = () => {
+    if (transactions.length === 0) return alert("No hay datos para exportar.");
+
+    try {
+      // 1. Construir el CSV con Múltiples Secciones
+      let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
+
+      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
+      csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
+      csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
+
+      csvContent += "METRICAS DEL PERIODO\n";
+      csvContent += `Ventas Totales,$${balance.periodSales}\n`;
+      csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
+      csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
+      csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
+
+      csvContent += "VENTAS POR CATEGORIA\n";
+      csvContent += "Categoría,Monto Vendido\n";
+      balance.salesByCategory.forEach(cat => {
+        csvContent += `${cat.name},$${cat.value}\n`;
+      });
+      csvContent += "\n";
+
+      csvContent += "GASTOS DETALLADOS\n";
+      csvContent += "Fecha,Descripción,Monto\n";
+      expenses.forEach(e => {
+        csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`;
+      });
+      csvContent += "\n";
+
+      // SECCIÓN B: LISTA DE TRANSACCIONES
+      csvContent += "DETALLE DE TRANSACCIONES\n";
+      csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
+      transactions.forEach(t => {
+        const date = new Date(t.date?.seconds * 1000).toLocaleString();
+        const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
+        // Escapar comillas para CSV
+        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
+        csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
+      });
+
+      // 2. Descargar
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Reporte_Completo_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 3. Ofrecer Purgar (Limpiar Base de Datos)
+      setTimeout(() => {
+        requestConfirm(
+          "¿Limpiar Base de Datos?",
+          "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
+          async () => {
+            setIsProcessing(true);
+            await purgeTransactions();
+            setIsProcessing(false);
+            showNotification("🧹 Historial limpiado");
+          },
+          true // Es peligroso (Rojo)
+        );
+      }, 1500);
+
+    } catch (error) {
+      console.error("Error exportando:", error);
+      alert("Error al generar el reporte.");
+    }
   };
 
   const handleCheckout = async () => {
@@ -271,7 +348,14 @@ export default function App() {
 
           {activeTab === 'dashboard' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={(v) => toggleModal('expense', v)} handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)} />
+              <Dashboard
+                balance={balance}
+                expenses={expenses}
+                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
+                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
+                dateRange={dashboardDateRange} // Nuevo
+                setDateRange={setDashboardDateRange} // Nuevo
+              />
             </Suspense>
           )}
 
@@ -319,7 +403,14 @@ export default function App() {
 
           {activeTab === 'transactions' && (
             <Suspense fallback={<TabLoader />}>
-              <History transactions={transactions} userData={userData} handleExportCSV={() => alert("Exportar CSV")} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
+              <History
+                transactions={transactions}
+                userData={userData}
+                handleExportCSV={handleExportData} // <--- AHORA USA LA FUNCIÓN MEJORADA
+                historySection={historySection}
+                setHistorySection={setHistorySection}
+                onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
+              />
             </Suspense>
           )}
         </main>
@@ -331,8 +422,8 @@ export default function App() {
             <TransactionDetail
               transaction={selectedTransaction}
               onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }}
-              printer={printer} // <--- PASAMOS LA IMPRESORA AQUÍ
-              storeProfile={storeProfile} // <--- PASAMOS EL PERFIL
+              printer={printer}
+              storeProfile={storeProfile}
               onShare={() => { }}
               onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
               customers={customers}
