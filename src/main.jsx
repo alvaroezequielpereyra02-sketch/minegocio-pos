@@ -3,16 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
-// --- AUTO-REPARACIÓN DE ERRORES DE CARGA (CHUNK LOAD ERROR) ---
-// Si un usuario tiene una versión vieja y trata de abrir una pantalla nueva, fallará.
-// Esto detecta ese fallo y recarga la página para bajar la versión nueva.
-window.addEventListener('error', (e) => {
-  // Detectar errores de carga de módulos dinámicos (Lazy Loading)
-  if (/Loading chunk [\d]+ failed/.test(e.message) ||
-    /Failed to fetch dynamically imported module/.test(e.message)) {
-    console.log('🔄 Nueva versión detectada. Recargando...');
-    window.location.reload();
-  }
+// --- AUTOCORRECTOR DE VERSIONES ---
+// Si un archivo falla al cargar (porque actualizaste la app), recarga la página.
+window.addEventListener('vite:preloadError', (event) => {
+  window.location.reload();
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -25,7 +19,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(registration => {
-      // Si hay una actualización esperando, forzarla
+
+      // Si hay una actualización esperando, fuérzala
       if (registration.waiting) {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         window.location.reload();
@@ -36,13 +31,11 @@ if ('serviceWorker' in navigator) {
         if (installingWorker == null) return;
         installingWorker.onstatechange = () => {
           if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('🔄 Nueva versión disponible. Recargando...');
+            console.log('Nueva versión disponible. Actualizando...');
             window.location.reload();
           }
         };
       };
-    }).catch(error => {
-      console.log('SW Error:', error);
     });
   });
 
