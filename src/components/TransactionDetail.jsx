@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, Phone, MapPin, ExternalLink, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, Share2, Printer, FileText, MessageCircle, X, MapPin, ExternalLink, Edit, DollarSign, Bluetooth, Wifi } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
     onClose,
-    onPrint,
+    printer,      // <--- RECIBIMOS LA IMPRESORA
+    storeProfile, // <--- RECIBIMOS EL PERFIL
     onShare,
     onCancel,
     customers = [],
@@ -52,7 +53,6 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
-    // Función auxiliar para abrir el modal y resetear estados temporales
     const openPaymentModal = () => {
         setTempStatus(transaction.paymentStatus);
         setTempAmountPaid(transaction.amountPaid || 0);
@@ -61,10 +61,63 @@ export default function TransactionDetail({
         setShowPaymentModal(true);
     };
 
+    // --- NUEVO: FUNCIONES DE IMPRESIÓN ---
+    const handleWifiPrint = async () => {
+        // Carga diferida de la librería PDF para no pesar la app
+        const html2pdf = (await import('html2pdf.js')).default;
+
+        // Creamos un ticket visual temporal para el PDF
+        const content = `<div style="font-family: sans-serif; padding: 20px; color: black; background: white;">
+            <h2 style="text-align:center; margin:0;">${storeProfile.name}</h2>
+            <p style="text-align:center; margin-top:5px; font-size: 12px;">Comprobante de Venta</p>
+            <hr style="border-top: 1px dashed #000;"/>
+            <div style="font-size: 12px; margin-bottom: 10px;">
+                <strong>Fecha:</strong> ${dateObj.toLocaleString()}<br/>
+                <strong>Cliente:</strong> ${clientName}<br/>
+                <strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+            </div>
+            <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #000;">
+                        <th style="text-align:left;">Cant</th>
+                        <th style="text-align:left;">Item</th>
+                        <th style="text-align:right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${transaction.items.map(i => `
+                        <tr>
+                            <td style="padding: 4px 0;">${i.qty}</td>
+                            <td style="padding: 4px 0;">${i.name}</td>
+                            <td style="text-align:right; padding: 4px 0;">$${(i.qty * i.price).toLocaleString()}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <hr style="border-top: 1px dashed #000;"/>
+            <h3 style="text-align:right; margin: 10px 0;">TOTAL: $${total.toLocaleString()}</h3>
+            <p style="text-align:center; font-size: 10px; margin-top: 20px;">¡Gracias por su compra!</p>
+        </div>`;
+
+        const el = document.createElement('div');
+        el.innerHTML = content;
+
+        // Configuración para simular papel térmico de 80mm
+        const opt = {
+            margin: 0,
+            filename: `ticket-${transaction.id.slice(0, 5)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: [80, 200] } // Ancho 80mm, Alto variable (aprox)
+        };
+
+        html2pdf().set(opt).from(el).save();
+    };
+
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* --- MODAL PAGO (CON SELECTOR) --- */}
+            {/* --- MODAL PAGO --- */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -74,21 +127,15 @@ export default function TransactionDetail({
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
-
-                        {/* Selector de Método de Pago */}
+                        {/* ... (Selectores de pago) ... */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
-                            <select
-                                value={tempPaymentMethod}
-                                onChange={(e) => setTempPaymentMethod(e.target.value)}
-                                className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none"
-                            >
+                            <select value={tempPaymentMethod} onChange={(e) => setTempPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none">
                                 <option value="unspecified">❓ A definir</option>
                                 <option value="cash">💵 Efectivo</option>
                                 <option value="transfer">🏦 Transferencia</option>
                             </select>
                         </div>
-
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -116,26 +163,57 @@ export default function TransactionDetail({
                 </div>
             )}
 
+            {/* --- MODAL COMPARTIR / IMPRIMIR (NUEVO DISEÑO) --- */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
                         <div className="p-4 flex justify-between items-start border-b">
                             <button onClick={() => setShowShareOptions(false)}><X size={24} className="text-slate-400" /></button>
-                            <div className="text-right"><h3 className="text-lg font-bold text-slate-800">COMPARTIR</h3></div>
+                            <div className="text-right"><h3 className="text-lg font-bold text-slate-800">OPCIONES</h3></div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 p-6 bg-slate-50">
-                            <button onClick={() => onPrint(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><FileText size={24} /></div><span className="font-bold text-slate-700">PDF</span></button>
-                            <button onClick={() => onShare(transaction)} className="flex flex-col items-center justify-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-all"><div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center"><MessageCircle size={24} /></div><span className="font-bold text-slate-700">WhatsApp</span></button>
+
+                        <div className="p-4 space-y-3 bg-slate-50">
+                            {/* 1. IMPRESIÓN BLUETOOTH (RAWBT - ANDROID) */}
+                            <button onClick={() => printer.printRawBT(transaction, storeProfile)} className="w-full flex items-center p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group">
+                                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
+                                    <Bluetooth size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-slate-800">Imprimir Bluetooth</div>
+                                    <div className="text-xs text-slate-500">Usando App RawBT (Android)</div>
+                                </div>
+                            </button>
+
+                            {/* 2. IMPRESIÓN WIFI / PDF */}
+                            <button onClick={handleWifiPrint} className="w-full flex items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm group">
+                                <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
+                                    <Wifi size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-slate-800">Imprimir PDF / Wifi</div>
+                                    <div className="text-xs text-slate-500">Descargar o AirPrint</div>
+                                </div>
+                            </button>
+
+                            {/* 3. WHATSAPP */}
+                            <button onClick={() => onShare(transaction)} className="w-full flex items-center p-4 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition-all shadow-sm group">
+                                <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
+                                    <MessageCircle size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-bold text-slate-800">Enviar WhatsApp</div>
+                                    <div className="text-xs text-slate-500">Compartir comprobante</div>
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* CONTENEDOR PRINCIPAL - ESTRATEGIA FIXED POSITION */}
-            <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden">
-
-                {/* 1. HEADER FIJO ARRIBA */}
-                <div className="fixed top-0 left-0 right-0 sm:absolute z-20 bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16">
+            {/* CONTENEDOR PRINCIPAL */}
+            <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16 shrink-0">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
                     </button>
@@ -150,8 +228,8 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* 2. BODY CON SCROLL (padding top/bottom para no tapar) */}
-                <div className="h-full overflow-y-auto bg-slate-50/50 pt-16 pb-28 sm:pb-20">
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-4">
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
@@ -169,10 +247,11 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
-                    <div className="flex border-b sticky top-16 bg-white z-10 shadow-sm">
-                        {['items', 'details', 'client'].map(tab => (
+                    {/* Tabs Items/Detalles */}
+                    <div className="flex border-b bg-white z-10 shadow-sm sticky top-0">
+                        {['items', 'details'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                {tab === 'items' ? 'Items' : tab === 'details' ? 'Detalles' : 'Cliente'}
+                                {tab === 'items' ? 'Items' : 'Detalles'}
                             </button>
                         ))}
                     </div>
@@ -195,53 +274,26 @@ export default function TransactionDetail({
                         {activeTab === 'details' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* CAMBIO: Hacemos clickeable el método de pago para editarlo rápido y mostramos "A definir" */}
-                                    <div
-                                        onClick={() => isAdmin && openPaymentModal()}
-                                        className={`p-3 bg-slate-50 rounded-lg border border-slate-100 ${isAdmin ? 'cursor-pointer hover:border-blue-300 transition-colors' : ''}`}
-                                    >
-                                        <div className="text-xs text-slate-400 mb-1 flex items-center gap-1">
-                                            Método {isAdmin && <Edit size={10} />}
-                                        </div>
-                                        <div className={`font-bold text-sm ${transaction.paymentMethod === 'unspecified' ? 'text-orange-600' : 'text-slate-700'}`}>
-                                            {transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : '❓ A definir'}
-                                        </div>
+                                    <div onClick={() => isAdmin && openPaymentModal()} className={`p-3 bg-slate-50 rounded-lg border border-slate-100 ${isAdmin ? 'cursor-pointer hover:border-blue-300' : ''}`}>
+                                        <div className="text-xs text-slate-400 mb-1">Método</div>
+                                        <div className={`font-bold text-sm ${transaction.paymentMethod === 'unspecified' ? 'text-orange-600' : 'text-slate-700'}`}>{transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : '❓ A definir'}</div>
                                     </div>
                                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700 text-sm">{dateObj.toLocaleDateString()}</div></div>
                                 </div>
-                                <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800 italic">{transaction.paymentNote || "Sin notas adicionales."}</div>
-                            </div>
-                        )}
-                        {activeTab === 'client' && (
-                            <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                                     <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
-                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente Registrado</div></div>
+                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente</div></div>
                                 </div>
-                                {clientData.phone && (
-                                    <a href={`https://wa.me/${clientData.phone.replace(/\D/g, '')}`} target="_blank" className="flex items-center justify-center gap-2 w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-lg font-bold hover:bg-green-100 transition-colors">
-                                        <MessageCircle size={18} /> WhatsApp ({clientData.phone})
-                                    </a>
-                                )}
-                                {clientData.address ? (
-                                    <div className="flex gap-2">
-                                        <div className="flex-1 flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
-                                            <MapPin size={18} className="text-slate-400" />
-                                            <span className="font-bold text-slate-700 text-sm">{clientData.address}</span>
-                                        </div>
-                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" className="w-14 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-100"><ExternalLink size={24} /></a>
-                                    </div>
-                                ) : <div className="p-3 border border-dashed text-center text-slate-400 rounded-lg text-sm">Sin dirección registrada</div>}
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* 3. FOOTER FIJO ABAJO (fixed bottom) */}
+                {/* Footer */}
                 {!showShareOptions && (
-                    <div className="fixed bottom-0 left-0 right-0 sm:absolute z-30 bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4">
+                    <div className="bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4 shrink-0">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
-                            <Share2 size={20} /> <span className="text-sm">Compartir</span>
+                            <Printer size={20} /> <span className="text-sm">Imprimir / Compartir</span>
                         </button>
                         {isAdmin && (
                             <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">

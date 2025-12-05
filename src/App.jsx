@@ -1,12 +1,13 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
-import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell, WifiOff } from 'lucide-react';
-import { serverTimestamp } from 'firebase/firestore'; // Solo necesitamos esto para el objeto de venta
+import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
+import { serverTimestamp } from 'firebase/firestore';
 
-// IMPORTS DE HOOKS (LA MAGIA ✨)
+// IMPORTS DE HOOKS
 import { useAuth } from './hooks/useAuth';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
+import { usePrinter } from './hooks/usePrinter'; // <--- ESTE ES EL ARCHIVO QUE FALTABA
 
 // COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -20,8 +21,6 @@ const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
 
-const NOTIFICATION_SOUND = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
-
 const TabLoader = () => (
   <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
     <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -29,7 +28,7 @@ const TabLoader = () => (
   </div>
 );
 
-// Helper de Imagen (podría ir a src/utils/helpers.js en el futuro)
+// Helper de Imagen
 const compressImage = (file, maxWidth = 500, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -56,7 +55,6 @@ const compressImage = (file, maxWidth = 500, quality = 0.7) => {
 };
 
 export default function App() {
-  // 1. ESTADO DE INTERFAZ (Lo único que debe quedar en App)
   const [activeTab, setActiveTab] = useState('pos');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showMobileCart, setShowMobileCart] = useState(false);
@@ -65,15 +63,15 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
-  // Modales
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
     store: false, stock: false, expense: false, logout: false, invitation: false
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // 2. INICIALIZAR HOOKS (Lógica de Negocio)
+  // INICIALIZAR HOOKS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
+
   const {
     products, categories, customers, expenses, storeProfile,
     addProduct, updateProduct, deleteProduct, addStock,
@@ -91,7 +89,10 @@ export default function App() {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
   } = useCart();
 
-  // 3. ESTADOS DE SELECCIÓN/EDICIÓN
+  // Inicializar hook de impresora
+  const printer = usePrinter();
+
+  // ESTADOS DE SELECCIÓN/EDICIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -99,7 +100,6 @@ export default function App() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [scannedProduct, setScannedProduct] = useState(null);
 
-  // Campos de Texto
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -112,7 +112,6 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // --- EFECTOS DE UI ---
   useEffect(() => {
     const handleStatus = () => {
       setIsOnline(navigator.onLine);
@@ -128,8 +127,6 @@ export default function App() {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
-
-  // --- HANDLERS CONECTADOS A LOS HOOKS ---
 
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
@@ -172,7 +169,7 @@ export default function App() {
     try {
       if (isRegistering) await register(form);
       else await login(form.email.value, form.password.value);
-    } catch (e) { } // Error manejado en hook
+    } catch (e) { }
   };
 
   const requestConfirm = (title, message, action, isDanger = false) => {
@@ -214,8 +211,6 @@ export default function App() {
     }
   };
 
-  // --- RENDERS ---
-
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;
 
   if (!user || !userData) {
@@ -246,7 +241,6 @@ export default function App() {
     );
   }
 
-  // --- APP PRINCIPAL ---
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
@@ -334,7 +328,18 @@ export default function App() {
 
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
-            <TransactionDetail transaction={selectedTransaction} onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }} onPrint={async (t) => { const m = await import('html2pdf.js'); const pdf = m.default; /* Lógica de impresión */ }} onShare={() => { }} onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)} customers={customers} onUpdate={updateTransaction} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} />
+            <TransactionDetail
+              transaction={selectedTransaction}
+              onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }}
+              printer={printer} // <--- PASAMOS LA IMPRESORA AQUÍ
+              storeProfile={storeProfile} // <--- PASAMOS EL PERFIL
+              onShare={() => { }}
+              onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
+              customers={customers}
+              onUpdate={updateTransaction}
+              onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
+              userData={userData}
+            />
           </Suspense>
         )}
 
@@ -349,7 +354,7 @@ export default function App() {
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
 
-        {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105]">¡Venta Exitosa!</div>}
+        {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><div className="flex gap-2"><button onClick={() => { if (lastTransactionId) { printer.printRawBT(lastTransactionId, storeProfile); } setShowCheckoutSuccess(false); }} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Ticket</button></div></div>}
       </div>
     </div>
   );
