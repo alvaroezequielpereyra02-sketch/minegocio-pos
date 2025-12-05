@@ -1,4 +1,39 @@
-const CACHE_NAME = 'minegocio-pos-v2';
+//
+
+// 1. CAMBIA LA VERSIÓN AQUÍ (Incrementa este número cada vez que subas cambios a producción)
+const CACHE_NAME = 'minegocio-pos-v3';
+
+// ... resto de tus assets ...
+
+self.addEventListener('install', (event) => {
+  // Obliga al SW a activarse inmediatamente sin esperar
+  self.skipWaiting();
+
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            // Borra la caché vieja (v2)
+            return caches.delete(key);
+          }
+        })
+      );
+    })
+  );
+  // Toma el control de todos los clientes abiertos inmediatamente
+  return self.clients.claim();
+});
+
+// ... resto del fetch ...
 const STATIC_ASSETS = [
   '/',
   '/index.html',

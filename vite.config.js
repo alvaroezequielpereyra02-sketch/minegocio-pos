@@ -7,10 +7,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    sourcemap: false,
     // Aumentamos el límite de advertencia a 1000kb (1MB)
-    chunkSizeWarningLimit: 1000, 
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id) {
           // Si el archivo viene de node_modules (librerías externas)
           if (id.includes('node_modules')) {
