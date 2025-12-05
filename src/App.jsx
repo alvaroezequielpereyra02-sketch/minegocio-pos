@@ -575,7 +575,29 @@ export default function App() {
     }
   };
 
-  // --- ACTUALIZACIÓN DE IMAGEN CON COMPRESIÓN ---
+  const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
+
+  const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
+
+  // --- FUNCIÓN AGREGADA QUE FALTABA ---
+  const handleDeleteExpense = async (id) => {
+    requestConfirm(
+      "¿Eliminar Gasto?",
+      "¿Seguro que deseas borrar este gasto?",
+      async () => await deleteDoc(doc(db, 'stores', appId, 'expenses', id)),
+      true
+    );
+  };
+
+  const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
+  const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if (editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e) { alert("Error"); } };
+  const handleSaveCategory = async (e) => { e.preventDefault(); if (e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
+
+  const handleDeleteProduct = async (id) => { requestConfirm("¿Eliminar Producto?", "¿Seguro que deseas borrar este producto?", async () => await deleteDoc(doc(db, 'stores', appId, 'products', id)), true); };
+  const handleDeleteCategory = async (id) => { requestConfirm("¿Eliminar Categoría?", "¿Seguro que deseas borrar esta categoría?", async () => await deleteDoc(doc(db, 'stores', appId, 'categories', id)), true); };
+  const handleDeleteCustomer = async (id) => { requestConfirm("¿Eliminar Cliente?", "¿Seguro que deseas borrar este cliente?", async () => await deleteDoc(doc(db, 'stores', appId, 'customers', id)), true); };
+
+  // --- FUNCIÓN ACTUALIZADA: COMPRIMIR ANTES DE SUBIR ---
   const handleFileChange = async (e) => {
     const f = e.target.files[0];
     if (f) {
