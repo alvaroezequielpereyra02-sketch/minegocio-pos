@@ -4,16 +4,14 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 // Importamos enableIndexedDbPersistence (versión compatibilidad antigua) o configuraciones nuevas según versión
 import { initializeFirestore, collection, addDoc, updateDoc, doc, getDoc, setDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy, limit, where, getDocs, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { Store, KeyRound, Plus, Phone, MapPin, Edit, Trash2, Tags, Image as ImageIcon, Box, LogOut, ShoppingCart, ChevronRight, Bell, Volume2, WifiOff } from 'lucide-react';
-// ELIMINADO: import html2pdf from 'html2pdf.js'; <-- Ya no lo importamos aquí arriba para no bloquear la carga inicial
 
-// IMPORTACIÓN DE COMPONENTES
+// IMPORTACIÓN DE COMPONENTES CRÍTICOS (Carga inmediata)
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-// Importamos los Modals normales (son ligeros o ya están agrupados)
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// Carga diferida (Lazy Loading) para componentes pesados
+// CARGA DIFERIDA (Lazy Loading) para componentes pesados
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -49,6 +47,37 @@ const TabLoader = () => (
     <span className="text-xs font-bold">Cargando...</span>
   </div>
 );
+
+// FUNCIÓN PARA COMPRIMIR IMÁGENES (Optimización)
+const compressImage = (file, maxWidth = 500, quality = 0.7) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Mantener proporción
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Exportar a JPG comprimido
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+    };
+  });
+};
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -546,20 +575,25 @@ export default function App() {
     }
   };
 
-  const handleUpdateStore = async (e) => { e.preventDefault(); const form = e.target; const finalImageUrl = imageMode === 'file' ? previewImage : (form.logoUrlLink?.value || ''); try { await setDoc(doc(db, 'stores', appId, 'settings', 'profile'), { name: form.storeName.value, logoUrl: finalImageUrl }); setIsStoreModalOpen(false); } catch (error) { alert("Error al guardar perfil"); } };
+  // --- ACTUALIZACIÓN DE IMAGEN CON COMPRESIÓN ---
+  const handleFileChange = async (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      if (!f.type.startsWith('image/')) return alert("Solo se permiten imágenes");
 
-  const handleSaveExpense = async (e) => { e.preventDefault(); const f = e.target; try { await addDoc(collection(db, 'stores', appId, 'expenses'), { description: f.description.value, amount: parseFloat(f.amount.value), date: serverTimestamp() }); setIsExpenseModalOpen(false); } catch (error) { alert("Error"); } };
-  const handleDeleteExpense = async (id) => { requestConfirm("¿Eliminar Gasto?", "¿Seguro que deseas borrar este gasto?", async () => await deleteDoc(doc(db, 'stores', appId, 'expenses', id)), true); };
+      try {
+        setIsProcessing(true);
+        const compressedBase64 = await compressImage(f);
+        setPreviewImage(compressedBase64);
+        setIsProcessing(false);
+      } catch (error) {
+        console.error("Error al comprimir:", error);
+        alert("Error al procesar la imagen");
+        setIsProcessing(false);
+      }
+    }
+  };
 
-  const handleSaveProduct = async (e) => { e.preventDefault(); const f = e.target; const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || ''); const d = { name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value), cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value), categoryId: f.category.value, imageUrl: img }; if (editingProduct) await updateDoc(doc(db, 'stores', appId, 'products', editingProduct.id), d); else await addDoc(collection(db, 'stores', appId, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); };
-  const handleSaveCustomer = async (e) => { e.preventDefault(); const f = e.target; const d = { name: f.name.value, phone: f.phone.value, address: f.address.value, email: f.email.value }; try { if (editingCustomer) await updateDoc(doc(db, 'stores', appId, 'customers', editingCustomer.id), d); else await addDoc(collection(db, 'stores', appId, 'customers'), { ...d, createdAt: serverTimestamp() }); setIsCustomerModalOpen(false); } catch (e) { alert("Error"); } };
-  const handleSaveCategory = async (e) => { e.preventDefault(); if (e.target.catName.value) { await addDoc(collection(db, 'stores', appId, 'categories'), { name: e.target.catName.value, createdAt: serverTimestamp() }); setIsCategoryModalOpen(false); } };
-
-  const handleDeleteProduct = async (id) => { requestConfirm("¿Eliminar Producto?", "¿Seguro que deseas borrar este producto?", async () => await deleteDoc(doc(db, 'stores', appId, 'products', id)), true); };
-  const handleDeleteCategory = async (id) => { requestConfirm("¿Eliminar Categoría?", "¿Seguro que deseas borrar esta categoría?", async () => await deleteDoc(doc(db, 'stores', appId, 'categories', id)), true); };
-  const handleDeleteCustomer = async (id) => { requestConfirm("¿Eliminar Cliente?", "¿Seguro que deseas borrar este cliente?", async () => await deleteDoc(doc(db, 'stores', appId, 'customers', id)), true); };
-
-  const handleFileChange = (e) => { const f = e.target.files[0]; if (f && f.size <= 800000) { const r = new FileReader(); r.onloadend = () => setPreviewImage(r.result); r.readAsDataURL(f); } };
   const handleOpenModal = (p = null) => { setEditingProduct(p); setPreviewImage(p?.imageUrl || ''); setImageMode(p?.imageUrl?.startsWith('data:') ? 'file' : 'link'); setIsProductModalOpen(true); };
   const handleBarcodeSubmit = (e) => { e.preventDefault(); if (!barcodeInput) return; const product = products.find(p => p.barcode === barcodeInput); if (product) { addToCart(product); setBarcodeInput(''); } else { alert("Producto no encontrado."); setBarcodeInput(''); } };
   const handleInventoryBarcodeSubmit = (e) => { e.preventDefault(); if (!inventoryBarcodeInput) return; const product = products.find(p => p.barcode === inventoryBarcodeInput); if (product) { setScannedProduct(product); setIsAddStockModalOpen(true); setTimeout(() => quantityInputRef.current?.focus(), 100); setInventoryBarcodeInput(''); } else { requestConfirm("Producto no existe", "¿Crear nuevo producto con este código?", () => { setEditingProduct({ barcode: inventoryBarcodeInput }); setIsProductModalOpen(true); }); setInventoryBarcodeInput(''); } };
