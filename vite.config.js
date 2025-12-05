@@ -7,11 +7,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: false,
+    sourcemap: false, // Desactiva sourcemaps en producción para ahorrar peso y evitar errores de 404 en mapas
     // Aumentamos el límite de advertencia a 1000kb (1MB)
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        // Asegura nombres de archivo predecibles para el caché busting
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',

@@ -1,6 +1,5 @@
-// 1. CAMBIA ESTA VERSIÓN CADA VEZ QUE SUBAS CAMBIOS (Ej: v6, v7...)
-// Subimos a v7 para asegurar que los celulares borren la versión con error
-const CACHE_NAME = 'minegocio-pos-v7';
+// 1. CAMBIA LA VERSIÓN AQUÍ (Incrementa este número cada vez que subas cambios a producción)
+const CACHE_NAME = 'minegocio-pos-v3';
 
 const STATIC_ASSETS = [
   '/',
@@ -8,80 +7,61 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/logo192.png',
   '/logo512.png',
+  // Importante: Cachear la librería externa de PDF
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
 ];
 
-// INSTALACIÓN: Cachea lo básico
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Fuerza al SW a activarse de inmediato
+  // Obliga al SW a activarse inmediatamente sin esperar
+  self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Cacheando assets estáticos');
       return cache.addAll(STATIC_ASSETS);
     })
   );
 });
 
-// ACTIVACIÓN: Borra cachés viejas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Borrando caché vieja:', key);
+            // Borra la caché vieja (v2)
             return caches.delete(key);
           }
         })
       );
     })
   );
-  return self.clients.claim(); // Toma el control de la página inmediatamente
+  // Toma el control de todos los clientes abiertos inmediatamente
+  return self.clients.claim();
 });
 
-// INTERCEPTOR DE RED (FETCH)
 self.addEventListener('fetch', (event) => {
-  // 1. CRÍTICO: Ignorar peticiones que NO sean GET (POST, PUT, DELETE, etc.)
-  // Intentar cachear un POST causa el error "Request method 'POST' is unsupported" y rompe la app.
-  if (event.request.method !== 'GET') return;
+  // Ignorar peticiones que no sean GET o que sean a chrome-extension
+  if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension')) return;
 
-  // 2. Ignoramos peticiones que no sean http (como chrome-extension)
-  if (!event.request.url.startsWith('http')) return;
-
-  // ESTRATEGIA CRÍTICA: Network First para el HTML (Navegación)
-  // Esto evita la pantalla blanca al obligar a buscar el index.html nuevo
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          // Solo si no hay internet, devuelve el de la caché
-          return caches.match('/index.html');
-        })
-    );
-    return;
-  }
-
-  // ESTRATEGIA: Stale-While-Revalidate para recursos estáticos (JS, CSS, Imágenes)
-  // Usa la caché para velocidad, pero actualiza en segundo plano
+  // Estrategia Stale-While-Revalidate para la mayoría de recursos
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
-        // Si la respuesta es válida, actualizamos la caché
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            // Doble chequeo: No cachear API calls de Firestore
-            if (!event.request.url.includes('firestore.googleapis.com')) {
-              cache.put(event.request, responseToCache);
-            }
-          });
-        }
+        // Clonar la respuesta porque solo se puede consumir una vez
+        const responseToCache = networkResponse.clone();
+
+        caches.open(CACHE_NAME).then((cache) => {
+          // No cachear las llamadas a la API de Firebase (Firestore lo maneja internamente)
+          if (!event.request.url.includes('firestore.googleapis.com')) {
+            cache.put(event.request, responseToCache);
+          }
+        });
         return networkResponse;
       }).catch(() => {
-        // Fallback silencioso si falla la red
+        // Si falla la red y no hay caché (ej: primera carga offline)
+        console.log("Offline y sin caché para:", event.request.url);
       });
 
-      // Devuelve la caché si existe, sino espera a la red
       return cachedResponse || fetchPromise;
     })
   );
