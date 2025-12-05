@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
 // Importamos enableIndexedDbPersistence (versión compatibilidad antigua) o configuraciones nuevas según versión
@@ -10,16 +10,15 @@ import html2pdf from 'html2pdf.js';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-import Dashboard from './components/Dashboard';
-import History from './components/History';
-import TransactionDetail from './components/TransactionDetail';
-import Orders from './components/Orders';
+// Importamos los Modals normales (son ligeros o ya están agrupados)
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// src/App.jsx
+// Carga diferida (Lazy Loading) para componentes pesados
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const History = lazy(() => import('./components/History'));
+const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
+const Orders = lazy(() => import('./components/Orders'));
 
-console.log("DEBUG API KEY:", import.meta.env.VITE_FIREBASE_API_KEY); // ESTO DEBE IMPRIMIR TU CLAVE
-console.log("DEBUG TODAS:", import.meta.env); // ESTO IMPRIME TODAS LAS VARIABLES
 // CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -42,6 +41,14 @@ const db = initializeFirestore(app, {
 
 const appId = 'tienda-principal';
 const NOTIFICATION_SOUND = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
+
+// Mini componente visual para mostrar mientras carga una sección
+const TabLoader = () => (
+  <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
+    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+    <span className="text-xs font-bold">Cargando...</span>
+  </div>
+);
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -603,8 +610,16 @@ export default function App() {
               {cart.length > 0 && !showMobileCart && (<button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-20 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal} <ChevronRight size={18} className="inline" /></div></button>)}
             </div>
           )}
-          {activeTab === 'dashboard' && userData.role === 'admin' && <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={setIsExpenseModalOpen} handleDeleteExpense={handleDeleteExpense} />}
-          {activeTab === 'orders' && userData.role === 'admin' && <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={handleQuickUpdateTransaction} />}
+          {activeTab === 'dashboard' && userData.role === 'admin' && (
+            <Suspense fallback={<TabLoader />}>
+              <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={setIsExpenseModalOpen} handleDeleteExpense={handleDeleteExpense} />
+            </Suspense>
+          )}
+          {activeTab === 'orders' && userData.role === 'admin' && (
+            <Suspense fallback={<TabLoader />}>
+              <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={handleQuickUpdateTransaction} />
+            </Suspense>
+          )}
           {activeTab === 'inventory' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
@@ -654,7 +669,9 @@ export default function App() {
             </div>
           )}
           {activeTab === 'transactions' && (
-            <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
+            <Suspense fallback={<TabLoader />}>
+              <History transactions={transactions} userData={userData} handleExportCSV={handleExportCSV} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={handleOpenTransactionDetail} />
+            </Suspense>
           )}
         </main>
 
@@ -662,17 +679,19 @@ export default function App() {
 
         {/* TransactionDetail MOVED outside main/nav for z-index */}
         {selectedTransaction && (
-          <TransactionDetail
-            transaction={selectedTransaction}
-            onClose={handleCloseTransactionDetail}
-            onPrint={handlePrintTicket}
-            onShare={handleShareWhatsApp}
-            onCancel={handleDeleteTransaction}
-            customers={customers}
-            onUpdate={handleQuickUpdateTransaction}
-            onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }}
-            userData={userData}
-          />
+          <Suspense fallback={<ProcessingModal />}>
+            <TransactionDetail
+              transaction={selectedTransaction}
+              onClose={handleCloseTransactionDetail}
+              onPrint={handlePrintTicket}
+              onShare={handleShareWhatsApp}
+              onCancel={handleDeleteTransaction}
+              customers={customers}
+              onUpdate={handleQuickUpdateTransaction}
+              onEditItems={(t) => { setEditingTransaction(t); setIsTransactionModalOpen(true); }}
+              userData={userData}
+            />
+          </Suspense>
         )}
 
         {/* Modales */}
