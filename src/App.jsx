@@ -16,6 +16,10 @@ import TransactionDetail from './components/TransactionDetail';
 import Orders from './components/Orders';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
+// src/App.jsx
+
+console.log("DEBUG API KEY:", import.meta.env.VITE_FIREBASE_API_KEY); // ESTO DEBE IMPRIMIR TU CLAVE
+console.log("DEBUG TODAS:", import.meta.env); // ESTO IMPRIME TODAS LAS VARIABLES
 // CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
