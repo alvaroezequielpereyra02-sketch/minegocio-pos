@@ -83,7 +83,7 @@ export default function App() {
 
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, balance
-  } = useTransactions(user, userData, products, expenses);
+  } = useTransactions(user, userData, products, expenses, categories);
 
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
