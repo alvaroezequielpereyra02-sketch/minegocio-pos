@@ -1,5 +1,6 @@
-// 1. CAMBIA ESTA VERSIÓN CADA VEZ QUE SUBAS CAMBIOS (Ej: v5, v6...)
-const CACHE_NAME = 'minegocio-pos-v5';
+// 1. CAMBIA ESTA VERSIÓN CADA VEZ QUE SUBAS CAMBIOS (Ej: v6, v7...)
+// Subimos a v7 para asegurar que los celulares borren la versión con error
+const CACHE_NAME = 'minegocio-pos-v7';
 
 const STATIC_ASSETS = [
   '/',
@@ -40,7 +41,11 @@ self.addEventListener('activate', (event) => {
 
 // INTERCEPTOR DE RED (FETCH)
 self.addEventListener('fetch', (event) => {
-  // Ignoramos peticiones que no sean http (como chrome-extension)
+  // 1. CRÍTICO: Ignorar peticiones que NO sean GET (POST, PUT, DELETE, etc.)
+  // Intentar cachear un POST causa el error "Request method 'POST' is unsupported" y rompe la app.
+  if (event.request.method !== 'GET') return;
+
+  // 2. Ignoramos peticiones que no sean http (como chrome-extension)
   if (!event.request.url.startsWith('http')) return;
 
   // ESTRATEGIA CRÍTICA: Network First para el HTML (Navegación)
@@ -65,6 +70,7 @@ self.addEventListener('fetch', (event) => {
         if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
+            // Doble chequeo: No cachear API calls de Firestore
             if (!event.request.url.includes('firestore.googleapis.com')) {
               cache.put(event.request, responseToCache);
             }
