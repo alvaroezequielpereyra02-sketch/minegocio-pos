@@ -13,14 +13,15 @@ import { usePrinter } from './hooks/usePrinter';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-import ImportModal from './components/ImportModal'; // <--- MODAL DE IMPORTACIÓN
+import ImportModal from './components/ImportModal';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// LAZY LOADING (Carga diferida para velocidad)
+// LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
+const Delivery = lazy(() => import('./components/Delivery')); // <--- NUEVO MODULO
 
 const TabLoader = () => (
   <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -29,7 +30,7 @@ const TabLoader = () => (
   </div>
 );
 
-// Helper de Imagen (Compresión)
+// Helper de Imagen
 const compressImage = (file, maxWidth = 500, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -56,7 +57,6 @@ const compressImage = (file, maxWidth = 500, quality = 0.7) => {
 };
 
 export default function App() {
-  // 1. ESTADO DE INTERFAZ
   const [activeTab, setActiveTab] = useState('pos');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showMobileCart, setShowMobileCart] = useState(false);
@@ -65,17 +65,16 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
-  // Estado para el filtro de fechas del Dashboard
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
     store: false, stock: false, expense: false, logout: false, invitation: false,
-    import: false // <--- NUEVO
+    import: false
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // 2. INICIALIZAR HOOKS
+  // INICIALIZAR HOOKS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
 
   const {
@@ -85,10 +84,9 @@ export default function App() {
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
     updateStoreProfile, generateInvitationCode,
-    importBatch // <--- Función de importación masiva
+    importBatch
   } = useInventory(user);
 
-  // Pasamos 'categories' y 'dashboardDateRange' para los cálculos avanzados
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
   } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
@@ -99,7 +97,6 @@ export default function App() {
 
   const printer = usePrinter();
 
-  // 3. ESTADOS DE SELECCIÓN/EDICIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -107,7 +104,6 @@ export default function App() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [scannedProduct, setScannedProduct] = useState(null);
 
-  // Campos de Texto
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -120,7 +116,6 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // --- EFECTOS DE UI ---
   useEffect(() => {
     const handleStatus = () => {
       setIsOnline(navigator.onLine);
@@ -137,26 +132,22 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN PROFESIONAL (CSV con BOM y Múltiples tablas) ---
+  // --- EXPORTAR CSV ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
-      // 1. Construir el CSV
-      let csvContent = "\uFEFF"; // BOM para tildes en Excel
+      let csvContent = "\uFEFF";
 
-      // Encabezado del reporte
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
 
-      // Resumen Financiero
       csvContent += "METRICAS DEL PERIODO\n";
       csvContent += `Ventas Totales,$${balance.periodSales}\n`;
       csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
       csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
       csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
 
-      // Desglose por Categoría (Datos del gráfico de torta)
       csvContent += "VENTAS POR CATEGORIA\n";
       csvContent += "Categoría,Monto Vendido\n";
       balance.salesByCategory.forEach(cat => {
@@ -164,7 +155,6 @@ export default function App() {
       });
       csvContent += "\n";
 
-      // Desglose de Gastos
       csvContent += "GASTOS DETALLADOS\n";
       csvContent += "Fecha,Descripción,Monto\n";
       expenses.forEach(e => {
@@ -172,17 +162,15 @@ export default function App() {
       });
       csvContent += "\n";
 
-      // Lista de Transacciones (Detalle)
       csvContent += "DETALLE DE TRANSACCIONES\n";
       csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`; // Escapar comillas
+        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
-      // 2. Descargar archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -192,18 +180,17 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
-      // 3. Ofrecer Limpieza (Purgado)
       setTimeout(() => {
         requestConfirm(
           "¿Limpiar Base de Datos?",
-          "✅ Reporte descargado correctamente.\n\n¿Quieres borrar el historial de ventas y gastos antiguo para liberar espacio?\n(Esto NO borra productos ni clientes)",
+          "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
           async () => {
             setIsProcessing(true);
             await purgeTransactions();
             setIsProcessing(false);
-            showNotification("🧹 Historial limpiado con éxito");
+            showNotification("🧹 Historial limpiado");
           },
-          true // Color rojo (Peligro)
+          true
         );
       }, 1500);
 
@@ -213,7 +200,6 @@ export default function App() {
     }
   };
 
-  // --- CHECKOUT Y LOGICA DE VENTA ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
@@ -297,7 +283,6 @@ export default function App() {
     }
   };
 
-  // --- RENDERIZADO LOGIN ---
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;
 
   if (!user || !userData) {
@@ -328,7 +313,6 @@ export default function App() {
     );
   }
 
-  // --- RENDERIZADO APP PRINCIPAL ---
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
@@ -364,8 +348,19 @@ export default function App() {
                 expenses={expenses}
                 setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
                 handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dashboardDateRange} // PROPS NUEVAS
-                setDateRange={setDashboardDateRange} // PROPS NUEVAS
+                dateRange={dashboardDateRange}
+                setDateRange={setDashboardDateRange}
+              />
+            </Suspense>
+          )}
+
+          {/* AQUI AGREGAMOS LA NUEVA SECCIÓN DE REPARTO */}
+          {activeTab === 'delivery' && userData.role === 'admin' && (
+            <Suspense fallback={<TabLoader />}>
+              <Delivery
+                transactions={transactions}
+                customers={customers}
+                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
               />
             </Suspense>
           )}
@@ -420,7 +415,7 @@ export default function App() {
               <History
                 transactions={transactions}
                 userData={userData}
-                handleExportCSV={handleExportData} // USA LA NUEVA FUNCIÓN
+                handleExportCSV={handleExportData}
                 historySection={historySection}
                 setHistorySection={setHistorySection}
                 onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
