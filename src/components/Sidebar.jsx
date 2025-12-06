@@ -79,12 +79,11 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
+// CORRECCIÓN DEFINITIVA: Sin padding extra, forzando altura y posición
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
-    // CAMBIO CLAVE: 'pb-[env(safe-area-inset-bottom)]' agrega el relleno de seguridad DENTRO de la barra.
-    // 'h-auto' permite que la barra crezca lo necesario.
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center h-16 overflow-x-auto px-2 gap-1 no-scrollbar">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex items-center">
+      <div className="flex items-center w-full h-full overflow-x-auto px-2 gap-1 no-scrollbar">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
