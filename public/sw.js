@@ -12,32 +12,33 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Obliga al SW a activarse inmediatamente sin esperar
+  // Obliga al SW a activarse inmediatamente, reemplazando al anterior
   self.skipWaiting();
 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      // Intentamos cachear, pero si falla uno no detenemos la instalación
+      return cache.addAll(STATIC_ASSETS).catch(err => console.log("Error caching assets", err));
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
+  // Toma el control de todos los clientes abiertos inmediatamente (sin recargar)
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            // Borra la caché vieja (v2)
+            console.log('Borrando caché antigua:', key);
             return caches.delete(key);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // IMPORTANTE: Reclama el control de la página de inmediato
   );
-  // Toma el control de todos los clientes abiertos inmediatamente
-  return self.clients.claim();
 });
+
 
 self.addEventListener('fetch', (event) => {
   // Ignorar peticiones que no sean GET o que sean a chrome-extension
