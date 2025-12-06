@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
-import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
+import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, Box } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE HOOKS
@@ -13,9 +13,10 @@ import { usePrinter } from './hooks/usePrinter';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
+import ImportModal from './components/ImportModal'; // <--- MODAL DE IMPORTACIÓN
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// LAZY LOADING
+// LAZY LOADING (Carga diferida para velocidad)
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -28,7 +29,7 @@ const TabLoader = () => (
   </div>
 );
 
-// Helper de Imagen
+// Helper de Imagen (Compresión)
 const compressImage = (file, maxWidth = 500, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -55,6 +56,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.7) => {
 };
 
 export default function App() {
+  // 1. ESTADO DE INTERFAZ
   const [activeTab, setActiveTab] = useState('pos');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showMobileCart, setShowMobileCart] = useState(false);
@@ -63,16 +65,17 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
-  // NUEVO ESTADO PARA EL RANGO DE FECHAS (Semana/Mes)
+  // Estado para el filtro de fechas del Dashboard
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
-    store: false, stock: false, expense: false, logout: false, invitation: false
+    store: false, stock: false, expense: false, logout: false, invitation: false,
+    import: false // <--- NUEVO
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // INICIALIZAR HOOKS
+  // 2. INICIALIZAR HOOKS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
 
   const {
@@ -81,10 +84,11 @@ export default function App() {
     addCategory, deleteCategory,
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
-    updateStoreProfile, generateInvitationCode
+    updateStoreProfile, generateInvitationCode,
+    importBatch // <--- Función de importación masiva
   } = useInventory(user);
 
-  // Pasamos dateRange al hook de transacciones
+  // Pasamos 'categories' y 'dashboardDateRange' para los cálculos avanzados
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
   } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
@@ -95,7 +99,7 @@ export default function App() {
 
   const printer = usePrinter();
 
-  // ESTADOS DE SELECCIÓN/EDICIÓN
+  // 3. ESTADOS DE SELECCIÓN/EDICIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -103,6 +107,7 @@ export default function App() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [scannedProduct, setScannedProduct] = useState(null);
 
+  // Campos de Texto
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -115,6 +120,7 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
+  // --- EFECTOS DE UI ---
   useEffect(() => {
     const handleStatus = () => {
       setIsOnline(navigator.onLine);
@@ -131,24 +137,26 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
+  // --- FUNCIÓN DE EXPORTACIÓN PROFESIONAL (CSV con BOM y Múltiples tablas) ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
-      // 1. Construir el CSV con Múltiples Secciones
-      let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
+      // 1. Construir el CSV
+      let csvContent = "\uFEFF"; // BOM para tildes en Excel
 
-      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
+      // Encabezado del reporte
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
 
+      // Resumen Financiero
       csvContent += "METRICAS DEL PERIODO\n";
       csvContent += `Ventas Totales,$${balance.periodSales}\n`;
       csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
       csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
       csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
 
+      // Desglose por Categoría (Datos del gráfico de torta)
       csvContent += "VENTAS POR CATEGORIA\n";
       csvContent += "Categoría,Monto Vendido\n";
       balance.salesByCategory.forEach(cat => {
@@ -156,6 +164,7 @@ export default function App() {
       });
       csvContent += "\n";
 
+      // Desglose de Gastos
       csvContent += "GASTOS DETALLADOS\n";
       csvContent += "Fecha,Descripción,Monto\n";
       expenses.forEach(e => {
@@ -163,18 +172,17 @@ export default function App() {
       });
       csvContent += "\n";
 
-      // SECCIÓN B: LISTA DE TRANSACCIONES
+      // Lista de Transacciones (Detalle)
       csvContent += "DETALLE DE TRANSACCIONES\n";
       csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        // Escapar comillas para CSV
-        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
+        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`; // Escapar comillas
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
-      // 2. Descargar
+      // 2. Descargar archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -184,18 +192,18 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
-      // 3. Ofrecer Purgar (Limpiar Base de Datos)
+      // 3. Ofrecer Limpieza (Purgado)
       setTimeout(() => {
         requestConfirm(
           "¿Limpiar Base de Datos?",
-          "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
+          "✅ Reporte descargado correctamente.\n\n¿Quieres borrar el historial de ventas y gastos antiguo para liberar espacio?\n(Esto NO borra productos ni clientes)",
           async () => {
             setIsProcessing(true);
             await purgeTransactions();
             setIsProcessing(false);
-            showNotification("🧹 Historial limpiado");
+            showNotification("🧹 Historial limpiado con éxito");
           },
-          true // Es peligroso (Rojo)
+          true // Color rojo (Peligro)
         );
       }, 1500);
 
@@ -205,6 +213,7 @@ export default function App() {
     }
   };
 
+  // --- CHECKOUT Y LOGICA DE VENTA ---
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
@@ -288,6 +297,7 @@ export default function App() {
     }
   };
 
+  // --- RENDERIZADO LOGIN ---
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;
 
   if (!user || !userData) {
@@ -318,6 +328,7 @@ export default function App() {
     );
   }
 
+  // --- RENDERIZADO APP PRINCIPAL ---
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
@@ -353,8 +364,8 @@ export default function App() {
                 expenses={expenses}
                 setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
                 handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dashboardDateRange} // Nuevo
-                setDateRange={setDashboardDateRange} // Nuevo
+                dateRange={dashboardDateRange} // PROPS NUEVAS
+                setDateRange={setDashboardDateRange} // PROPS NUEVAS
               />
             </Suspense>
           )}
@@ -370,6 +381,9 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
+                  {/* BOTÓN IMPORTAR */}
+                  <button onClick={() => toggleModal('import', true)} className="bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-purple-200 transition-colors"><Box size={16} /> Importar</button>
+
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
@@ -406,7 +420,7 @@ export default function App() {
               <History
                 transactions={transactions}
                 userData={userData}
-                handleExportCSV={handleExportData} // <--- AHORA USA LA FUNCIÓN MEJORADA
+                handleExportCSV={handleExportData} // USA LA NUEVA FUNCIÓN
                 historySection={historySection}
                 setHistorySection={setHistorySection}
                 onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
@@ -435,6 +449,7 @@ export default function App() {
         )}
 
         {/* MODALES CONECTADOS A LOS HOOKS */}
+        {modals.import && <ImportModal onClose={() => toggleModal('import', false)} onImport={importBatch} />}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
         {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
         {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
