@@ -7,6 +7,7 @@
     /* Cambia height: 100% por esto para móviles */
     min-height: 100dvh;
     height: 100dvh;
+    color-scheme: light;
     /* Evitar rebote */
     overscroll-behavior-y: none;
 }
