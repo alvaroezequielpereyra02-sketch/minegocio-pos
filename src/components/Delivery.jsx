@@ -142,11 +142,11 @@ export default function Delivery({ transactions, customers, onUpdateTransaction 
                     ))}
                 </div>
 
-                <div className="p-4 bg-white border-t">
+                <div className="p-4 bg-white border-t pb-24 lg:pb-4 transition-all">
                     <button
                         onClick={() => setViewMode('route')}
                         disabled={selectedIds.size === 0}
-                        className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50 disabled:shadow-none flex justify-center items-center gap-2"
+                        className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50 disabled:shadow-none flex justify-center items-center gap-2 active:scale-95 transition-transform"
                     >
                         <Navigation size={20} /> Iniciar Recorrido ({selectedIds.size})
                     </button>
