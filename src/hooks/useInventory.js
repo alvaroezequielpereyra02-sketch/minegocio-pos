@@ -50,7 +50,14 @@ export const useInventory = (user) => {
         await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: product.stock + qty });
     };
 
-    const addCategory = async (name) => addDoc(collection(db, 'stores', appId, 'categories'), { name, createdAt: serverTimestamp() });
+    // --- MODIFICADO: Aceptamos parentId ---
+    const addCategory = async (name, parentId = null) =>
+        addDoc(collection(db, 'stores', appId, 'categories'), {
+            name,
+            parentId,
+            createdAt: serverTimestamp()
+        });
+
     const deleteCategory = async (id) => deleteDoc(doc(db, 'stores', appId, 'categories', id));
 
     const addCustomer = async (data) => addDoc(collection(db, 'stores', appId, 'customers'), { ...data, createdAt: serverTimestamp() });
@@ -68,29 +75,25 @@ export const useInventory = (user) => {
         return code;
     };
 
-    // --- NUEVO: IMPORTACIÓN MASIVA ---
+    // --- IMPORTACIÓN MASIVA ---
     const importBatch = async (jsonData) => {
         const batch = writeBatch(db);
         const timestamp = new Date();
 
-        // 1. Obtener categorías actuales para no duplicar
         const catsSnapshot = await getDocs(collection(db, 'stores', appId, 'categories'));
         const existingCats = {};
         catsSnapshot.forEach(doc => existingCats[doc.data().name.toLowerCase()] = doc.id);
 
-        // 2. Procesar cada producto
         for (const item of jsonData) {
             let catId = 'uncategorized';
             const catName = item.category || 'General';
 
-            // Buscar o Crear Categoría en memoria (Nota: en un caso real idealmente crearíamos las cats antes)
-            // Para simplificar, si la categoría no existe en el mapa local, generamos un ID nuevo
             if (existingCats[catName.toLowerCase()]) {
                 catId = existingCats[catName.toLowerCase()];
             } else {
                 const newCatRef = doc(collection(db, 'stores', appId, 'categories'));
                 batch.set(newCatRef, { name: catName, createdAt: timestamp });
-                existingCats[catName.toLowerCase()] = newCatRef.id; // Guardar para reusar
+                existingCats[catName.toLowerCase()] = newCatRef.id;
                 catId = newCatRef.id;
             }
 
@@ -117,6 +120,6 @@ export const useInventory = (user) => {
         addCustomer, updateCustomer, deleteCustomer,
         addExpense, deleteExpense,
         updateStoreProfile, generateInvitationCode,
-        importBatch // <--- Exportamos la nueva función
+        importBatch
     };
 };

@@ -21,7 +21,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
-const Delivery = lazy(() => import('./components/Delivery')); // <--- NUEVO MODULO
+const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
   <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -354,7 +354,6 @@ export default function App() {
             </Suspense>
           )}
 
-          {/* AQUI AGREGAMOS LA NUEVA SECCIÓN DE REPARTO */}
           {activeTab === 'delivery' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
               <Delivery
@@ -376,9 +375,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
-                  {/* BOTÓN IMPORTAR */}
                   <button onClick={() => toggleModal('import', true)} className="bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-purple-200 transition-colors"><Box size={16} /> Importar</button>
-
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
@@ -446,8 +443,36 @@ export default function App() {
         {/* MODALES CONECTADOS A LOS HOOKS */}
         {modals.import && <ImportModal onClose={() => toggleModal('import', false)} onImport={importBatch} />}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
+
+        {modals.product && (
+          <ProductModal
+            onClose={() => toggleModal('product', false)}
+            onSave={handleSaveProductWrapper}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)}
+            editingProduct={editingProduct}
+            imageMode={imageMode}
+            setImageMode={setImageMode}
+            previewImage={previewImage}
+            setPreviewImage={setPreviewImage}
+            handleFileChange={handleFileChange}
+            categories={categories}
+          />
+        )}
+
+        {modals.category && (
+          <CategoryModal
+            onClose={() => toggleModal('category', false)}
+            onSave={async (name, parentId) => {
+              if (name) {
+                await addCategory(name, parentId);
+                toggleModal('category', false);
+              }
+            }}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)}
+            categories={categories}
+          />
+        )}
+
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
         {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
