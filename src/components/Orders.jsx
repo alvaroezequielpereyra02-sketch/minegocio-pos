@@ -5,8 +5,6 @@ import html2pdf from 'html2pdf.js';
 export default function Orders({ transactions, products, categories, onUpdateTransaction }) {
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
-
-    // Estado local para manejar la edición de cantidad INLINE
     const [editingItem, setEditingItem] = useState({ orderId: null, itemIndex: null, qty: 0 });
 
     // 1. FILTRAR PEDIDOS ACTIVOS
@@ -83,19 +81,15 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         html2pdf().set({ margin: 10, filename: `stock_faltante.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4' } }).from(element).save();
     };
 
-    // --- LÓGICA DE ESTADO AUTOMÁTICO (En Proceso) ---
+    // --- LÓGICA DE ESTADO AUTOMÁTICO ---
     const calculateNewStatus = (items) => {
         const totalReq = items.reduce((acc, i) => acc + i.qty, 0);
         const totalPack = items.reduce((acc, i) => acc + (i.packedQty || 0), 0);
-
-        // Si hay algo empacado pero no todo, o si está lleno pero aún no confirmado como 'ready'
         if (totalPack > 0 && totalPack < totalReq) return 'partial';
-        if (totalPack >= totalReq) return 'partial'; // Se queda en parcial hasta que el humano confirme "Listo"
-
+        if (totalPack >= totalReq) return 'partial';
         return 'pending';
     };
 
-    // 3. MANEJO DE EDICIÓN VISUAL (Cantidades)
     const startEditing = (orderId, idx, currentQty) => {
         setEditingItem({ orderId, itemIndex: idx, qty: currentQty });
     };
@@ -104,79 +98,49 @@ export default function Orders({ transactions, products, categories, onUpdateTra
         const { itemIndex, qty } = editingItem;
         const newItems = [...order.items];
         const item = newItems[itemIndex];
-
-        // Validar que no sea negativo
         let finalQty = Math.max(0, qty);
 
-        // Actualizamos lo empacado
         newItems[itemIndex] = {
             ...item,
             packedQty: finalQty,
-            packed: finalQty === item.qty // Solo visual, no determinante
+            packed: finalQty === item.qty
         };
 
-        // Calculamos estado automático para moverlo a "En Proceso" si corresponde
         const newStatus = calculateNewStatus(newItems);
-
         await onUpdateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
         setEditingItem({ orderId: null, itemIndex: null, qty: 0 });
     };
 
-    // Tilde rápido (0 -> Todo -> 0)
     const handleQuickToggle = async (order, idx) => {
         const item = order.items[idx];
         const currentPacked = item.packedQty || 0;
-        // Si ya tiene algo empacado, lo ponemos a 0. Si está en 0, lo llenamos al máximo (qty)
         const nextQty = currentPacked > 0 ? 0 : item.qty;
-
         const newItems = [...order.items];
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
-
         const newStatus = calculateNewStatus(newItems);
-
         await onUpdateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
     };
 
-    // --- LÓGICA DE CONFIRMACIÓN FINAL (Sincronizar Boleta) ---
     const updateStatus = async (transaction, newStatus) => {
         let updateData = { fulfillmentStatus: newStatus };
-
-        // Al marcar como "Listo" o "Entregado", reescribimos la boleta oficial
         if (newStatus === 'ready' || newStatus === 'delivered') {
-
             const confirmedItems = transaction.items.map(item => {
-                // Si packedQty existe (se tocó), usamos eso. Si no, asumimos 0 (si se confirma sin tocar nada) 
-                // OJO: Si quieres asumir que "Confirmar" sin tocar nada significa "Todo completo", cambia el 0 por item.qty abajo.
-                // En tu lógica de "me faltó 1", asumiremos que lo que dice packedQty es la verdad absoluta.
-
                 const finalQuantity = (item.packedQty !== undefined) ? item.packedQty : 0;
-
-                return {
-                    ...item,
-                    qty: finalQuantity, // <-- Aquí ocurre la magia: La cantidad pedida ahora es la cantidad entregada
-                    packedQty: finalQuantity,
-                    packed: true
-                };
-            }).filter(item => item.qty > 0); // Opcional: Si quedó en 0, lo quitamos de la boleta para limpiar? O lo dejamos en 0?
-            // Si prefieres dejarlo en 0, quita el .filter()
-
-            // Recalcular el TOTAL monetario de la transacción con las nuevas cantidades
+                return { ...item, qty: finalQuantity, packedQty: finalQuantity, packed: true };
+            }).filter(item => item.qty > 0);
             const newTotal = confirmedItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
-
             updateData.items = confirmedItems;
             updateData.total = newTotal;
-
-            // Ajustar deuda si es necesario
             if (transaction.paymentStatus === 'paid') {
-                updateData.amountPaid = newTotal; // Si ya pagó, asumimos que se ajusta el saldo
+                updateData.amountPaid = newTotal;
             }
         }
-
         await onUpdateTransaction(transaction.id, updateData);
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0 bg-slate-50 -m-4">
+        // CAMBIO: Quitamos 'pb-20' del padre
+        <div className="flex flex-col h-full overflow-hidden bg-slate-50 -m-4">
             {/* Header Fijo */}
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3">
                 <div className="flex justify-between items-center">
@@ -186,7 +150,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                         {totalMissingItems > 0 && <span className="bg-red-600 text-white text-[10px] px-1.5 rounded-full animate-pulse">{totalMissingItems}</span>}
                     </button>
                 </div>
-                {/* Filtros */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {[{ id: 'all', l: 'Todos' }, { id: 'pending', l: 'Pendientes' }, { id: 'partial', l: 'En Proceso' }, { id: 'ready', l: 'Listos' }].map(t => (
                         <button key={t.id} onClick={() => setFilterStatus(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>{t.l}</button>
@@ -199,21 +162,18 @@ export default function Orders({ transactions, products, categories, onUpdateTra
             </div>
 
             {/* Lista de Pedidos */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* CAMBIO: Agregamos 'pb-24' AQUÍ, al contenedor scrolleable */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
                 {filteredOrders.length === 0 && <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center"><ClipboardList size={48} className="mb-2 opacity-20" /><p>No hay pedidos en esta vista.</p></div>}
 
                 {filteredOrders.map(order => {
-                    // Calculamos progreso visual
                     const totalReq = order.items.reduce((a, i) => a + i.qty, 0);
-                    // Usamos packedQty si existe, sino 0 para visualización inicial
                     const totalPack = order.items.reduce((a, i) => a + (i.packedQty || 0), 0);
-
                     const progress = totalReq > 0 ? Math.round((totalPack / totalReq) * 100) : 0;
                     const status = order.fulfillmentStatus || 'pending';
 
                     return (
                         <div key={order.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${status === 'ready' ? 'border-green-300 shadow-md' : status === 'partial' ? 'border-orange-200' : 'border-slate-200'}`}>
-
                             {/* Cabecera Pedido */}
                             <div className={`p-3 border-b border-slate-100 flex justify-between items-center ${status === 'ready' ? 'bg-green-50' : 'bg-slate-50/50'}`}>
                                 <div>
@@ -227,52 +187,29 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                     <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border inline-block mb-1 ${status === 'ready' ? 'bg-green-100 text-green-700 border-green-200' : status === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-white text-slate-500 border-slate-200'}`}>
                                         {status === 'ready' ? 'Listo' : status === 'partial' ? 'En Proceso' : 'Pendiente'}
                                     </div>
-                                    {/* Barra Progreso */}
                                     <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : progress > 0 ? 'bg-blue-500' : 'bg-slate-300'}`} style={{ width: `${progress}%` }}></div></div>
                                 </div>
                             </div>
 
-                            {/* LISTA DE ITEMS (Checklist) */}
+                            {/* LISTA DE ITEMS */}
                             <div className="divide-y divide-slate-50">
                                 {order.items.map((item, idx) => {
-                                    // packedQty es la verdad de la milanesa en el armado. Si no existe, es 0.
                                     const packed = item.packedQty !== undefined ? item.packedQty : 0;
-
                                     const isEditing = editingItem.orderId === order.id && editingItem.itemIndex === idx;
                                     const isComplete = packed === item.qty;
                                     const isPartial = packed > 0 && packed < item.qty;
-
-                                    // Visualmente tachado si se completó lo pedido
-                                    // Visualmente alerta si se empacó menos de lo pedido pero ya se cerró la edición
                                     const isShort = packed < item.qty && packed > 0;
 
                                     return (
                                         <div key={idx} className={`flex items-center p-3 gap-3 transition-colors ${isComplete ? 'bg-green-50/30' : isPartial ? 'bg-orange-50' : 'hover:bg-slate-50'}`}>
-
-                                            {/* 1. Checkbox (Tocar para completar todo o vaciar) */}
-                                            <button
-                                                onClick={() => handleQuickToggle(order, idx)}
-                                                className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 active:scale-90 shadow-sm ${isComplete ? 'bg-green-500 border-green-500 text-white' : isPartial ? 'bg-white border-orange-400 text-orange-500' : 'bg-white border-slate-200 text-transparent'}`}
-                                            >
+                                            <button onClick={() => handleQuickToggle(order, idx)} className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 active:scale-90 shadow-sm ${isComplete ? 'bg-green-500 border-green-500 text-white' : isPartial ? 'bg-white border-orange-400 text-orange-500' : 'bg-white border-slate-200 text-transparent'}`}>
                                                 {isComplete ? <CheckSquare size={20} strokeWidth={3} /> : isPartial ? <span className="font-bold text-sm">!</span> : null}
                                             </button>
-
-                                            {/* 2. Nombre del Producto y Estado */}
                                             <div className="flex-1 min-w-0" onClick={() => !isEditing && startEditing(order.id, idx, packed)}>
-                                                <div className={`font-medium text-sm leading-tight ${isComplete ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                                                    {item.name}
-                                                </div>
-                                                {isShort && !isEditing && (
-                                                    <div className="text-xs text-orange-600 font-bold mt-0.5">
-                                                        Solo {packed} de {item.qty}
-                                                    </div>
-                                                )}
-                                                {packed === 0 && !isEditing && (
-                                                    <div className="text-xs text-slate-400 mt-0.5">Pendiente de armar</div>
-                                                )}
+                                                <div className={`font-medium text-sm leading-tight ${isComplete ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{item.name}</div>
+                                                {isShort && !isEditing && (<div className="text-xs text-orange-600 font-bold mt-0.5">Solo {packed} de {item.qty}</div>)}
+                                                {packed === 0 && !isEditing && (<div className="text-xs text-slate-400 mt-0.5">Pendiente de armar</div>)}
                                             </div>
-
-                                            {/* 3. Control de Cantidad (Editable) */}
                                             {isEditing ? (
                                                 <div className="flex items-center bg-white border border-blue-500 rounded-lg shadow-md overflow-hidden animate-in zoom-in-95 duration-150">
                                                     <button onClick={() => setEditingItem(prev => ({ ...prev, qty: Math.max(0, prev.qty - 1) }))} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600"><Minus size={14} /></button>
@@ -281,10 +218,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                                     <button onClick={() => saveEditing(order)} className="p-2 bg-blue-600 text-white hover:bg-blue-700"><Save size={14} /></button>
                                                 </div>
                                             ) : (
-                                                <button
-                                                    onClick={() => startEditing(order.id, idx, packed)}
-                                                    className={`flex flex-col items-end justify-center px-3 py-1 rounded-lg border min-w-[60px] transition-all active:scale-95 ${isComplete ? 'border-green-200 bg-green-50 text-green-800' : isPartial ? 'border-orange-300 bg-white text-orange-700 shadow-sm' : 'border-slate-200 bg-white text-slate-500'}`}
-                                                >
+                                                <button onClick={() => startEditing(order.id, idx, packed)} className={`flex flex-col items-end justify-center px-3 py-1 rounded-lg border min-w-[60px] transition-all active:scale-95 ${isComplete ? 'border-green-200 bg-green-50 text-green-800' : isPartial ? 'border-orange-300 bg-white text-orange-700 shadow-sm' : 'border-slate-200 bg-white text-slate-500'}`}>
                                                     <div className="text-sm font-extrabold">{packed}/{item.qty}</div>
                                                     <div className="text-[10px] uppercase font-bold opacity-60">Unid.</div>
                                                 </button>
@@ -294,7 +228,6 @@ export default function Orders({ transactions, products, categories, onUpdateTra
                                 })}
                             </div>
 
-                            {/* Footer Acciones */}
                             {status !== 'ready' && (
                                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-end">
                                     <button onClick={() => updateStatus(order, 'ready')} className="w-full py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-600 font-bold text-sm hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all flex items-center justify-center gap-2">
