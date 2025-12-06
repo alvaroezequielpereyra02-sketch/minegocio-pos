@@ -82,7 +82,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 // CORRECCIÓN DEFINITIVA: Estructura simple sin safe-area padding
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
       <nav className="flex items-center h-16 overflow-x-auto px-2 gap-1 no-scrollbar">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 

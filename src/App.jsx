@@ -314,7 +314,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
