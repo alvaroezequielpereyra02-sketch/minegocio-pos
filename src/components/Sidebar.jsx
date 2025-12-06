@@ -40,7 +40,6 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
               <ClipboardList size={20} /> Pedidos
             </button>
 
-            {/* NUEVO BOTÓN REPARTO */}
             <button onClick={() => setActiveTab('delivery')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'delivery' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Truck size={20} /> Reparto
             </button>
@@ -82,13 +81,14 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
-      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar">
+    // CAMBIO CLAVE: 'pb-[env(safe-area-inset-bottom)]' agrega el relleno de seguridad DENTRO de la barra.
+    // 'h-auto' permite que la barra crezca lo necesario.
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center h-16 overflow-x-auto px-2 gap-1 no-scrollbar">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-        {/* NUEVO BOTÓN MÓVIL */}
         {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={24} />} label="Reparto" />}
 
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
