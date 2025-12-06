@@ -79,7 +79,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// CORRECCIÓN APLICADA: Estructura div > nav limpia sin etiquetas sueltas
+// CORRECCIÓN DEFINITIVA: Estructura simple sin safe-area padding
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
