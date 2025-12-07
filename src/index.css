@@ -3,36 +3,27 @@
 @tailwind utilities;
 
 :root {
-    /* Forzar modo claro para que los iconos del sistema (batería, botones) sean negros/visibles */
+    /* Forzar modo claro */
     color-scheme: light;
-    /* Desactivar rebote elástico */
-    overscroll-behavior-y: none;
+    /* Altura dinámica real */
+    min-height: 100dvh;
+    height: 100dvh;
 }
 
 html {
-    /* SOLUCIÓN AL FONDO DE PANTALLA: */
-    /* 1. Pintamos la raíz del mismo color que la app para tapar cualquier hueco transparente */
-    background-color: #f1f5f9;
-    /* 2. Forzamos que ocupe al menos toda la altura física */
-    min-height: 100vh;
+    background-color: #ffffff;
+    /* Evitar rebotes que muestren el wallpaper */
+    overscroll-behavior-y: none;
     height: 100%;
     width: 100%;
-    overflow: hidden;
-    /* Evitar doble scroll */
 }
 
 body {
-    /* ESTRATEGIA "APP SHELL": */
-    /* Posición fija para anclar la app a la pantalla y evitar que se mueva */
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
     margin: 0;
     padding: 0;
-
-    /* Color de fondo redundante por seguridad */
+    /* Asegurar que el cuerpo ocupe todo el espacio vertical disponible */
+    min-height: 100dvh;
+    width: 100%;
     background-color: #f1f5f9;
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -47,21 +38,25 @@ body {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+
+    /* Fijar posición para evitar scroll del body */
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
 }
 
 #root {
-    width: 100%;
     height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
+    /* Fondo extra por si acaso */
+    background-color: #f1f5f9;
 }
 
-input,
-textarea {
-    -webkit-user-select: text;
-    user-select: text;
-}
-
+/* Ocultar barras de scroll */
 ::-webkit-scrollbar {
     display: none;
 }
