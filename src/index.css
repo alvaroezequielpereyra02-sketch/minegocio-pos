@@ -1,31 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-
 :root {
-    /* Cambia height: 100% por esto para móviles */
-    min-height: 100dvh;
-    height: 100dvh;
+    /* Usamos 100vh para forzar el pintado detrás de la barra de sistema */
+    min-height: 100vh;
+    height: 100vh;
     color-scheme: light;
-    /* Evitar rebote */
     overscroll-behavior-y: none;
 }
 
-
 html {
-    height: 100dvh;
-    /* IMPORTANTE: El color de fondo debe estar en HTML para cubrir "rebotes" */
+    /* Importante: height 100vh asegura que el canvas cubra todo */
+    height: 100vh;
     background-color: #f1f5f9;
 }
 
-
 body {
     margin: 0;
-    /* Altura dinámica para móviles */
-    min-height: 100dvh;
-    /* Padding para iPhone con barra inferior (Home Indicator) */
-
+    min-height: 100vh;
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -34,17 +23,14 @@ body {
     -moz-osx-font-smoothing: grayscale;
     background-color: #f1f5f9;
 
-    /* TRUCOS APP NATIVA */
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
 
-
-/* IMPORTANTE: Asegurar que el contenedor raíz (#root) ocupe todo el espacio */
 #root {
-    height: 100dvh;
+    height: 100vh;
     width: 100%;
     display: flex;
     flex-direction: column;
