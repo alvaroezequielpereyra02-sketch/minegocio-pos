@@ -493,7 +493,41 @@ export default function App() {
         {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} />}
 
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
+        {modals.store && (
+          <StoreModal
+            onClose={() => toggleModal('store', false)}
+            storeProfile={storeProfile}
+            imageMode={imageMode}
+            setImageMode={setImageMode}
+            previewImage={previewImage}
+            setPreviewImage={setPreviewImage}
+            handleFileChange={handleFileChange}
+            onSave={async (e) => {
+              e.preventDefault();
+              const form = e.target;
+              const newName = form.storeName.value;
+
+              // Lógica mejorada para la imagen
+              let newLogo = storeProfile.logoUrl; // Por defecto mantenemos la actual
+
+              if (imageMode === 'file') {
+                if (previewImage) newLogo = previewImage; // Si subió foto nueva, la usamos
+              } else {
+                // Si está en modo link y el campo existe, usamos ese valor
+                if (form.logoUrlLink) newLogo = form.logoUrlLink.value;
+              }
+
+              try {
+                await updateStoreProfile({ name: newName, logoUrl: newLogo });
+                toggleModal('store', false);
+                showNotification("✅ Perfil actualizado");
+              } catch (error) {
+                console.error(error);
+                alert("❌ Error al guardar: " + error.message + "\n\nVerifica que tu usuario tenga rol 'admin' en la base de datos.");
+              }
+            }}
+          />
+        )}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}

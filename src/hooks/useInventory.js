@@ -73,7 +73,8 @@ export const useInventory = (user) => {
     const addExpense = async (data) => addDoc(collection(db, 'stores', appId, 'expenses'), { ...data, date: serverTimestamp() });
     const deleteExpense = async (id) => deleteDoc(doc(db, 'stores', appId, 'expenses', id));
 
-    const updateStoreProfile = async (data) => setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data);
+    const updateStoreProfile = async (data) =>
+        setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data, { merge: true });
 
     const generateInvitationCode = async () => {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
