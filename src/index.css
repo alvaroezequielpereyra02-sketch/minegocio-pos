@@ -2,50 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CONFIGURACIÓN BÁSICA Y ALTO REAL EN MÓVILES */
+/* */
+
 :root {
+    /* Cambia height: 100% por esto para móviles */
     min-height: 100dvh;
     height: 100dvh;
 }
 
 html {
     height: 100dvh;
+    /* IMPORTANTE: El color de fondo debe estar en HTML para cubrir "rebotes" */
     background-color: #f1f5f9;
-    /* Evita el "rebote" elástico en Mac/iOS que a veces muestra capas de fondo */
-    overscroll-behavior: none;
 }
 
 body {
     margin: 0;
     min-height: 100dvh;
+    /* Padding para iPhone con barra inferior (Home Indicator) */
     padding-bottom: env(safe-area-inset-bottom);
     background-color: #f1f5f9;
-    /* Mejora el renderizado de fuentes */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    /* ... resto de estilos ... */
 }
 
-/* 
-   SOLUCIÓN AL PROBLEMA VISUAL DEL SIDEBAR:
-   'isolation: isolate' crea un nuevo contexto de apilamiento.
-   Esto impide que elementos hijos (como el sidebar) "filtren" 
-   sus capas o sombras hacia el fondo general de la ventana.
-*/
 #root {
+    /* Asegura que el contenedor React ocupe todo */
     height: 100dvh;
     display: flex;
     flex-direction: column;
-    isolation: isolate;
 }
 
-/* COMPORTAMIENTO DE INPUTS */
+/* Permitir selección solo en campos de texto */
 input,
 textarea {
     -webkit-user-select: text;
     user-select: text;
 }
 
-/* OCULTAR SCROLLBARS (Tu preferencia visual) */
+/* Ocultar barras de desplazamiento (estética limpia) */
 ::-webkit-scrollbar {
     display: none;
 }
@@ -55,40 +49,15 @@ textarea {
     scrollbar-width: none;
 }
 
-/* 
-   SOLUCIÓN AL PROBLEMA DEL BOTÓN EN CELULAR Y PARPADEOS:
-   En lugar de usar '*' (que rompe la PC), lo aplicamos solo a
-   elementos interactivos y contenedores mayores.
-*/
-
-/* 1. Asegura que los botones reaccionen rápido en táctil */
-button,
-input,
-select,
-textarea,
-a {
-    touch-action: manipulation;
-}
-
-/* 2. Previene parpadeos blancos en animaciones, pero de forma segura */
-body,
-#root,
-main,
-nav,
-aside,
-.modal-content {
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    /* Fuerza aceleración de hardware sin romper el layout */
-    transform: translateZ(0);
-}
-
-/* CLASES DE UTILIDAD PARA ANIMACIONES */
+/* Clases de utilidad para animaciones */
 .animate-in {
     animation-fill-mode: forwards;
 }
 
-/* Opcional: Para asegurar que imágenes dentro de botones no interfieran con el click */
-button>* {
-    pointer-events: none;
+/* Previene parpadeos blancos en transiciones 3D */
+* {
+    -webkit-backface-visibility: hidden;
+    /* Para compatibilidad antigua */
+    backface-visibility: hidden;
+    /* Estándar moderno */
 }

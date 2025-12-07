@@ -328,7 +328,7 @@ export default function App() {
       {notification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3"><Bell size={18} className="text-yellow-400" /><span className="font-bold text-sm">{notification}</span></div>}
       {isProcessing && <ProcessingModal />}
 
-      <div className="flex flex-col flex-1 min-w-0 h-full relative z-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 h-full">
         <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
           <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
             {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />} <span>{storeProfile.name}</span>
@@ -336,7 +336,7 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        <main className="flex-1 overflow-hidden p-4 flex flex-col">
+        <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
