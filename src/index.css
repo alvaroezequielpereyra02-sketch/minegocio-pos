@@ -3,36 +3,35 @@
 @tailwind utilities;
 
 :root {
-    /* CAMBIO CLAVE: Usamos 100vh para forzar la altura física total, ignorando la zona segura */
-    height: 100vh;
-
-    /* Forzar modo claro para que Android pinte los iconos de sistema (batería, gestos) en NEGRO */
+    /* Forzamos modo claro para que los iconos de sistema (hora, wifi, gestos) sean oscuros y visibles sobre fondo blanco */
     color-scheme: light;
-
-    /* Desactivar rebote elástico */
+    /* Desactivar rebote elástico global */
     overscroll-behavior-y: none;
 }
 
 html {
-    /* Forzamos al HTML a ocupar toda la pantalla física */
-    height: 100vh;
-    width: 100vw;
-    background-color: #f1f5f9;
-    /* Importante: Ocultamos el scroll del documento raíz para evitar doble barra */
+    background-color: #ffffff;
+    /* Fondo blanco de seguridad */
     overflow: hidden;
+    /* Evitar scroll en la raíz para que no haya doble barra */
+    height: 100%;
+    /* Asegurar altura */
 }
 
 body {
-    /* ESTRATEGIA "APP SHELL" FINAL: */
-    /* Posición fija + 100vh clava la app a los bordes físicos del cristal */
+    /* ESTRATEGIA "STRETCH" DEFINITIVA: */
+    /* Usamos coordenadas fijas para anclar el body a los bordes físicos del cristal */
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+
     margin: 0;
+    padding: 0;
 
     background-color: #f1f5f9;
+    /* Color gris base de tu app */
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -41,7 +40,7 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 
-    /* UX de App Nativa */
+    /* UX Nativa: Prevenir selección y zoom */
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -49,19 +48,21 @@ body {
 }
 
 #root {
-    /* El contenedor de React llena el body fijo */
+    /* El contenedor React llena el espacio disponible dentro del body fijo */
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
 }
 
+/* Permitir selección de texto SOLO donde es necesario */
 input,
 textarea {
     -webkit-user-select: text;
     user-select: text;
 }
 
+/* Ocultar barras de scroll visuales */
 ::-webkit-scrollbar {
     display: none;
 }
