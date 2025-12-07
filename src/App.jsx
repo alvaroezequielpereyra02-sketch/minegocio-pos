@@ -1,3 +1,5 @@
+// ... (Tus imports siguen igual) ...
+// Asegúrate de mantener todos los imports de hooks y componentes que ya tenías
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, Box } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
@@ -314,7 +316,7 @@ export default function App() {
   }
 
   return (
-    // CAMBIO IMPORTANTE: 'h-[100dvh]' asegura que la App ocupe toda la pantalla visible, restaurando la grilla.
+    // CAMBIO: h-[100dvh] asegura que ocupe la pantalla visible real (sin barras del navegador)
     <div className="flex h-[100dvh] w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
@@ -326,7 +328,9 @@ export default function App() {
 
       <div className="flex flex-col flex-1 min-w-0 h-full">
         <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
-          <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">{storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />} <span>{storeProfile.name}</span></button>
+          <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
+            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />} <span>{storeProfile.name}</span>
+          </button>
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
@@ -400,6 +404,7 @@ export default function App() {
 
         {selectedTransaction && (<Suspense fallback={<ProcessingModal />}><TransactionDetail transaction={selectedTransaction} onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }} printer={printer} storeProfile={storeProfile} onShare={() => { }} onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)} customers={customers} onUpdate={updateTransaction} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} /></Suspense>)}
 
+        {/* MODALES CONECTADOS A LOS HOOKS */}
         {modals.import && <ImportModal onClose={() => toggleModal('import', false)} onImport={importBatch} />}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
         {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}

@@ -1,5 +1,5 @@
-// CAMBIAMOS A VERSIÓN 5
-const CACHE_NAME = 'minegocio-pos-v5';
+// Aumentamos versión para forzar actualización
+const CACHE_NAME = 'minegocio-pos-v6-fix';
 
 const STATIC_ASSETS = [
   '/',
@@ -13,9 +13,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(err => console.log("Error caching assets", err));
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
 });
 
@@ -24,9 +22,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
+          if (key !== CACHE_NAME) return caches.delete(key);
         })
       );
     }).then(() => self.clients.claim())
@@ -34,8 +30,16 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension')) return;
+  // 1. FILTRO DE SEGURIDAD: Ignorar peticiones a la API de Google/Firestore
+  // Esto soluciona el error "Failed to convert value to Response"
+  const url = event.request.url;
+  if (url.includes('firestore.googleapis.com') ||
+    url.includes('googleapis.com') ||
+    url.startsWith('chrome-extension')) {
+    return; // Dejar que el navegador maneje la red normal
+  }
 
+  // 2. Estrategia para Navegación (HTML)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match('/index.html'))
@@ -43,17 +47,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 3. Estrategia para Archivos Estáticos (JS, CSS, Imágenes)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
+      // Si está en caché, lo devolvemos y actualizamos en segundo plano
       const fetchPromise = fetch(event.request).then((networkResponse) => {
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          if (!event.request.url.includes('firestore.googleapis.com')) {
-            cache.put(event.request, responseToCache);
-          }
+          cache.put(event.request, responseToCache);
         });
         return networkResponse;
-      }).catch(() => { });
+      }).catch(() => {
+        // Si falla la red, no hacemos nada (ya devolvimos caché si existía)
+      });
+
       return cachedResponse || fetchPromise;
     })
   );

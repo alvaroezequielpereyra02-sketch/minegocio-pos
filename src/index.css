@@ -7,26 +7,24 @@
     overscroll-behavior-y: none;
 }
 
+/* ESTRATEGIA "TELÓN DE FONDO" */
 html {
-    /* SOLUCIÓN FINAL AL FONDO NEGRO/TRANSPARENTE: */
-    /* 1. Pintamos la raíz del color de la app. Esto "tapa" el wallpaper si la app se queda corta. */
+    /* Esto es lo que tapa el fondo de pantalla del celular: */
     background-color: #f1f5f9;
 
-    /* 2. Forzamos altura 100% fija */
     height: 100%;
     width: 100%;
+    /* Prevenir scroll elástico en el documento raíz */
     overflow: hidden;
-    /* El scroll lo maneja la app, no el html */
 }
 
 body {
     margin: 0;
     padding: 0;
-
-    /* El cuerpo ocupa todo el espacio disponible */
-    height: 100%;
     width: 100%;
+    height: 100%;
 
+    /* El mismo color de fondo para consistencia */
     background-color: #f1f5f9;
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
