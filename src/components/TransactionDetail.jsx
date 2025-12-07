@@ -17,7 +17,7 @@ export default function TransactionDetail({
     const [showOptions, setShowOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
-    const [activeTab, setActiveTab] = useState('items'); // Volvemos a mostrar items por defecto
+    const [activeTab, setActiveTab] = useState('items');
 
     const isAdmin = userData?.role === 'admin';
 
@@ -52,7 +52,7 @@ export default function TransactionDetail({
         window.open(url, '_blank');
     };
 
-    // 2. Compartir PDF (Archivo) - Reutiliza el generador visual
+    // 2. Compartir PDF (Archivo)
     const getTicketHTML = () => {
         return `
             <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto; background: white; color: black;">
@@ -149,7 +149,7 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* Modal Pago (Código resumido) */}
+            {/* Modal Pago */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -190,7 +190,7 @@ export default function TransactionDetail({
                             <a href={clientAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientAddress)}` : '#'} target="_blank" className={`flex flex-col items-center justify-center p-2 rounded-lg bg-orange-50 text-orange-700 ${!clientAddress && 'opacity-50 grayscale pointer-events-none'}`}>
                                 <MapPin size={20} className="mb-1" /><span className="text-[10px] font-bold">Mapa</span>
                             </a>
-                            {/* ESTE ES EL BOTÓN DE MENSAJE (SOLO TEXTO) */}
+                            {/* BOTÓN MENSAJE (CHAT) */}
                             <button onClick={handleWhatsAppMessage} className={`flex flex-col items-center justify-center p-2 rounded-lg bg-green-50 text-green-700 ${!clientPhone && 'opacity-50 grayscale pointer-events-none'}`}>
                                 <MessageCircle size={20} className="mb-1" /><span className="text-[10px] font-bold">Mensaje</span>
                             </button>
@@ -224,14 +224,14 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* FOOTER CON 3 ACCIONES CLARAS */}
+                {/* FOOTER CON BOTONES */}
                 <div className="bg-white p-3 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] grid grid-cols-4 gap-2 absolute bottom-0 left-0 right-0">
-                    {/* Botón Opciones (PDF/Print) - Ocupa 2 columnas */}
+                    {/* Botón Opciones (PDF) */}
                     <button onClick={() => setShowOptions(true)} className="col-span-3 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform">
                         <Share2 size={18} /> Opciones / PDF
                     </button>
 
-                    {/* Botón Cancelar (Rojo) - Ocupa 1 columna */}
+                    {/* Botón Cancelar (Rojo) */}
                     {isAdmin && (
                         <button onClick={() => onCancel(transaction.id)} className="col-span-1 bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-transform" title="Cancelar Venta">
                             <Trash2 size={20} />

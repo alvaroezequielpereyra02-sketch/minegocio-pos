@@ -1,5 +1,3 @@
-// ... (Tus imports siguen igual) ...
-// Asegúrate de mantener todos los imports de hooks y componentes que ya tenías
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, Box } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
@@ -316,8 +314,9 @@ export default function App() {
   }
 
   return (
-    // CAMBIO: h-[100dvh] asegura que ocupe la pantalla visible real (sin barras del navegador)
-    <div className="flex h-[100dvh] w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+    // CAMBIO VITAL: 'h-screen' (100vh) en lugar de 'h-[100dvh]'. 
+    // Esto hace que la app sea tan alta como el celular entero, cubriendo el fondo de pantalla detrás de los botones.
+    <div className="flex h-screen w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
@@ -410,7 +409,7 @@ export default function App() {
         {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
         {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (name, parentId) => { if (name) { await addCategory(name, parentId); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
+        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} handleFileChange={handleFileChange} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
