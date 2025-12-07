@@ -17,7 +17,7 @@ export default function TransactionDetail({
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
-    // Estado para mostrar carga
+    // Estado para mostrar carga mientras se genera el PDF
     const [isGenerating, setIsGenerating] = useState(false);
 
     const isAdmin = userData?.role === 'admin';
@@ -50,13 +50,22 @@ export default function TransactionDetail({
     const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
+    // --- FUNCIÓN QUE FALTABA ---
+    const openPaymentModal = () => {
+        setTempStatus(transaction.paymentStatus || 'pending');
+        setTempAmountPaid(transaction.amountPaid || 0);
+        setTempNote(transaction.paymentNote || '');
+        setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
+        setShowPaymentModal(true);
+    };
+
     const handleSavePayment = () => {
         if (!isAdmin) return;
         let finalAmountPaid = tempAmountPaid;
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        // Enviamos los datos a App.jsx
+        // Enviamos los datos
         onUpdate(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
@@ -66,7 +75,7 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
-    // --- DISEÑO DE LA BOLETA (AGREGADO CAMPO NOTA) ---
+    // --- DISEÑO DE LA BOLETA (ESTILO FACTURA A4 CON NOTA) ---
     const getTicketElement = () => {
         const styles = {
             container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
