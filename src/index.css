@@ -3,35 +3,32 @@
 @tailwind utilities;
 
 :root {
-    /* Forzar modo claro para que los iconos de sistema sean visibles */
+    /* Forzamos modo claro */
     color-scheme: light;
-    /* Desactivar rebote elástico */
+    /* Evitar rebote elástico */
     overscroll-behavior-y: none;
 }
 
 html {
-    /* ESTRATEGIA FONDO INFINITO */
-    /* 1. Altura mínima del 100% físico */
-    min-height: 100vh;
-    /* 2. Color de fondo CRÍTICO: Debe ser el mismo que tu app (#f1f5f9) */
-    /* Al pintar el HTML, si el body se queda corto, el html cubre el fondo (tapando el wallpaper) */
+    /* TRUCO DEL TELÓN: */
+    /* Pintamos la raíz del mismo color que la app (#f1f5f9).
+       Si la app se queda corta abajo, se verá este color y NO el fondo de pantalla. */
     background-color: #f1f5f9;
 
+    /* Altura total */
+    height: 100%;
     width: 100%;
-    /* Permitir que el flujo normal maneje la altura */
-    overflow-y: auto;
-    overflow-x: hidden;
 }
 
 body {
+    /* IMPORTANTE: Quitamos 'position: fixed' para que el scroll funcione bien */
     margin: 0;
     padding: 0;
 
-    /* Aseguramos que el body crezca al menos toda la pantalla */
-    min-height: 100vh;
+    /* Altura mínima dinámica para cubrir la pantalla */
+    min-height: 100dvh;
     width: 100%;
 
-    /* Fondo redundante */
     background-color: #f1f5f9;
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -49,13 +46,19 @@ body {
 }
 
 #root {
-    /* El contenedor React llena el flujo normal */
-    min-height: 100vh;
+    /* El contenedor React debe ocupar toda la altura disponible */
+    height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
 }
 
-/* Ocultar barras pero permitir scroll */
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
 ::-webkit-scrollbar {
     display: none;
 }
