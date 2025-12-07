@@ -55,3 +55,9 @@ textarea {
 }
 
 /* Previene parpadeos blancos en transiciones 3D */
+* {
+    -webkit-backface-visibility: hidden;
+    /* Para compatibilidad antigua */
+    backface-visibility: hidden;
+    /* Estándar moderno */
+}
