@@ -3,7 +3,7 @@ import { Search, ScanBarcode, Image as ImageIcon } from 'lucide-react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
-// Helper para calcular columnas según el ancho (igual que tus clases de Tailwind)
+// Helper para calcular columnas
 const getColumnCount = (width) => {
     if (width < 640) return 2; // sm (mobile)
     if (width < 768) return 3; // md
@@ -25,27 +25,47 @@ const ProductGrid = memo(function ProductGrid({
     handleBarcodeSubmit
 }) {
 
-    // OPTIMIZACIÓN: Filtramos la lista solo cuando cambian los productos, el término o la categoría.
+    // 1. Lógica inteligente de filtrado
     const filteredProducts = useMemo(() => {
         const lowerTerm = searchTerm.toLowerCase();
+
+        // Buscamos si la categoría seleccionada tiene hijos
+        const isParentCategory = categories.some(c => c.parentId === selectedCategory);
+
+        // IDs relevantes: la categoría seleccionada + sus hijos (si es padre)
+        let relevantIds = [selectedCategory];
+        if (selectedCategory === 'all') {
+            relevantIds = null; // Sin filtro
+        } else if (isParentCategory) {
+            const childIds = categories.filter(c => c.parentId === selectedCategory).map(c => c.id);
+            relevantIds = [selectedCategory, ...childIds];
+        }
+
         return products.filter(p =>
             p.name.toLowerCase().includes(lowerTerm) &&
-            (selectedCategory === 'all' || p.categoryId === selectedCategory)
+            (relevantIds === null || relevantIds.includes(p.categoryId))
         );
-    }, [products, searchTerm, selectedCategory]);
+    }, [products, searchTerm, selectedCategory, categories]);
 
-    // Renderizador de cada celda (Producto) para react-window
+    // 2. Detectar subcategorías para mostrar la "segunda fila" de botones
+    const activeSubCategories = useMemo(() => {
+        if (selectedCategory === 'all') return [];
+        const selectedCatObj = categories.find(c => c.id === selectedCategory);
+        if (!selectedCatObj) return [];
+
+        const parentId = selectedCatObj.parentId || selectedCategory; // El ID del grupo
+        return categories.filter(c => c.parentId === parentId);
+    }, [selectedCategory, categories]);
+
+    // Renderizador de cada celda (Producto)
     const Cell = ({ columnIndex, rowIndex, style, data }) => {
         const { products, columnCount } = data;
         const index = rowIndex * columnCount + columnIndex;
 
-        // Si el índice se pasa del total de productos (celda vacía al final), no renderizar nada
         if (index >= products.length) return null;
 
         const product = products[index];
-
-        // Ajuste para simular 'gap' (espacio entre celdas) dentro del estilo absoluto
-        const gutter = 8; // Espacio en píxeles
+        const gutter = 8;
         const itemStyle = {
             ...style,
             left: style.left + gutter,
@@ -119,18 +139,50 @@ const ProductGrid = memo(function ProductGrid({
                 )}
             </div>
 
-            {/* FILTROS DE CATEGORÍA */}
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide shrink-0">
-                <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>Todos</button>
-                {categories.map(cat => (
-                    <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {/* FILTROS DE CATEGORÍA PRINCIPAL (Solo Padres) */}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-1 scrollbar-hide shrink-0 px-1">
+                <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600'}`}>
+                    Todos
+                </button>
+                {categories.filter(c => !c.parentId).map(cat => (
+                    <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === cat.id || categories.find(c => c.id === selectedCategory)?.parentId === cat.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600'}`}
+                    >
                         {cat.name}
                     </button>
                 ))}
             </div>
 
+            {/* BARRA DE SUBCATEGORÍAS */}
+            {activeSubCategories.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide shrink-0 px-1 animate-in slide-in-from-top-2 fade-in">
+                    <button
+                        onClick={() => {
+                            const current = categories.find(c => c.id === selectedCategory);
+                            if (current?.parentId) setSelectedCategory(current.parentId);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${!categories.find(c => c.id === selectedCategory)?.parentId ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                    >
+                        Todo
+                    </button>
+
+                    {activeSubCategories.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setSelectedCategory(sub.id)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${selectedCategory === sub.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            {sub.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* LISTADO VIRTUALIZADO */}
-            <div className="flex-1 min-h-0 pb-20 lg:pb-0">
+            {/* CORRECCIÓN: 'pb-12' es el ajuste fino para eliminar el espacio extra (3rem + 1rem parent = 4rem nav) */}
+            <div className="flex-1 min-h-0 pb-12 lg:pb-0">
                 {filteredProducts.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400">
                         <Search size={48} className="mb-2 opacity-20" />
@@ -141,7 +193,7 @@ const ProductGrid = memo(function ProductGrid({
                         {({ height, width }) => {
                             const columnCount = getColumnCount(width);
                             const columnWidth = width / columnCount;
-                            const rowHeight = 240; // Altura fija de cada tarjeta + espacio
+                            const rowHeight = 240;
                             const rowCount = Math.ceil(filteredProducts.length / columnCount);
 
                             return (

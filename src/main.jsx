@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
-// Autocorrección de versiones
+// Autocorrección de errores de carga (Chunk Load Error)
 window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
 });
@@ -14,26 +14,36 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// REGISTRO DE SERVICE WORKER NUEVO
+// REGISTRO Y ACTUALIZACIÓN AUTOMÁTICA DE SERVICE WORKER
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // CAMBIO IMPORTANTE: Ahora registramos '/service-worker.js'
-    // Esto desinstalará automáticamente el viejo 'sw.js'
-    navigator.serviceWorker.register('/service-worker.js').then(registration => {
-      console.log('SW registrado:', registration.scope);
+    navigator.serviceWorker.register('/sw.js').then(registration => {
 
+      // 1. Detectar si hay una actualización esperando
       if (registration.waiting) {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
       }
-    }).catch(err => console.log('SW Error:', err));
 
-    // Desregistrar el viejo por si acaso queda zombie
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (let registration of registrations) {
-        if (registration.active && registration.active.scriptURL.includes('sw.js')) {
-          registration.unregister();
-        }
+      // 2. Escuchar cuando se detecta una nueva versión en el servidor
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Nueva versión instalada -> Forzamos al usuario a verla
+            console.log("Nueva versión detectada. Actualizando...");
+            // Opcional: Podrías mostrar un aviso aquí, pero pediste automático:
+            if (newWorker) newWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+    });
+
+    // 3. Cuando el SW toma el control (después de skipWaiting), recargar la página
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
       }
     });
   });

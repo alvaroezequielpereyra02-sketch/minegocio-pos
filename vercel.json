@@ -4,44 +4,37 @@
   "outputDirectory": "dist",
   "headers": [
     {
-      "source": "/manifest.json",
+      "source": "/sw.js",
       "headers": [
         {
-          "key": "Content-Type",
-          "value": "application/manifest+json"
-        },
-        {
           "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
     {
-      "source": "/sw.js",
+      "source": "/index.html",
       "headers": [
         {
-          "key": "Content-Type",
-          "value": "application/javascript"
-        },
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-cache"
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     }
   ],
   "rewrites": [
     {
-      "source": "/manifest.json",
-      "destination": "/manifest.json"
-    },
-    {
-      "source": "/sw.js",
-      "destination": "/sw.js"
-    },
-    {
-      "source": "/logo192.png",
-      "destination": "/logo192.png"
+      "source": "/(kiosco|admin|dashboard|.*)",
+      "destination": "/index.html"
     }
   ]
 }

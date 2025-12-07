@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle } from 'lucide-react';
 
-// Estilo base para el fondo oscuro de los modales
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
 // --- NUEVO: MODAL DE CONFIRMACIÓN GENÉRICO ---
@@ -34,12 +33,10 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
     );
 }
 
-// --- PANTALLA DE PROCESAMIENTO ---
 export function ProcessingModal() {
     return (
         <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000] animate-in fade-in duration-300">
             <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center border border-slate-100 transform scale-110">
-                {/* Spinner animado personalizado */}
                 <div className="relative mb-6">
                     <div className="w-20 h-20 border-4 border-slate-100 rounded-full"></div>
                     <div className="absolute top-0 left-0 w-20 h-20 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
@@ -47,7 +44,6 @@ export function ProcessingModal() {
                         <Loader2 className="text-blue-600 animate-pulse" size={24} />
                     </div>
                 </div>
-
                 <h3 className="text-xl font-extrabold text-slate-800 mb-2">Procesando</h3>
                 <p className="text-sm text-slate-400 font-medium">Por favor espere...</p>
             </div>
@@ -119,6 +115,7 @@ export function ExpenseModal({ onClose, onSave }) {
     );
 }
 
+// --- PRODUCT MODAL MODIFICADO ---
 export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories }) {
     return (
         <div className={modalOverlayClass}>
@@ -129,7 +126,30 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                     <div className="flex gap-2 items-center border p-2 rounded bg-slate-50"><ScanBarcode size={16} className="text-slate-400" /><input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras (Opcional)" /></div>
                     <div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div><div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div></div>
                     <div><label className="text-xs text-slate-500 font-bold">Stock</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div>
-                    <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white"><option value="">Sin Categoría</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+
+                    {/* SELECT AGRUPADO POR CATEGORÍAS */}
+                    <select name="category" defaultValue={editingProduct?.categoryId || ""} className="w-full p-2 border rounded bg-white">
+                        <option value="">Sin Categoría</option>
+                        {categories.filter(c => !c.parentId).map(parent => {
+                            const children = categories.filter(c => c.parentId === parent.id);
+                            if (children.length > 0) {
+                                return (
+                                    <optgroup key={parent.id} label={parent.name}>
+                                        <option value={parent.id}>{parent.name} (General)</option>
+                                        {children.map(child => (
+                                            <option key={child.id} value={child.id}>{child.name}</option>
+                                        ))}
+                                    </optgroup>
+                                );
+                            }
+                            return <option key={parent.id} value={parent.id}>{parent.name}</option>;
+                        })}
+                        {/* Categorías huérfanas */}
+                        {categories.filter(c => c.parentId && !categories.find(p => p.id === c.parentId)).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+
                     <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button></div>
                     {imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e) => setPreviewImage(e.target.value)} />}
                     {previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
@@ -140,13 +160,53 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
+// --- CATEGORY MODAL MODIFICADO ---
 export function CategoryModal({ onClose, onSave, onDelete, categories }) {
+    const mainCategories = categories.filter(c => !c.parentId);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const name = e.target.catName.value;
+        const parentId = e.target.parentId.value || null;
+        onSave(name, parentId);
+    };
+
     return (
         <div className={modalOverlayClass}>
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={onClose}><X size={20} /></button></div>
-                <div className="max-h-40 overflow-y-auto space-y-2 border-b pb-4">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded"><span>{cat.name}</span><button onClick={() => onDelete(cat.id)} className="text-red-400"><Trash2 size={16} /></button></div>))}</div>
-                <form onSubmit={onSave} className="flex gap-2"><input name="catName" required className="flex-1 p-2 border rounded text-sm" placeholder="Nueva..." /><button type="submit" className="bg-green-600 text-white px-4 rounded font-bold">+</button></form>
+
+                <div className="max-h-60 overflow-y-auto space-y-2 border-b pb-4">
+                    {categories.map(cat => {
+                        const parent = categories.find(p => p.id === cat.parentId);
+                        return (
+                            <div key={cat.id} className="flex justify-between items-center bg-slate-50 p-2 rounded">
+                                <div className="flex flex-col">
+                                    <span className="font-medium text-slate-800">{cat.name}</span>
+                                    {parent && <span className="text-[10px] text-slate-500">└ Dentro de: {parent.name}</span>}
+                                </div>
+                                <button onClick={() => onDelete(cat.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-3">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 ml-1">Nueva Categoría</label>
+                        <input name="catName" required className="w-full p-2 border rounded-lg text-sm" placeholder="Ej: Papas Fritas..." />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 ml-1">Pertenece a (Opcional)</label>
+                        <select name="parentId" className="w-full p-2 border rounded-lg text-sm bg-white">
+                            <option value="">-- Es categoría principal --</option>
+                            {mainCategories.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors">Guardar</button>
+                </form>
             </div>
         </div>
     );
@@ -200,7 +260,6 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
-// Este ya no se usaría tanto si implementamos el genérico, pero lo dejamos por si acaso
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>

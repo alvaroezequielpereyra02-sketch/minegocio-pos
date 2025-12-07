@@ -11,11 +11,17 @@ const ALIGN_CENTER = ESC + 'a' + '\x01';
 const ALIGN_LEFT = ESC + 'a' + '\x00';
 const ALIGN_RIGHT = ESC + 'a' + '\x02';
 
+// --- FUNCIÓN DE SEGURIDAD ---
+// Soluciona el error de "String contains characters outside of the Latin1 range"
+// Esto permite imprimir productos con Ñ, tildes y emojis sin romper la app.
+function utf8_to_b64(str) {
+    return window.btoa(unescape(encodeURIComponent(str)));
+}
+
 export const usePrinter = () => {
-    const [isPrinting, setIsPrinting] = useState(false);
     const [printerDevice, setPrinterDevice] = useState(null);
 
-    // --- 1. CONEXIÓN WEB BLUETOOTH (Experimental) ---
+    // --- 1. CONEXIÓN WEB BLUETOOTH API (Experimental) ---
     const connectBluetooth = async () => {
         try {
             const device = await navigator.bluetooth.requestDevice({
@@ -31,64 +37,68 @@ export const usePrinter = () => {
             alert(`Conectado a ${device.name}`);
         } catch (error) {
             console.error(error);
-            alert("No se pudo conectar. Asegúrate de que la impresora esté encendida o prueba el método RawBT.");
+            alert("No se pudo conectar directamente. Recomendamos usar la opción 'RawBT' en Android.");
         }
     };
 
-    // --- GENERADOR DE TEXTO DEL TICKET ---
+    // --- GENERADOR DE TICKET ---
     const generateReceiptText = (transaction, storeProfile) => {
         const date = transaction.date?.seconds
             ? new Date(transaction.date.seconds * 1000).toLocaleString()
             : new Date().toLocaleString();
 
-        // Construcción del ticket comando a comando
+        // Limpiamos strings para evitar errores de impresión
+        const storeName = (storeProfile.name || 'MiNegocio').substring(0, 30);
+        const clientName = (transaction.clientName || 'Cliente').substring(0, 30);
+
         let text = INIT;
-        text += ALIGN_CENTER + BOLD_ON + (storeProfile.name || 'MiNegocio') + '\n' + BOLD_OFF;
+        text += ALIGN_CENTER + BOLD_ON + storeName + '\n' + BOLD_OFF;
         text += "Ticket de Venta\n";
         text += "--------------------------------\n";
         text += ALIGN_LEFT;
         text += `Fecha: ${date}\n`;
-        text += `Cliente: ${transaction.clientName}\n`;
-        text += `Metodo: ${transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro'}\n`;
+        text += `Cliente: ${clientName}\n`;
+        text += `Pago: ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Digital'}\n`;
         text += "--------------------------------\n";
 
         transaction.items.forEach(item => {
             const total = item.price * item.qty;
-            // Formato: Cant x Nombre ... Total
-            text += `${item.qty} x ${item.name.substring(0, 15)}\n`;
+            const name = item.name.substring(0, 20); // Cortar nombres largos
+            text += `${item.qty} x ${name}\n`;
             text += ALIGN_RIGHT + `$${total.toLocaleString()}\n` + ALIGN_LEFT;
         });
 
         text += "--------------------------------\n";
         text += ALIGN_RIGHT + BOLD_ON + `TOTAL: $${transaction.total.toLocaleString()}\n` + BOLD_OFF;
         text += ALIGN_CENTER + "\nGracias por su compra!\n\n\n";
-        text += CUT; // Comando de corte de papel
+        text += CUT;
 
         return text;
     };
 
-    // --- 2. IMPRESIÓN VÍA RAWBT (Recomendado para Android) ---
-    // Abre la app RawBT instalada en el celular con los datos del ticket
+    // --- 2. IMPRESIÓN VÍA APP RAWBT (La más fiable en Android) ---
     const printRawBT = (transaction, storeProfile) => {
-        const text = generateReceiptText(transaction, storeProfile);
-        const base64 = btoa(text); // Codificar a Base64
-        const url = `rawbt:base64,${base64}`;
-        window.location.href = url;
+        try {
+            const text = generateReceiptText(transaction, storeProfile);
+            const base64 = utf8_to_b64(text); // Usamos el codificador seguro
+            const url = `rawbt:base64,${base64}`;
+            window.location.href = url;
+        } catch (e) {
+            console.error("Error generando ticket RawBT:", e);
+            alert("Error al generar datos de impresión. Verifica caracteres especiales.");
+        }
     };
 
-    // --- 3. IMPRESIÓN VÍA BLUETOOTH API (Directa) ---
+    // --- 3. IMPRESIÓN DIRECTA (Si ya está conectado) ---
     const printBluetooth = async (transaction, storeProfile) => {
         if (!printerDevice) {
             await connectBluetooth();
             return;
         }
-
         try {
             const text = generateReceiptText(transaction, storeProfile);
             const encoder = new TextEncoder();
             const data = encoder.encode(text);
-
-            // Enviar en trozos pequeños para no saturar el buffer
             const chunkSize = 512;
             for (let i = 0; i < data.length; i += chunkSize) {
                 const chunk = data.slice(i, i + chunkSize);
@@ -96,16 +106,10 @@ export const usePrinter = () => {
             }
         } catch (e) {
             console.error(e);
-            alert("Error de conexión. Reconectando...");
+            alert("Error de conexión. Intenta reconectar.");
             setPrinterDevice(null);
         }
     };
 
-    return {
-        connectBluetooth,
-        printBluetooth,
-        printRawBT,
-        isPrinting,
-        isConnected: !!printerDevice
-    };
+    return { connectBluetooth, printRawBT, isConnected: !!printerDevice };
 };

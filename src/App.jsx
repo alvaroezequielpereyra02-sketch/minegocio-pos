@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
-import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
+import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, Box } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE HOOKS
@@ -13,6 +13,7 @@ import { usePrinter } from './hooks/usePrinter';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
+import ImportModal from './components/ImportModal';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
 // LAZY LOADING
@@ -20,6 +21,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
+const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
   <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -63,12 +65,12 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
-  // NUEVO ESTADO PARA EL RANGO DE FECHAS (Semana/Mes)
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
-    store: false, stock: false, expense: false, logout: false, invitation: false
+    store: false, stock: false, expense: false, logout: false, invitation: false,
+    import: false
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
@@ -81,10 +83,10 @@ export default function App() {
     addCategory, deleteCategory,
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
-    updateStoreProfile, generateInvitationCode
+    updateStoreProfile, generateInvitationCode,
+    importBatch
   } = useInventory(user);
 
-  // Pasamos dateRange al hook de transacciones
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
   } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
@@ -95,7 +97,6 @@ export default function App() {
 
   const printer = usePrinter();
 
-  // ESTADOS DE SELECCIÓN/EDICIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -131,15 +132,13 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
+  // --- EXPORTAR CSV ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
-      // 1. Construir el CSV con Múltiples Secciones
-      let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
+      let csvContent = "\uFEFF";
 
-      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
 
@@ -163,18 +162,15 @@ export default function App() {
       });
       csvContent += "\n";
 
-      // SECCIÓN B: LISTA DE TRANSACCIONES
       csvContent += "DETALLE DE TRANSACCIONES\n";
       csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        // Escapar comillas para CSV
         const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
-      // 2. Descargar
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -184,7 +180,6 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
-      // 3. Ofrecer Purgar (Limpiar Base de Datos)
       setTimeout(() => {
         requestConfirm(
           "¿Limpiar Base de Datos?",
@@ -195,7 +190,7 @@ export default function App() {
             setIsProcessing(false);
             showNotification("🧹 Historial limpiado");
           },
-          true // Es peligroso (Rojo)
+          true
         );
       }, 1500);
 
@@ -319,7 +314,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+    <div className="flex h-screen w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
@@ -336,7 +331,8 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
+        {/* CONTENIDO PRINCIPAL: Añadido 'pb-24' para evitar que la barra flotante tape contenido */}
+        <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col pb-24 lg:pb-0">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
@@ -353,8 +349,18 @@ export default function App() {
                 expenses={expenses}
                 setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
                 handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dashboardDateRange} // Nuevo
-                setDateRange={setDashboardDateRange} // Nuevo
+                dateRange={dashboardDateRange}
+                setDateRange={setDashboardDateRange}
+              />
+            </Suspense>
+          )}
+
+          {activeTab === 'delivery' && userData.role === 'admin' && (
+            <Suspense fallback={<TabLoader />}>
+              <Delivery
+                transactions={transactions}
+                customers={customers}
+                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
               />
             </Suspense>
           )}
@@ -366,10 +372,11 @@ export default function App() {
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden pb-0 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
+                  <button onClick={() => toggleModal('import', true)} className="bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-purple-200 transition-colors"><Box size={16} /> Importar</button>
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
@@ -406,7 +413,7 @@ export default function App() {
               <History
                 transactions={transactions}
                 userData={userData}
-                handleExportCSV={handleExportData} // <--- AHORA USA LA FUNCIÓN MEJORADA
+                handleExportCSV={handleExportData}
                 historySection={historySection}
                 setHistorySection={setHistorySection}
                 onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
@@ -435,9 +442,38 @@ export default function App() {
         )}
 
         {/* MODALES CONECTADOS A LOS HOOKS */}
+        {modals.import && <ImportModal onClose={() => toggleModal('import', false)} onImport={importBatch} />}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
+
+        {modals.product && (
+          <ProductModal
+            onClose={() => toggleModal('product', false)}
+            onSave={handleSaveProductWrapper}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)}
+            editingProduct={editingProduct}
+            imageMode={imageMode}
+            setImageMode={setImageMode}
+            previewImage={previewImage}
+            setPreviewImage={setPreviewImage}
+            handleFileChange={handleFileChange}
+            categories={categories}
+          />
+        )}
+
+        {modals.category && (
+          <CategoryModal
+            onClose={() => toggleModal('category', false)}
+            onSave={async (name, parentId) => {
+              if (name) {
+                await addCategory(name, parentId);
+                toggleModal('category', false);
+              }
+            }}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)}
+            categories={categories}
+          />
+        )}
+
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
         {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}

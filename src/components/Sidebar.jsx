@@ -1,21 +1,19 @@
 import React from 'react';
-import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList } from 'lucide-react';
+import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList, Truck } from 'lucide-react';
 
 function NavButton({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 transition-transform active:scale-95 ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
       {icon} <span className="text-[10px] uppercase font-bold mt-1 truncate w-full text-center">{label}</span>
     </button>
   );
 }
 
-// 1. Agregamos 'onEditStore' a las props para poder abrir el modal
 export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore }) {
   if (!userData) return null;
 
   return (
-    <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0">
-      {/* 2. Convertimos el encabezado en botón para editar perfil en PC */}
+    <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0 h-full">
       <button
         onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}
         className="w-full text-left p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800 hover:bg-slate-50 transition-colors"
@@ -41,6 +39,11 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
             <button onClick={() => setActiveTab('orders')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <ClipboardList size={20} /> Pedidos
             </button>
+
+            <button onClick={() => setActiveTab('delivery')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'delivery' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <Truck size={20} /> Reparto
+            </button>
+
             <button onClick={() => setActiveTab('inventory')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'inventory' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Package size={20} /> Inventario
             </button>
@@ -76,22 +79,25 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// NAV MÓVIL CON SCROLL
+// --- CORRECCIÓN MÓVIL ---
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
-      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar">
+    // CAMBIO CLAVE: Agregamos 'pb-[env(safe-area-inset-bottom)]'
+    // Esto extiende el fondo blanco hasta el borde físico, cubriendo la zona negra.
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)] transition-all duration-200">
+      <nav className="flex items-center h-16 overflow-x-auto px-2 gap-1 no-scrollbar">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
 
-        {/* 3. CAMBIO: Etiqueta corregida a "Transacciones" */}
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />
+        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={24} />} label="Reparto" />}
+
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 }

@@ -2,44 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
-/* */
-
 :root {
-    /* Cambia height: 100% por esto para móviles */
-    min-height: 100dvh;
-    height: 100dvh;
+    color-scheme: light;
+    overscroll-behavior-y: none;
 }
 
 html {
-    height: 100dvh;
-    /* IMPORTANTE: El color de fondo debe estar en HTML para cubrir "rebotes" */
+    /* FONDO DE SEGURIDAD: Esto tapa el wallpaper si algo falla */
     background-color: #f1f5f9;
+
+    height: 100%;
+    width: 100%;
 }
 
 body {
     margin: 0;
+    padding: 0;
+    width: 100%;
+
+    /* Usamos min-height para permitir scroll natural */
     min-height: 100dvh;
-    /* Padding para iPhone con barra inferior (Home Indicator) */
-    padding-bottom: env(safe-area-inset-bottom);
+
     background-color: #f1f5f9;
-    /* ... resto de estilos ... */
+
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 #root {
-    /* Asegura que el contenedor React ocupe todo */
-    height: 100dvh;
+    height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
 }
 
-/* Permitir selección solo en campos de texto */
 input,
 textarea {
     -webkit-user-select: text;
     user-select: text;
 }
 
-/* Ocultar barras de desplazamiento (estética limpia) */
 ::-webkit-scrollbar {
     display: none;
 }
@@ -47,17 +58,9 @@ textarea {
 * {
     -ms-overflow-style: none;
     scrollbar-width: none;
+    -webkit-backface-visibility: hidden;
 }
 
-/* Clases de utilidad para animaciones */
 .animate-in {
     animation-fill-mode: forwards;
-}
-
-/* Previene parpadeos blancos en transiciones 3D */
-* {
-    -webkit-backface-visibility: hidden;
-    /* Para compatibilidad antigua */
-    backface-visibility: hidden;
-    /* Estándar moderno */
 }

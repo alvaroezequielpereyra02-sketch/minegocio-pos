@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: false, // Desactiva sourcemaps en producción para ahorrar peso y evitar errores de 404 en mapas
+    sourcemap: false, // Desactiva sourcemaps en producción para ahorrar peso
     // Aumentamos el límite de advertencia a 1000kb (1MB)
     chunkSizeWarningLimit: 1000,
     rollupOptions: {

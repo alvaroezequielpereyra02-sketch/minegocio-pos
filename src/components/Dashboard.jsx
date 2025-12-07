@@ -22,7 +22,8 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-24 lg:pb-0 bg-slate-50 -m-4 p-4">
+        // CAMBIO 1: Quitamos 'pb-24' de aquí para que el fondo llegue hasta abajo
+        <div className="flex flex-col h-full overflow-hidden bg-slate-50 -m-4 p-4">
 
             {/* HEADER */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
@@ -41,7 +42,8 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-4 custom-scrollbar">
+            {/* CAMBIO 2: Agregamos 'pb-24' (padding bottom) AQUÍ, en el área scrolleable */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-24 custom-scrollbar">
 
                 {/* 1. RESUMEN DEL DÍA */}
                 <div className="bg-slate-900 p-5 rounded-2xl shadow-xl text-white relative overflow-hidden">
@@ -68,7 +70,6 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                     {/* Gráfico 1: Barras */}
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col flex-1">
                         <h3 className="font-bold text-slate-700 mb-4 text-xs uppercase tracking-wide">Evolución de Ventas</h3>
-                        {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={balance.chartData}>
@@ -91,7 +92,6 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         <h3 className="font-bold text-slate-700 mb-2 text-xs uppercase tracking-wide flex items-center gap-2">
                             <PieIcon size={14} className="text-purple-500" /> Por Categoría
                         </h3>
-                        {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px] relative">
                             {balance.salesByCategory.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
@@ -130,7 +130,6 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                 </div>
 
                 {/* 3. KPIS Y GASTOS */}
-                {/* ... (resto igual) ... */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <h3 className="font-bold text-slate-700 mb-3 text-xs uppercase tracking-wide">Gastos Recientes</h3>
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
