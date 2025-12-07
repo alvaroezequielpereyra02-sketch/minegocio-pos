@@ -314,8 +314,6 @@ export default function App() {
   }
 
   return (
-    // CAMBIO VITAL: 'h-screen' (100vh) en lugar de 'h-[100dvh]'. 
-    // Esto hace que la app sea tan alta como el celular entero, cubriendo el fondo de pantalla detrás de los botones.
     <div className="flex h-screen w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
@@ -333,7 +331,8 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
+        {/* CONTENIDO PRINCIPAL: Añadido 'pb-24' para evitar que la barra flotante tape contenido */}
+        <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col pb-24 lg:pb-0">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
@@ -345,13 +344,24 @@ export default function App() {
 
           {activeTab === 'dashboard' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={(v) => toggleModal('expense', v)} handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)} dateRange={dashboardDateRange} setDateRange={setDashboardDateRange} />
+              <Dashboard
+                balance={balance}
+                expenses={expenses}
+                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
+                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
+                dateRange={dashboardDateRange}
+                setDateRange={setDashboardDateRange}
+              />
             </Suspense>
           )}
 
           {activeTab === 'delivery' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Delivery transactions={transactions} customers={customers} onUpdateTransaction={(id, data) => updateTransaction(id, data)} />
+              <Delivery
+                transactions={transactions}
+                customers={customers}
+                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
+              />
             </Suspense>
           )}
 
@@ -386,7 +396,13 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
                 {customers.map(c => (
-                  <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><div><div className="font-bold text-slate-800">{c.name}</div><div className="text-xs text-slate-500">{c.phone}</div></div><div className="flex gap-2"><button onClick={() => { setEditingCustomer(c); toggleModal('customer', true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1 rounded">Editar</button><button onClick={() => requestConfirm("Borrar Cliente", "¿Seguro?", () => deleteCustomer(c.id), true)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1 rounded">Borrar</button></div></div>
+                  <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
+                    <div><div className="font-bold text-slate-800">{c.name}</div><div className="text-xs text-slate-500">{c.phone}</div></div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditingCustomer(c); toggleModal('customer', true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1 rounded">Editar</button>
+                      <button onClick={() => requestConfirm("Borrar Cliente", "¿Seguro?", () => deleteCustomer(c.id), true)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1 rounded">Borrar</button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -394,22 +410,72 @@ export default function App() {
 
           {activeTab === 'transactions' && (
             <Suspense fallback={<TabLoader />}>
-              <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
+              <History
+                transactions={transactions}
+                userData={userData}
+                handleExportCSV={handleExportData}
+                historySection={historySection}
+                setHistorySection={setHistorySection}
+                onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
+              />
             </Suspense>
           )}
         </main>
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
 
-        {selectedTransaction && (<Suspense fallback={<ProcessingModal />}><TransactionDetail transaction={selectedTransaction} onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }} printer={printer} storeProfile={storeProfile} onShare={() => { }} onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)} customers={customers} onUpdate={updateTransaction} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} /></Suspense>)}
+        {selectedTransaction && (
+          <Suspense fallback={<ProcessingModal />}>
+            <TransactionDetail
+              transaction={selectedTransaction}
+              onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }}
+              printer={printer}
+              storeProfile={storeProfile}
+              onShare={() => { }}
+              onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
+              customers={customers}
+              onUpdate={updateTransaction}
+              onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
+              userData={userData}
+            />
+          </Suspense>
+        )}
 
         {/* MODALES CONECTADOS A LOS HOOKS */}
         {modals.import && <ImportModal onClose={() => toggleModal('import', false)} onImport={importBatch} />}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (name, parentId) => { if (name) { await addCategory(name, parentId); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
+
+        {modals.product && (
+          <ProductModal
+            onClose={() => toggleModal('product', false)}
+            onSave={handleSaveProductWrapper}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)}
+            editingProduct={editingProduct}
+            imageMode={imageMode}
+            setImageMode={setImageMode}
+            previewImage={previewImage}
+            setPreviewImage={setPreviewImage}
+            handleFileChange={handleFileChange}
+            categories={categories}
+          />
+        )}
+
+        {modals.category && (
+          <CategoryModal
+            onClose={() => toggleModal('category', false)}
+            onSave={async (name, parentId) => {
+              if (name) {
+                await addCategory(name, parentId);
+                toggleModal('category', false);
+              }
+            }}
+            onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)}
+            categories={categories}
+          />
+        )}
+
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} handleFileChange={handleFileChange} />}
+        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
