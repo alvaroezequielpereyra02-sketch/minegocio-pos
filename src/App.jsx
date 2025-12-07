@@ -336,7 +336,7 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        <main className="flex-1 overflow-hidden p-4 flex flex-col isolate">
+        <main className="flex-1 overflow-hidden p-4 flex flex-col">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
