@@ -376,6 +376,7 @@ export default function App() {
                 transactions={transactions}
                 customers={customers}
                 onUpdateTransaction={updateTransaction}
+                onSelectTransaction={(t) => setSelectedTransaction(t)}
               />
             </Suspense>
           )}
@@ -434,7 +435,6 @@ export default function App() {
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
 
-        {/* MODAL DETALLE DE TRANSACCIÓN */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
             <TransactionDetail

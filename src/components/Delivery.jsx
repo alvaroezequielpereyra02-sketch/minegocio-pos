@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, MapPin, MessageCircle, CheckCircle, Plus, X, ArrowUp, ArrowDown, Navigation, Package } from 'lucide-react';
+import { Truck, MapPin, MessageCircle, CheckCircle, Plus, X, ArrowUp, ArrowDown, Navigation, Package, FileText } from 'lucide-react';
 
-export default function Delivery({ transactions, customers, onUpdateTransaction }) {
+export default function Delivery({ transactions, customers, onUpdateTransaction, onSelectTransaction }) {
     // 1. Estado local para la "Ruta de Reparto" (IDs de los pedidos seleccionados)
     const [routeIds, setRouteIds] = useState(() => {
         const saved = localStorage.getItem('deliveryRoute');
@@ -70,7 +70,16 @@ export default function Delivery({ transactions, customers, onUpdateTransaction 
                             {client.name}
                         </div>
                         <div className="text-xs text-slate-500 font-bold uppercase mt-1">Pedido #{order.id.slice(0, 4)} • ${order.total.toLocaleString()}</div>
+
+                        {/* --- BOTÓN NUEVO: VER BOLETA --- */}
+                        <button
+                            onClick={() => onSelectTransaction(order)}
+                            className="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition-colors"
+                        >
+                            <FileText size={12} /> Ver Boleta / Modificar
+                        </button>
                     </div>
+
                     {isRoute ? (
                         <button onClick={() => removeFromRoute(order.id)} className="text-slate-400 hover:text-red-500"><X size={20} /></button>
                     ) : (
