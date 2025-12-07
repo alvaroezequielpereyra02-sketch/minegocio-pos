@@ -434,6 +434,7 @@ export default function App() {
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
 
+        {/* MODAL DETALLE DE TRANSACCIÓN */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
             <TransactionDetail
@@ -444,7 +445,11 @@ export default function App() {
               onShare={() => { }}
               onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
               customers={customers}
-              onUpdate={updateTransaction}
+              // CORRECCIÓN CRÍTICA: Actualizar estado local + Firebase al mismo tiempo
+              onUpdate={async (id, data) => {
+                await updateTransaction(id, data);
+                setSelectedTransaction(prev => ({ ...prev, ...data }));
+              }}
               onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
               userData={userData}
             />

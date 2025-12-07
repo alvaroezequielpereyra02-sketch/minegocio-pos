@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Printer, FileText, MessageCircle, X, MapPin, Edit, DollarSign, Download, Phone, Share2, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Printer, MessageCircle, X, MapPin, Edit, DollarSign, Download, Share2, Loader2, StickyNote } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -17,16 +17,24 @@ export default function TransactionDetail({
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
-    // Estado para mostrar carga mientras se genera el PDF
+    // Estado para mostrar carga
     const [isGenerating, setIsGenerating] = useState(false);
 
     const isAdmin = userData?.role === 'admin';
 
-    // Estados para edición de pago
+    // Estados locales para el modal de pago
     const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
     const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction?.paymentMethod || 'unspecified');
+
+    // Sincronizar estado local si la transacción cambia (ej: al guardar)
+    useEffect(() => {
+        setTempStatus(transaction.paymentStatus || 'pending');
+        setTempAmountPaid(transaction.amountPaid || 0);
+        setTempNote(transaction.paymentNote || '');
+        setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
+    }, [transaction]);
 
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
@@ -48,6 +56,7 @@ export default function TransactionDetail({
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
+        // Enviamos los datos a App.jsx
         onUpdate(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
@@ -57,17 +66,8 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
-    const openPaymentModal = () => {
-        setTempStatus(transaction.paymentStatus);
-        setTempAmountPaid(transaction.amountPaid || 0);
-        setTempNote(transaction.paymentNote || '');
-        setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
-        setShowPaymentModal(true);
-    };
-
-    // --- DISEÑO DE LA BOLETA (ESTILO FACTURA A4) ---
+    // --- DISEÑO DE LA BOLETA (AGREGADO CAMPO NOTA) ---
     const getTicketElement = () => {
-        // Estilos en línea para asegurar compatibilidad con html2pdf
         const styles = {
             container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
             header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
@@ -93,12 +93,12 @@ export default function TransactionDetail({
             totalRow: "display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #64748b;",
             finalTotal: "display: flex; justify-content: space-between; padding: 15px 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; margin-top: 10px; font-size: 18px; font-weight: bold; color: #0f172a;",
 
+            noteSection: "margin-top: 30px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e;",
             footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
         };
 
         const content = `
         <div style="${styles.container}">
-            
             <div style="${styles.header}">
                 <div style="${styles.brand}">
                     ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="${styles.logo}" crossorigin="anonymous"/>` : ''}
@@ -134,9 +134,7 @@ export default function TransactionDetail({
                     ${transaction.items.map(i => `
                         <tr>
                             <td style="${styles.td}">${i.qty}</td>
-                            <td style="${styles.td}">
-                                <span style="font-weight: 500;">${i.name}</span>
-                            </td>
+                            <td style="${styles.td}"><span style="font-weight: 500;">${i.name}</span></td>
                             <td style="${styles.td} ${styles.tdRight}">$${i.price.toLocaleString()}</td>
                             <td style="${styles.td} ${styles.tdRight} font-weight: bold;">$${(i.qty * i.price).toLocaleString()}</td>
                         </tr>
@@ -146,29 +144,23 @@ export default function TransactionDetail({
 
             <div style="${styles.totalSection}">
                 <div style="${styles.totalBox}">
-                    <div style="${styles.totalRow}">
-                        <span>Subtotal</span>
-                        <span>$${total.toLocaleString()}</span>
-                    </div>
+                    <div style="${styles.totalRow}"><span>Subtotal</span><span>$${total.toLocaleString()}</span></div>
                     ${paid < total ? `
-                    <div style="${styles.totalRow}">
-                        <span>Pagado</span>
-                        <span style="color: #10b981;">-$${paid.toLocaleString()}</span>
-                    </div>
-                    <div style="${styles.totalRow}">
-                        <span>Pendiente</span>
-                        <span style="color: #ef4444;">$${debt.toLocaleString()}</span>
-                    </div>` : ''}
-                    <div style="${styles.finalTotal}">
-                        <span>TOTAL</span>
-                        <span>$${total.toLocaleString()}</span>
-                    </div>
+                    <div style="${styles.totalRow}"><span>Pagado</span><span style="color: #10b981;">-$${paid.toLocaleString()}</span></div>
+                    <div style="${styles.totalRow}"><span>Pendiente</span><span style="color: #ef4444;">$${debt.toLocaleString()}</span></div>` : ''}
+                    <div style="${styles.finalTotal}"><span>TOTAL</span><span>$${total.toLocaleString()}</span></div>
                 </div>
             </div>
 
+            ${transaction.paymentNote ? `
+            <div style="${styles.noteSection}">
+                <strong>OBSERVACIONES:</strong><br/>
+                ${transaction.paymentNote}
+            </div>` : ''}
+
             <div style="${styles.footer}">
                 <p>¡Gracias por su compra!</p>
-                <p>${storeProfile.name} • Comprobante Generado Digitalmente</p>
+                <p>${storeProfile.name} • Comprobante Digital</p>
             </div>
         </div>`;
 
@@ -177,24 +169,20 @@ export default function TransactionDetail({
         return el;
     };
 
-    // --- GENERAR PDF (Configurado para A4) ---
+    // --- GENERAR PDF ---
     const generatePDFBlob = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const el = getTicketElement();
-
-        // Configuración A4 estándar
         const opt = {
             margin: 0,
             filename: `recibo-${transaction.id.slice(0, 5)}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true }, // useCORS ayuda con imágenes externas
+            html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-
         return await html2pdf().set(opt).from(el).output('blob');
     };
 
-    // --- 1. DESCARGAR PDF ---
     const handleDownloadPDF = async () => {
         setIsGenerating(true);
         try {
@@ -204,27 +192,20 @@ export default function TransactionDetail({
             a.href = url;
             a.download = `Recibo_${clientName.split(' ')[0]}_${transaction.id.slice(0, 4)}.pdf`;
             a.click();
-        } catch (e) {
-            console.error(e);
-            alert("Error al generar PDF");
-        }
+        } catch (e) { console.error(e); alert("Error al generar PDF"); }
         setIsGenerating(false);
     };
 
-    // --- 2. IMPRIMIR (Navegador) ---
     const handleBrowserPrint = async () => {
         setIsGenerating(true);
         try {
             const blob = await generatePDFBlob();
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
         setIsGenerating(false);
     };
 
-    // --- 3. COMPARTIR WHATSAPP (CON PDF ADJUNTO) ---
     const handleWhatsAppWithFile = async () => {
         setIsGenerating(true);
         try {
@@ -238,7 +219,7 @@ export default function TransactionDetail({
                     text: `Hola ${clientName}, adjunto tu comprobante de compra.`
                 });
             } else {
-                alert("⚠️ Desde la PC no se puede adjuntar automático.\n\nEl PDF se descargará. Arrástralo al chat de WhatsApp que se abrirá.");
+                alert("⚠️ Desde la PC no se puede adjuntar automático.\n\nEl PDF se descargará. Arrástralo al chat de WhatsApp.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -247,17 +228,14 @@ export default function TransactionDetail({
                 const phone = clientData.phone || '';
                 window.open(`https://wa.me/${phone}?text=Adjunto%20el%20comprobante.`, '_blank');
             }
-        } catch (error) {
-            console.error("Error compartiendo:", error);
-            if (error.name !== 'AbortError') alert("No se pudo compartir.");
-        }
+        } catch (error) { if (error.name !== 'AbortError') alert("No se pudo compartir."); }
         setIsGenerating(false);
     };
 
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* --- MODAL PAGO --- */}
+            {/* MODAL PAGO */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -294,15 +272,15 @@ export default function TransactionDetail({
                             </div>
                         )}
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase">Nota Interna</label>
-                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Detalles..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
+                            <label className="text-xs font-bold text-slate-500 uppercase">Nota / Observaciones (Visible en Boleta)</label>
+                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
                         <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
                     </div>
                 </div>
             )}
 
-            {/* --- MODAL COMPARTIR / IMPRIMIR --- */}
+            {/* MODAL COMPARTIR */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -312,17 +290,13 @@ export default function TransactionDetail({
                             </button>
                             <div className="text-right"><h3 className="text-lg font-bold text-slate-800">OPCIONES</h3></div>
                         </div>
-
                         <div className="p-4 space-y-3 bg-slate-50 relative">
-                            {/* Overlay de carga */}
                             {isGenerating && (
                                 <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center">
                                     <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
                                     <span className="text-xs font-bold text-slate-500">Generando PDF...</span>
                                 </div>
                             )}
-
-                            {/* 1. WHATSAPP CON PDF */}
                             <button onClick={handleWhatsAppWithFile} className="w-full flex items-center p-4 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition-all shadow-sm group">
                                 <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
                                     <MessageCircle size={20} />
@@ -332,22 +306,14 @@ export default function TransactionDetail({
                                     <div className="text-xs text-slate-500">Adjuntar Comprobante</div>
                                 </div>
                             </button>
-
                             <div className="grid grid-cols-2 gap-3">
-                                {/* 2. IMPRIMIR */}
                                 <button onClick={handleBrowserPrint} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
-                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
-                                        <Printer size={20} />
-                                    </div>
+                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600"><Printer size={20} /></div>
                                     <div className="font-bold text-slate-800 text-sm">Imprimir</div>
                                     <div className="text-[10px] text-slate-500">Wifi / A4</div>
                                 </button>
-
-                                {/* 3. DESCARGAR */}
                                 <button onClick={handleDownloadPDF} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
-                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
-                                        <Download size={20} />
-                                    </div>
+                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600"><Download size={20} /></div>
                                     <div className="font-bold text-slate-800 text-sm">Guardar PDF</div>
                                     <div className="text-[10px] text-slate-500">Descargar</div>
                                 </button>
@@ -357,21 +323,15 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* CONTENEDOR PRINCIPAL */}
+            {/* DETALLE PRINCIPAL */}
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16 shrink-0">
-                    <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
-                        <ArrowLeft size={26} className="text-slate-700" />
-                    </button>
+                    <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95"><ArrowLeft size={26} className="text-slate-700" /></button>
                     <div className="flex-1 min-w-0">
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
-                    {isAdmin && (
-                        <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95">
-                            <Edit size={22} />
-                        </button>
-                    )}
+                    {isAdmin && <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"><Edit size={22} /></button>}
                 </div>
 
                 <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-4">
@@ -385,18 +345,14 @@ export default function TransactionDetail({
                                     <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
                                 </button>
                             ) : (
-                                <div className={`px-5 py-2 rounded-full font-bold text-sm border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                    {transaction.paymentStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'}
-                                </div>
+                                <div className={`px-5 py-2 rounded-full font-bold text-sm border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{transaction.paymentStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'}</div>
                             )}
                         </div>
                     </div>
 
                     <div className="flex border-b bg-white z-10 shadow-sm sticky top-0">
                         {['items', 'details'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                {tab === 'items' ? 'Items' : 'Detalles'}
-                            </button>
+                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>{tab === 'items' ? 'Items' : 'Detalles'}</button>
                         ))}
                     </div>
 
@@ -429,19 +385,17 @@ export default function TransactionDetail({
                                     <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente</div></div>
                                 </div>
 
-                                {/* --- ACCIONES DIRECTAS DE CONTACTO --- */}
+                                {transaction.paymentNote && (
+                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                        <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1"><StickyNote size={12} /> Observaciones:</div>
+                                        <div className="text-sm text-slate-700 italic">"{transaction.paymentNote}"</div>
+                                    </div>
+                                )}
+
                                 {(clientData.phone || clientData.address) && (
                                     <div className="grid grid-cols-2 gap-3 pt-2">
-                                        {clientData.phone && (
-                                            <a href={`https://wa.me/${clientData.phone}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold text-sm hover:bg-green-100 transition-colors">
-                                                <MessageCircle size={18} /> WhatsApp
-                                            </a>
-                                        )}
-                                        {clientData.address && (
-                                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">
-                                                <MapPin size={18} /> Mapa
-                                            </a>
-                                        )}
+                                        {clientData.phone && <a href={`https://wa.me/${clientData.phone}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold text-sm hover:bg-green-100 transition-colors"><MessageCircle size={18} /> WhatsApp</a>}
+                                        {clientData.address && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors"><MapPin size={18} /> Mapa</a>}
                                     </div>
                                 )}
                             </div>
@@ -451,14 +405,8 @@ export default function TransactionDetail({
 
                 {!showShareOptions && (
                     <div className="bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4 shrink-0">
-                        <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
-                            <Share2 size={20} /> <span className="text-sm">Compartir / Imprimir</span>
-                        </button>
-                        {isAdmin && (
-                            <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
-                                Cancelar
-                            </button>
-                        )}
+                        <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100"><Share2 size={20} /> <span className="text-sm">Compartir / Imprimir</span></button>
+                        {isAdmin && <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">Cancelar</button>}
                     </div>
                 )}
             </div>
