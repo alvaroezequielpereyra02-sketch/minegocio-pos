@@ -3,36 +3,40 @@
 @tailwind utilities;
 
 :root {
-    /* Usamos 100vh para forzar el pintado detrás de la barra de sistema (Edge-to-Edge) */
-    min-height: 100vh;
-    height: 100vh;
-
-    /* CRUCIAL: Fuerza modo claro para que Android pinte los iconos de sistema en NEGRO */
+    /* IMPORTANTE: Bloqueamos la altura al 100% de la pantalla */
+    height: 100%;
+    /* Esquema claro para que Android pinte iconos de sistema negros (batería, hora, nav) */
     color-scheme: light;
-
-    /* Evitar rebote elástico en toda la app */
+    /* Desactivar rebote elástico global del navegador */
     overscroll-behavior-y: none;
 }
 
 html {
-    /* Altura física total */
-    height: 100vh;
-    /* Color de fondo base para evitar parpadeos blancos/negros al cargar */
+    height: 100%;
+    width: 100%;
     background-color: #f1f5f9;
+    /* Prevenir scroll en el HTML raíz */
+    overflow: hidden;
 }
 
 body {
+    /* ESTRATEGIA "APP SHELL": */
+    /* Posición fija clava la app a la pantalla, evitando ver el wallpaper al arrastrar */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     margin: 0;
-    min-height: 100vh;
 
-    /* Tipografía nativa */
+    background-color: #f1f5f9;
+
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
         sans-serif;
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f1f5f9;
 
     /* UX de App Nativa: Deshabilitar selección de texto y zoom accidental */
     -webkit-user-select: none;
@@ -41,10 +45,10 @@ body {
     touch-action: manipulation;
 }
 
-/* El contenedor de React también debe ocupar el 100% físico */
 #root {
-    height: 100vh;
+    /* El contenedor de React llena el body fijo */
     width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
@@ -67,7 +71,7 @@ textarea {
     scrollbar-width: none;
     /* Firefox */
     -webkit-backface-visibility: hidden;
-    /* Mejora rendimiento de animaciones */
+    /* Mejora rendimiento */
 }
 
 .animate-in {

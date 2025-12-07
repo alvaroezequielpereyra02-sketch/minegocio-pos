@@ -2,18 +2,21 @@ import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, Box } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
 
+// IMPORTS DE HOOKS
 import { useAuth } from './hooks/useAuth';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
 import { usePrinter } from './hooks/usePrinter';
 
+// COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
 import ImportModal from './components/ImportModal';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
+// LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -71,6 +74,7 @@ export default function App() {
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
+  // INICIALIZAR HOOKS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
 
   const {
@@ -128,30 +132,36 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // --- EXPORTAR CSV ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
       let csvContent = "\uFEFF";
+
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
+
       csvContent += "METRICAS DEL PERIODO\n";
       csvContent += `Ventas Totales,$${balance.periodSales}\n`;
       csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
       csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
       csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
+
       csvContent += "VENTAS POR CATEGORIA\n";
       csvContent += "Categoría,Monto Vendido\n";
       balance.salesByCategory.forEach(cat => {
         csvContent += `${cat.name},$${cat.value}\n`;
       });
       csvContent += "\n";
+
       csvContent += "GASTOS DETALLADOS\n";
       csvContent += "Fecha,Descripción,Monto\n";
       expenses.forEach(e => {
         csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`;
       });
       csvContent += "\n";
+
       csvContent += "DETALLE DE TRANSACCIONES\n";
       csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
       transactions.forEach(t => {
@@ -304,7 +314,9 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+    // CAMBIO IMPORTANTE: 'h-full' en lugar de 'h-screen' o 'h-[100dvh]'
+    // Esto hace que el div ocupe todo el espacio disponible dentro del body fijo (que es el 100% real)
+    <div className="flex h-full w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
@@ -361,7 +373,6 @@ export default function App() {
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            // CORRECCIÓN: 'pb-20' ELIMINADO. Dejamos que ProductGrid controle su padding.
             <div className="flex flex-col h-full overflow-hidden pb-0 lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
