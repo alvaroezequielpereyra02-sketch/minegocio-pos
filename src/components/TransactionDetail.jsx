@@ -38,6 +38,8 @@ export default function TransactionDetail({
 
     const clientData = customers.find(c => c.id === transaction.clientId) || {};
     const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
+    const clientPhone = clientData.phone || '';
+    const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
     const handleSavePayment = () => {
@@ -63,38 +65,111 @@ export default function TransactionDetail({
         setShowPaymentModal(true);
     };
 
-    // --- ELEMENTO HTML DEL TICKET ---
+    // --- DISEÑO DE LA BOLETA (ESTILO FACTURA A4) ---
     const getTicketElement = () => {
-        const content = `<div style="font-family: sans-serif; padding: 20px; color: black; background: white; width: 300px; margin: auto;">
-            <h2 style="text-align:center; margin:0;">${storeProfile.name}</h2>
-            <p style="text-align:center; margin-top:5px; font-size: 12px;">Comprobante de Venta</p>
-            <hr style="border-top: 1px dashed #000;"/>
-            <div style="font-size: 12px; margin-bottom: 10px;">
-                <strong>Fecha:</strong> ${dateObj.toLocaleString()}<br/>
-                <strong>Cliente:</strong> ${clientName}<br/>
-                <strong>Pago:</strong> ${transaction.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+        // Estilos en línea para asegurar compatibilidad con html2pdf
+        const styles = {
+            container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
+            header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
+            brand: "flex: 1;",
+            logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
+            storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
+            invoiceInfo: "text-align: right; flex: 1;",
+            invoiceTitle: "font-size: 32px; font-weight: 200; color: #cbd5e1; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
+            meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
+
+            clientSection: "background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0;",
+            sectionTitle: "font-size: 11px; text-transform: uppercase; font-weight: bold; color: #94a3b8; margin-bottom: 5px;",
+            clientName: "font-size: 16px; font-weight: bold; color: #1e293b; margin: 0;",
+            clientDetails: "font-size: 13px; color: #475569; margin-top: 2px;",
+
+            table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
+            th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
+            td: "padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155;",
+            tdRight: "text-align: right;",
+
+            totalSection: "display: flex; justify-content: flex-end;",
+            totalBox: "width: 250px;",
+            totalRow: "display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #64748b;",
+            finalTotal: "display: flex; justify-content: space-between; padding: 15px 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; margin-top: 10px; font-size: 18px; font-weight: bold; color: #0f172a;",
+
+            footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
+        };
+
+        const content = `
+        <div style="${styles.container}">
+            
+            <div style="${styles.header}">
+                <div style="${styles.brand}">
+                    ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="${styles.logo}" crossorigin="anonymous"/>` : ''}
+                    <h1 style="${styles.storeName}">${storeProfile.name}</h1>
+                </div>
+                <div style="${styles.invoiceInfo}">
+                    <h2 style="${styles.invoiceTitle}">RECIBO</h2>
+                    <div style="${styles.meta}">
+                        #${transaction.id.slice(0, 8).toUpperCase()}<br/>
+                        ${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                </div>
             </div>
-            <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+
+            <div style="${styles.clientSection}">
+                <div style="${styles.sectionTitle}">CLIENTE</div>
+                <div style="${styles.clientName}">${clientName}</div>
+                ${clientPhone ? `<div style="${styles.clientDetails}">Tel: ${clientPhone}</div>` : ''}
+                ${clientAddress ? `<div style="${styles.clientDetails}">${clientAddress}</div>` : ''}
+                <div style="${styles.clientDetails}">Método: ${transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div>
+            </div>
+
+            <table style="${styles.table}">
                 <thead>
-                    <tr style="border-bottom: 1px solid #000;">
-                        <th style="text-align:left;">Cant</th>
-                        <th style="text-align:left;">Item</th>
-                        <th style="text-align:right;">Total</th>
+                    <tr>
+                        <th style="${styles.th} width: 10%;">CANT</th>
+                        <th style="${styles.th}">DESCRIPCIÓN</th>
+                        <th style="${styles.th} width: 20%; text-align: right;">PRECIO UN.</th>
+                        <th style="${styles.th} width: 20%; text-align: right;">TOTAL</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${transaction.items.map(i => `
                         <tr>
-                            <td style="padding: 4px 0;">${i.qty}</td>
-                            <td style="padding: 4px 0;">${i.name}</td>
-                            <td style="text-align:right; padding: 4px 0;">$${(i.qty * i.price).toLocaleString()}</td>
+                            <td style="${styles.td}">${i.qty}</td>
+                            <td style="${styles.td}">
+                                <span style="font-weight: 500;">${i.name}</span>
+                            </td>
+                            <td style="${styles.td} ${styles.tdRight}">$${i.price.toLocaleString()}</td>
+                            <td style="${styles.td} ${styles.tdRight} font-weight: bold;">$${(i.qty * i.price).toLocaleString()}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
-            <hr style="border-top: 1px dashed #000;"/>
-            <h3 style="text-align:right; margin: 10px 0;">TOTAL: $${total.toLocaleString()}</h3>
-            <p style="text-align:center; font-size: 10px; margin-top: 20px;">¡Gracias por su compra!</p>
+
+            <div style="${styles.totalSection}">
+                <div style="${styles.totalBox}">
+                    <div style="${styles.totalRow}">
+                        <span>Subtotal</span>
+                        <span>$${total.toLocaleString()}</span>
+                    </div>
+                    ${paid < total ? `
+                    <div style="${styles.totalRow}">
+                        <span>Pagado</span>
+                        <span style="color: #10b981;">-$${paid.toLocaleString()}</span>
+                    </div>
+                    <div style="${styles.totalRow}">
+                        <span>Pendiente</span>
+                        <span style="color: #ef4444;">$${debt.toLocaleString()}</span>
+                    </div>` : ''}
+                    <div style="${styles.finalTotal}">
+                        <span>TOTAL</span>
+                        <span>$${total.toLocaleString()}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="${styles.footer}">
+                <p>¡Gracias por su compra!</p>
+                <p>${storeProfile.name} • Comprobante Generado Digitalmente</p>
+            </div>
         </div>`;
 
         const el = document.createElement('div');
@@ -102,19 +177,20 @@ export default function TransactionDetail({
         return el;
     };
 
-    // --- FUNCIÓN UNIFICADA: GENERAR PDF ---
-    // Devuelve el BLOB del PDF para ser usado por Descarga o Compartir
+    // --- GENERAR PDF (Configurado para A4) ---
     const generatePDFBlob = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const el = getTicketElement();
+
+        // Configuración A4 estándar
         const opt = {
             margin: 0,
-            filename: `ticket-${transaction.id.slice(0, 5)}.pdf`,
+            filename: `recibo-${transaction.id.slice(0, 5)}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'mm', format: [80, 200] }
+            html2canvas: { scale: 2, useCORS: true }, // useCORS ayuda con imágenes externas
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-        // .output('blob') devuelve el archivo en binario
+
         return await html2pdf().set(opt).from(el).output('blob');
     };
 
@@ -126,7 +202,7 @@ export default function TransactionDetail({
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `ticket-${transaction.id.slice(0, 5)}.pdf`;
+            a.download = `Recibo_${clientName.split(' ')[0]}_${transaction.id.slice(0, 4)}.pdf`;
             a.click();
         } catch (e) {
             console.error(e);
@@ -153,11 +229,8 @@ export default function TransactionDetail({
         setIsGenerating(true);
         try {
             const blob = await generatePDFBlob();
+            const file = new File([blob], `Recibo_${clientName.split(' ')[0]}.pdf`, { type: 'application/pdf' });
 
-            // Creamos un archivo "File" real a partir del Blob
-            const file = new File([blob], `ticket-${transaction.id.slice(0, 5)}.pdf`, { type: 'application/pdf' });
-
-            // Verificamos si el navegador soporta compartir archivos (Casi todos los móviles modernos lo hacen)
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     files: [file],
@@ -165,25 +238,18 @@ export default function TransactionDetail({
                     text: `Hola ${clientName}, adjunto tu comprobante de compra.`
                 });
             } else {
-                // FALLBACK PARA PC (Donde no existe "Compartir con app")
-                // Descarga el archivo y abre WhatsApp Web para que el usuario lo arrastre.
-                alert("⚠️ Desde la PC no se puede adjuntar automático.\n\n1. El PDF se descargará ahora.\n2. Se abrirá WhatsApp.\n3. Arrastra el archivo descargado al chat.");
-
-                // Descargar
+                alert("⚠️ Desde la PC no se puede adjuntar automático.\n\nEl PDF se descargará. Arrástralo al chat de WhatsApp que se abrirá.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = file.name;
                 a.click();
-
-                // Abrir WhatsApp
                 const phone = clientData.phone || '';
                 window.open(`https://wa.me/${phone}?text=Adjunto%20el%20comprobante.`, '_blank');
             }
         } catch (error) {
             console.error("Error compartiendo:", error);
-            // Si el usuario cancela el menú de compartir, puede saltar error, lo ignoramos o mostramos alerta suave.
-            if (error.name !== 'AbortError') alert("No se pudo abrir el menú de compartir.");
+            if (error.name !== 'AbortError') alert("No se pudo compartir.");
         }
         setIsGenerating(false);
     };
@@ -263,7 +329,7 @@ export default function TransactionDetail({
                                 </div>
                                 <div className="text-left">
                                     <div className="font-bold text-slate-800">Enviar WhatsApp</div>
-                                    <div className="text-xs text-slate-500">Adjuntar PDF de Boleta</div>
+                                    <div className="text-xs text-slate-500">Adjuntar Comprobante</div>
                                 </div>
                             </button>
 
@@ -274,7 +340,7 @@ export default function TransactionDetail({
                                         <Printer size={20} />
                                     </div>
                                     <div className="font-bold text-slate-800 text-sm">Imprimir</div>
-                                    <div className="text-[10px] text-slate-500">Wifi / Sistema</div>
+                                    <div className="text-[10px] text-slate-500">Wifi / A4</div>
                                 </button>
 
                                 {/* 3. DESCARGAR */}

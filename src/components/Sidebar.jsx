@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList } from 'lucide-react';
+import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList, Truck } from 'lucide-react';
 
 function NavButton({ active, onClick, icon, label }) {
   return (
@@ -40,6 +40,9 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
           <>
             <button onClick={() => setActiveTab('orders')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <ClipboardList size={20} /> Pedidos
+            </button>
+            <button onClick={() => setActiveTab('delivery')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'delivery' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <Truck size={20} /> Reparto
             </button>
             <button onClick={() => setActiveTab('inventory')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'inventory' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Package size={20} /> Inventario
@@ -84,6 +87,8 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
+
+        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={24} />} label="Reparto" />}
 
         {/* 3. CAMBIO: Etiqueta corregida a "Transacciones" */}
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />

@@ -20,6 +20,8 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
+// NUEVO COMPONENTE LAZY
+const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
   <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -131,15 +133,14 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
+  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
-      // 1. Construir el CSV con Múltiples Secciones
       let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
 
-      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
+      // SECCIÓN A: RESUMEN DE BALANCE
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
 
@@ -169,12 +170,10 @@ export default function App() {
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        // Escapar comillas para CSV
         const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
-      // 2. Descargar
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -184,7 +183,6 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
-      // 3. Ofrecer Purgar (Limpiar Base de Datos)
       setTimeout(() => {
         requestConfirm(
           "¿Limpiar Base de Datos?",
@@ -365,8 +363,20 @@ export default function App() {
             </Suspense>
           )}
 
+          {/* NUEVA PESTAÑA: REPARTO */}
+          {activeTab === 'delivery' && userData.role === 'admin' && (
+            <Suspense fallback={<TabLoader />}>
+              <Delivery
+                transactions={transactions}
+                customers={customers}
+                onUpdateTransaction={updateTransaction}
+              />
+            </Suspense>
+          )}
+
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden lg:pb-0"> {/* Solo dejamos lg:pb-0 */}
+            // FIX: Padding corregido (lg:pb-0 en lugar de pb-20)
+            <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -379,6 +389,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
+            // FIX: Padding corregido (lg:pb-0 en lugar de pb-20)
             <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
@@ -406,7 +417,7 @@ export default function App() {
               <History
                 transactions={transactions}
                 userData={userData}
-                handleExportCSV={handleExportData} // <--- AHORA USA LA FUNCIÓN MEJORADA
+                handleExportCSV={handleExportData}
                 historySection={historySection}
                 setHistorySection={setHistorySection}
                 onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
