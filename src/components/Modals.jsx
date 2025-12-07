@@ -1,73 +1,8 @@
 import React, { useState, useEffect } from 'react';
-// IMPORTANTE: Aquí están todos los iconos necesarios para que no falle
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Landmark, CreditCard, User } from 'lucide-react';
+// CORRECCIÓN: Agregados FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
-
-// --- NUEVO: MODAL DE DATOS DE TRANSFERENCIA (POST-VENTA) ---
-export function TransferModal({ onClose, storeProfile, total }) {
-    const copyToClipboard = (text) => {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text);
-            alert("Copiado: " + text);
-        }
-    };
-
-    return (
-        <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                    <X size={24} />
-                </button>
-
-                <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Landmark size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900">Datos para Transferencia</h3>
-                    <p className="text-sm text-slate-500 mt-1">Por favor, realiza el pago de:</p>
-                    <p className="text-3xl font-black text-slate-800 mt-2">${total.toLocaleString()}</p>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl p-4 space-y-4 border border-slate-200">
-                    {storeProfile.bankName && (
-                        <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase">Banco / Billetera</p>
-                            <p className="font-bold text-slate-800">{storeProfile.bankName}</p>
-                        </div>
-                    )}
-
-                    <div>
-                        <div className="flex justify-between items-end">
-                            <p className="text-xs font-bold text-slate-400 uppercase">CBU / CVU</p>
-                            <button onClick={() => copyToClipboard(storeProfile.cbu)} className="text-blue-600 text-xs font-bold flex items-center gap-1"><Copy size={10} /> Copiar</button>
-                        </div>
-                        <p className="font-mono font-bold text-slate-800 text-lg tracking-wide">{storeProfile.cbu || "No definido"}</p>
-                    </div>
-
-                    <div>
-                        <div className="flex justify-between items-end">
-                            <p className="text-xs font-bold text-slate-400 uppercase">Alias</p>
-                            <button onClick={() => copyToClipboard(storeProfile.alias)} className="text-blue-600 text-xs font-bold flex items-center gap-1"><Copy size={10} /> Copiar</button>
-                        </div>
-                        <p className="font-bold text-slate-800 text-lg">{storeProfile.alias || "No definido"}</p>
-                    </div>
-
-                    {storeProfile.holderName && (
-                        <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase">Titular</p>
-                            <p className="font-medium text-slate-700">{storeProfile.holderName}</p>
-                        </div>
-                    )}
-                </div>
-
-                <button onClick={onClose} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-transform active:scale-95">
-                    Listo, ya anoté
-                </button>
-            </div>
-        </div>
-    );
-}
 
 // --- CONFIRM MODAL ---
 export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
@@ -141,7 +76,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
 
     useEffect(() => {
-        // Reset subcategory selection visually if category changes
+        // Reset visual si cambia categoría
     }, [selectedCat]);
 
     return (
@@ -184,7 +119,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
-// --- CATEGORY MODAL MEJORADO ---
+// --- CATEGORY MODAL MEJORADO (VISUALMENTE CLARO) ---
 export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [] }) {
     const [expandedCat, setExpandedCat] = useState(null);
 
@@ -293,60 +228,41 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
     );
 }
 
-// --- STORE MODAL (ACTUALIZADO CON DATOS BANCARIOS) ---
-export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
+// --- CUSTOMER MODAL ---
+export function CustomerModal({ onClose, onSave, editingCustomer }) {
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={onClose}><X size={20} /></button></div>
-                <form onSubmit={onSave} className="space-y-4">
-                    {/* Básico */}
-                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div>
-                    <div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div>
-
-                    {/* Sección Datos Bancarios */}
-                    <div className="pt-4 border-t border-slate-100 mt-2">
-                        <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Landmark size={16} /> Datos Transferencia</h4>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Banco / Billetera</label>
-                                <div className="flex items-center border rounded overflow-hidden">
-                                    <span className="p-2 bg-slate-50 text-slate-400"><Landmark size={14} /></span>
-                                    <input name="bankName" defaultValue={storeProfile.bankName || ''} className="w-full p-2 text-sm outline-none" placeholder="Ej: MercadoPago, Santander" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">CBU / CVU</label>
-                                <div className="flex items-center border rounded overflow-hidden">
-                                    <span className="p-2 bg-slate-50 text-slate-400"><CreditCard size={14} /></span>
-                                    <input name="cbu" defaultValue={storeProfile.cbu || ''} className="w-full p-2 text-sm outline-none" placeholder="000000..." />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Alias</label>
-                                <div className="flex items-center border rounded overflow-hidden">
-                                    <span className="p-2 bg-slate-50 text-slate-400">@</span>
-                                    <input name="alias" defaultValue={storeProfile.alias || ''} className="w-full p-2 text-sm outline-none" placeholder="mi.negocio.mp" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Titular</label>
-                                <div className="flex items-center border rounded overflow-hidden">
-                                    <span className="p-2 bg-slate-50 text-slate-400"><User size={14} /></span>
-                                    <input name="holderName" defaultValue={storeProfile.holderName || ''} className="w-full p-2 text-sm outline-none" placeholder="Nombre Apellido" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow-md">Guardar Cambios</button>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+                <h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3>
+                <form onSubmit={onSave} className="space-y-3">
+                    <input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre Completo" />
+                    <input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" />
+                    <input required name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" />
+                    <input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email (Opcional)" />
+                    <div className="flex gap-2 pt-2"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
                 </form>
             </div>
         </div>
     );
 }
 
-// ... (CustomerModal, AddStockModal, LogoutConfirmModal, TransactionModal se mantienen IGUAL)
+// --- STORE MODAL ---
+export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={onClose}><X size={20} /></button></div>
+                <form onSubmit={onSave} className="space-y-4">
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" /></div>
+                    <div><label className="block text-sm font-medium text-slate-700 mb-2">Logo</label><div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'file' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage(''); }} className={`flex-1 py-1.5 text-xs rounded-md ${imageMode === 'link' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500'}`}>Link</button></div>{imageMode === 'file' ? (<input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" />) : (<input name="logoUrlLink" defaultValue={!storeProfile.logoUrl?.startsWith('data:') ? storeProfile.logoUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />)}{(previewImage || storeProfile.logoUrl) && (<div className="mt-3 flex justify-center"><img src={previewImage || storeProfile.logoUrl} className="h-20 w-20 object-cover rounded-xl border shadow-sm" /></div>)}</div>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Guardar Cambios</button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// --- ADD STOCK MODAL ---
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
         <div className={modalOverlayClass}>
@@ -363,6 +279,7 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
+// --- LOGOUT CONFIRM MODAL ---
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>
@@ -379,6 +296,7 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
+// --- TRANSACTION MODAL ---
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     const updateItem = (index, field, value) => { const newItems = [...localItems]; newItems[index] = { ...newItems[index], [field]: value }; setLocalItems(newItems); };
