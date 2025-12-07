@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Printer, MessageCircle, X, MapPin, Edit, DollarSign, Bluetooth, Phone, Download, Share2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, X, MapPin, Edit, DollarSign, Bluetooth, Phone, Download, Share2, Loader2, Trash2 } from 'lucide-react';
 
 export default function TransactionDetail({
     transaction,
@@ -16,8 +16,8 @@ export default function TransactionDetail({
 
     const [showOptions, setShowOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [isSharing, setIsSharing] = useState(false); // Estado de carga para PDF
-    const [activeTab, setActiveTab] = useState('details'); // Por defecto detalles para ver al cliente
+    const [isSharing, setIsSharing] = useState(false);
+    const [activeTab, setActiveTab] = useState('items'); // Volvemos a mostrar items por defecto
 
     const isAdmin = userData?.role === 'admin';
 
@@ -34,34 +34,39 @@ export default function TransactionDetail({
     const displayLabel = transaction.paymentStatus === 'partial' ? 'Resta Cobrar' : 'Total';
     const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-900';
 
-    // --- BÚSQUEDA INTELIGENTE DE CLIENTE ---
+    // Datos Cliente
     const clientData = customers.find(c => c.id === transaction.clientId) || {};
     const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
     const clientPhone = clientData.phone || '';
     const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
-    // --- 1. GENERAR CONTENIDO VISUAL DEL TICKET ---
+    // --- ACCIONES DE WHATSAPP ---
+
+    // 1. Solo Mensaje (Texto)
+    const handleWhatsAppMessage = () => {
+        const text = `Hola *${clientName}*! 👋\nTe escribo por tu compra de *$${total.toLocaleString()}* en *${storeProfile.name}*.\n¿Necesitas algo más?`;
+        const url = clientPhone
+            ? `https://wa.me/${clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`
+            : `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
+    // 2. Compartir PDF (Archivo) - Reutiliza el generador visual
     const getTicketHTML = () => {
         return `
             <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto; background: white; color: black;">
                 <h2 style="text-align: center; margin: 0;">${storeProfile.name}</h2>
                 <p style="text-align: center; font-size: 12px; margin-bottom: 20px;">Comprobante #${transaction.id.slice(0, 6).toUpperCase()}</p>
-                
                 <div style="border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
                     <div><strong>Fecha:</strong> ${dateObj.toLocaleDateString()}</div>
                     <div><strong>Cliente:</strong> ${clientName}</div>
                 </div>
-
                 <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
                     ${transaction.items.map(i => `
-                        <tr>
-                            <td style="padding: 2px 0;">${i.qty} x ${i.name}</td>
-                            <td style="text-align: right;">$${(i.qty * i.price).toLocaleString()}</td>
-                        </tr>
+                        <tr><td style="padding: 2px 0;">${i.qty} x ${i.name}</td><td style="text-align: right;">$${(i.qty * i.price).toLocaleString()}</td></tr>
                     `).join('')}
                 </table>
-
                 <div style="border-top: 1px dashed #000; margin-top: 10px; padding-top: 10px; text-align: right;">
                     <h3 style="margin: 0;">TOTAL: $${total.toLocaleString()}</h3>
                 </div>
@@ -70,50 +75,25 @@ export default function TransactionDetail({
         `;
     };
 
-    // --- 2. COMPARTIR PDF POR WHATSAPP (Nativo) ---
     const handleSharePDF = async () => {
         setIsSharing(true);
         try {
-            // Importar librería dinámicamente
             const html2pdf = (await import('html2pdf.js')).default;
             const element = document.createElement('div');
             element.innerHTML = getTicketHTML();
-
-            // Generar Blob del PDF
             const worker = html2pdf().set({ margin: 0, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: [80, 200] } }).from(element).output('blob');
             const blob = await worker;
-
-            // Crear archivo virtual
             const file = new File([blob], `Ticket_${clientName}.pdf`, { type: 'application/pdf' });
 
-            // Usar API nativa de compartir (Abre menú de Android -> Elegir WhatsApp)
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'Comprobante de Venta',
-                    text: `Hola ${clientName}, aquí tienes tu comprobante de ${storeProfile.name}.`
-                });
+                await navigator.share({ files: [file], title: 'Comprobante', text: `Comprobante de ${storeProfile.name}` });
             } else {
-                alert("Tu navegador no soporta compartir archivos. Se descargará el PDF.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = file.name; a.click();
             }
-        } catch (e) {
-            console.error(e);
-            alert("Error al generar PDF. Intenta nuevamente.");
-        } finally {
-            setIsSharing(false);
-        }
+        } catch (e) { alert("Error al generar PDF."); } finally { setIsSharing(false); }
     };
 
-    // --- 3. IMPRIMIR DIRECTO (Diálogo de sistema) ---
-    const handleSystemPrint = () => {
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`<html><head><title>Imprimir Ticket</title></head><body onload="window.print();window.close()">${getTicketHTML()}</body></html>`);
-        printWindow.document.close();
-    };
-
-    // --- 4. DESCARGAR PDF (Solo guardar) ---
     const handleDownloadPDF = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const element = document.createElement('div');
@@ -121,7 +101,12 @@ export default function TransactionDetail({
         html2pdf().set({ margin: 0, filename: `Ticket_${transaction.id.slice(0, 6)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: [80, 200] } }).from(element).save();
     };
 
-    // Guardar Pago
+    const handleSystemPrint = () => {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`<html><head><title>Imprimir</title></head><body onload="window.print();window.close()">${getTicketHTML()}</body></html>`);
+        printWindow.document.close();
+    };
+
     const handleSavePayment = () => {
         if (!isAdmin) return;
         let finalAmountPaid = tempAmountPaid;
@@ -134,20 +119,20 @@ export default function TransactionDetail({
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* Modal de Opciones */}
+            {/* Modal de Opciones (PDF, Imprimir) */}
             {showOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
                         <div className="p-4 flex justify-between items-center border-b bg-slate-50">
-                            <h3 className="font-bold text-lg text-slate-800">Acciones</h3>
+                            <h3 className="font-bold text-lg text-slate-800">Opciones de Boleta</h3>
                             <button onClick={() => setShowOptions(false)}><X size={24} className="text-slate-400" /></button>
                         </div>
                         <div className="p-4 space-y-3">
                             <button onClick={handleSharePDF} disabled={isSharing} className="w-full flex items-center p-4 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 transition-all">
                                 <div className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center mr-3">
-                                    {isSharing ? <Loader2 className="animate-spin" /> : <MessageCircle size={20} />}
+                                    {isSharing ? <Loader2 className="animate-spin" /> : <Share2 size={20} />}
                                 </div>
-                                <div className="text-left"><div className="font-bold text-green-900">Enviar por WhatsApp</div><div className="text-xs text-green-700">Compartir PDF adjunto</div></div>
+                                <div className="text-left"><div className="font-bold text-green-900">Compartir PDF</div><div className="text-xs text-green-700">WhatsApp / Email</div></div>
                             </button>
 
                             <button onClick={() => printer.printRawBT(transaction, storeProfile)} className="w-full flex items-center p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all">
@@ -157,14 +142,14 @@ export default function TransactionDetail({
 
                             <div className="grid grid-cols-2 gap-3">
                                 <button onClick={handleSystemPrint} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl hover:bg-slate-50"><Printer size={24} className="mb-2 text-slate-600" /><span className="text-xs font-bold text-slate-700">Imprimir (Wifi)</span></button>
-                                <button onClick={handleDownloadPDF} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl hover:bg-slate-50"><Download size={24} className="mb-2 text-slate-600" /><span className="text-xs font-bold text-slate-700">Guardar PDF</span></button>
+                                <button onClick={handleDownloadPDF} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl hover:bg-slate-50"><Download size={24} className="mb-2 text-slate-600" /><span className="text-xs font-bold text-slate-700">Descargar</span></button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Modal Pago (Simplificado para brevedad, misma lógica) */}
+            {/* Modal Pago (Código resumido) */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -187,7 +172,7 @@ export default function TransactionDetail({
                 </div>
 
                 {/* Body con Scroll */}
-                <div className="flex-1 overflow-y-auto bg-slate-50 pb-20 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto bg-slate-50 pb-24 custom-scrollbar">
                     {/* INFO CLIENTE + ACCIONES RÁPIDAS */}
                     <div className="bg-white p-4 mb-2 shadow-sm">
                         <div className="flex items-start justify-between mb-4">
@@ -197,16 +182,18 @@ export default function TransactionDetail({
                             </div>
                             <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">{clientName.charAt(0)}</div>
                         </div>
+                        {/* Botones de Contacto Directo */}
                         <div className="grid grid-cols-3 gap-3">
-                            <a href={clientPhone ? `tel:${clientPhone}` : '#'} className={`flex flex-col items-center justify-center p-2 rounded-lg bg-blue-50 text-blue-700 ${!clientPhone && 'opacity-50 grayscale'}`}>
+                            <a href={clientPhone ? `tel:${clientPhone}` : '#'} className={`flex flex-col items-center justify-center p-2 rounded-lg bg-blue-50 text-blue-700 ${!clientPhone && 'opacity-50 grayscale pointer-events-none'}`}>
                                 <Phone size={20} className="mb-1" /><span className="text-[10px] font-bold">Llamar</span>
                             </a>
-                            <a href={clientPhone ? `https://wa.me/${clientPhone.replace(/\D/g, '')}` : '#'} target="_blank" className={`flex flex-col items-center justify-center p-2 rounded-lg bg-green-50 text-green-700 ${!clientPhone && 'opacity-50 grayscale'}`}>
-                                <MessageCircle size={20} className="mb-1" /><span className="text-[10px] font-bold">WhatsApp</span>
-                            </a>
-                            <a href={clientAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientAddress)}` : '#'} target="_blank" className={`flex flex-col items-center justify-center p-2 rounded-lg bg-orange-50 text-orange-700 ${!clientAddress && 'opacity-50 grayscale'}`}>
+                            <a href={clientAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientAddress)}` : '#'} target="_blank" className={`flex flex-col items-center justify-center p-2 rounded-lg bg-orange-50 text-orange-700 ${!clientAddress && 'opacity-50 grayscale pointer-events-none'}`}>
                                 <MapPin size={20} className="mb-1" /><span className="text-[10px] font-bold">Mapa</span>
                             </a>
+                            {/* ESTE ES EL BOTÓN DE MENSAJE (SOLO TEXTO) */}
+                            <button onClick={handleWhatsAppMessage} className={`flex flex-col items-center justify-center p-2 rounded-lg bg-green-50 text-green-700 ${!clientPhone && 'opacity-50 grayscale pointer-events-none'}`}>
+                                <MessageCircle size={20} className="mb-1" /><span className="text-[10px] font-bold">Mensaje</span>
+                            </button>
                         </div>
                     </div>
 
@@ -237,11 +224,19 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* FOOTER ACCIONES */}
-                <div className="bg-white p-4 border-t absolute bottom-0 left-0 right-0">
-                    <button onClick={() => setShowOptions(true)} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform">
-                        <Share2 size={20} /> Opciones de Ticket
+                {/* FOOTER CON 3 ACCIONES CLARAS */}
+                <div className="bg-white p-3 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] grid grid-cols-4 gap-2 absolute bottom-0 left-0 right-0">
+                    {/* Botón Opciones (PDF/Print) - Ocupa 2 columnas */}
+                    <button onClick={() => setShowOptions(true)} className="col-span-3 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <Share2 size={18} /> Opciones / PDF
                     </button>
+
+                    {/* Botón Cancelar (Rojo) - Ocupa 1 columna */}
+                    {isAdmin && (
+                        <button onClick={() => onCancel(transaction.id)} className="col-span-1 bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-transform" title="Cancelar Venta">
+                            <Trash2 size={20} />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

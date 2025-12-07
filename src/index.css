@@ -3,30 +3,28 @@
 @tailwind utilities;
 
 :root {
-    /* Forzamos modo claro */
     color-scheme: light;
-    /* Evitar rebote elástico */
     overscroll-behavior-y: none;
 }
 
 html {
-    /* TRUCO DEL TELÓN: */
-    /* Pintamos la raíz del mismo color que la app (#f1f5f9).
-       Si la app se queda corta abajo, se verá este color y NO el fondo de pantalla. */
+    /* SOLUCIÓN FINAL AL FONDO NEGRO/TRANSPARENTE: */
+    /* 1. Pintamos la raíz del color de la app. Esto "tapa" el wallpaper si la app se queda corta. */
     background-color: #f1f5f9;
 
-    /* Altura total */
+    /* 2. Forzamos altura 100% fija */
     height: 100%;
     width: 100%;
+    overflow: hidden;
+    /* El scroll lo maneja la app, no el html */
 }
 
 body {
-    /* IMPORTANTE: Quitamos 'position: fixed' para que el scroll funcione bien */
     margin: 0;
     padding: 0;
 
-    /* Altura mínima dinámica para cubrir la pantalla */
-    min-height: 100dvh;
+    /* El cuerpo ocupa todo el espacio disponible */
+    height: 100%;
     width: 100%;
 
     background-color: #f1f5f9;
@@ -38,7 +36,6 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 
-    /* UX Nativa */
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -46,7 +43,6 @@ body {
 }
 
 #root {
-    /* El contenedor React debe ocupar toda la altura disponible */
     height: 100%;
     width: 100%;
     display: flex;
