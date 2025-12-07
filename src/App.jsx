@@ -314,8 +314,8 @@ export default function App() {
   }
 
   return (
-    // CAMBIO IMPORTANTE: 'h-full' para llenar el body de 100vh
-    <div className="flex h-full w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+    // CAMBIO IMPORTANTE: Usamos min-h-screen y relative para asegurar que cubra todo
+    <div className="flex min-h-screen w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}

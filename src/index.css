@@ -3,27 +3,35 @@
 @tailwind utilities;
 
 :root {
-    /* Forzar modo claro */
+    /* Forzar modo claro para que los iconos de sistema sean visibles */
     color-scheme: light;
-    /* Altura dinámica real */
-    min-height: 100dvh;
-    height: 100dvh;
+    /* Desactivar rebote elástico */
+    overscroll-behavior-y: none;
 }
 
 html {
-    background-color: #ffffff;
-    /* Evitar rebotes que muestren el wallpaper */
-    overscroll-behavior-y: none;
-    height: 100%;
+    /* ESTRATEGIA FONDO INFINITO */
+    /* 1. Altura mínima del 100% físico */
+    min-height: 100vh;
+    /* 2. Color de fondo CRÍTICO: Debe ser el mismo que tu app (#f1f5f9) */
+    /* Al pintar el HTML, si el body se queda corto, el html cubre el fondo (tapando el wallpaper) */
+    background-color: #f1f5f9;
+
     width: 100%;
+    /* Permitir que el flujo normal maneje la altura */
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 body {
     margin: 0;
     padding: 0;
-    /* Asegurar que el cuerpo ocupe todo el espacio vertical disponible */
-    min-height: 100dvh;
+
+    /* Aseguramos que el body crezca al menos toda la pantalla */
+    min-height: 100vh;
     width: 100%;
+
+    /* Fondo redundante */
     background-color: #f1f5f9;
 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -38,25 +46,16 @@ body {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-
-    /* Fijar posición para evitar scroll del body */
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
 }
 
 #root {
-    height: 100%;
-    width: 100%;
+    /* El contenedor React llena el flujo normal */
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    /* Fondo extra por si acaso */
-    background-color: #f1f5f9;
 }
 
-/* Ocultar barras de scroll */
+/* Ocultar barras pero permitir scroll */
 ::-webkit-scrollbar {
     display: none;
 }
