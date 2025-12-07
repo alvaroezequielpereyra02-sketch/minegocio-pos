@@ -1,14 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-    /* Usamos 100vh para forzar el pintado detrás de la barra de sistema */
+    /* Usamos 100vh para forzar el pintado detrás de la barra de sistema (Edge-to-Edge) */
     min-height: 100vh;
     height: 100vh;
+
+    /* CRUCIAL: Fuerza modo claro para que Android pinte los iconos de sistema en NEGRO */
     color-scheme: light;
+
+    /* Evitar rebote elástico en toda la app */
     overscroll-behavior-y: none;
 }
 
 html {
-    /* Importante: height 100vh asegura que el canvas cubra todo */
+    /* Altura física total */
     height: 100vh;
+    /* Color de fondo base para evitar parpadeos blancos/negros al cargar */
     background-color: #f1f5f9;
 }
 
@@ -16,19 +25,23 @@ body {
     margin: 0;
     min-height: 100vh;
 
+    /* Tipografía nativa */
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
         'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
         sans-serif;
+
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: #f1f5f9;
 
+    /* UX de App Nativa: Deshabilitar selección de texto y zoom accidental */
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
 
+/* El contenedor de React también debe ocupar el 100% físico */
 #root {
     height: 100vh;
     width: 100%;
@@ -36,29 +49,27 @@ body {
     flex-direction: column;
 }
 
-
+/* Permitir selección de texto SOLO en inputs */
 input,
 textarea {
     -webkit-user-select: text;
     user-select: text;
 }
 
-
-/* OCULTAR BARRAS */
+/* Ocultar barras de desplazamiento visuales pero permitir scroll */
 ::-webkit-scrollbar {
     display: none;
 }
 
 * {
     -ms-overflow-style: none;
+    /* IE y Edge */
     scrollbar-width: none;
+    /* Firefox */
+    -webkit-backface-visibility: hidden;
+    /* Mejora rendimiento de animaciones */
 }
-
 
 .animate-in {
     animation-fill-mode: forwards;
-}
-
-* {
-    -webkit-backface-visibility: hidden;
 }
