@@ -61,7 +61,6 @@ export const useInventory = (user) => {
     const deleteCategory = async (id) => deleteDoc(doc(db, 'stores', appId, 'categories', id));
 
     // --- 2. ACCIONES SUBCATEGORÍAS ---
-    // Guardamos el ID de la categoría padre (parentId)
     const addSubCategory = async (parentId, name) =>
         addDoc(collection(db, 'stores', appId, 'subcategories'), { parentId, name, createdAt: serverTimestamp() });
 
@@ -83,10 +82,10 @@ export const useInventory = (user) => {
     };
 
     return {
-        products, categories, subcategories, customers, expenses, storeProfile, // Exportamos subcategories
+        products, categories, subcategories, customers, expenses, storeProfile,
         addProduct, updateProduct, deleteProduct, addStock,
         addCategory, deleteCategory,
-        addSubCategory, deleteSubCategory, // Exportamos acciones
+        addSubCategory, deleteSubCategory,
         addCustomer, updateCustomer, deleteCustomer,
         addExpense, deleteExpense,
         updateStoreProfile, generateInvitationCode

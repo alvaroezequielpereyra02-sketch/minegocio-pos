@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, memo } from 'react';
-import { Search, ScanBarcode, Image as ImageIcon, Filter, X } from 'lucide-react'; // Agregamos iconos
+import { Search, ScanBarcode, Image as ImageIcon, Filter, X } from 'lucide-react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
@@ -18,33 +18,29 @@ const ProductGrid = memo(function ProductGrid({
     selectedCategory,
     setSelectedCategory,
     categories,
-    subcategories = [], // Recibimos subcategorías
+    subcategories = [],
     userData,
     barcodeInput,
     setBarcodeInput,
     handleBarcodeSubmit
 }) {
-    // Estado local para la subcategoría seleccionada
     const [selectedSubCategory, setSelectedSubCategory] = useState('all');
 
-    // Resetear subcategoría si cambiamos de categoría principal
     useEffect(() => {
         setSelectedSubCategory('all');
     }, [selectedCategory]);
 
-    // Filtrar subcategorías disponibles para la categoría seleccionada
     const currentSubcategories = useMemo(() => {
         if (selectedCategory === 'all') return [];
         return subcategories.filter(sub => sub.parentId === selectedCategory);
     }, [selectedCategory, subcategories]);
 
-    // Filtrado de productos
     const filteredProducts = useMemo(() => {
         const lowerTerm = searchTerm.toLowerCase();
         return products.filter(p =>
             p.name.toLowerCase().includes(lowerTerm) &&
             (selectedCategory === 'all' || p.categoryId === selectedCategory) &&
-            (selectedSubCategory === 'all' || p.subCategoryId === selectedSubCategory) // Filtro extra
+            (selectedSubCategory === 'all' || p.subCategoryId === selectedSubCategory)
         );
     }, [products, searchTerm, selectedCategory, selectedSubCategory]);
 
@@ -81,7 +77,6 @@ const ProductGrid = memo(function ProductGrid({
 
     return (
         <div className="flex-1 flex flex-col min-h-0 pb-16 lg:pb-0">
-            {/* BUSCADOR */}
             <div className="mb-3 flex gap-3 shrink-0">
                 <div className="flex-1">
                     <div className="flex items-center w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 transition-colors duration-200 focus-within:border-blue-600 focus-within:shadow-sm">
@@ -99,7 +94,6 @@ const ProductGrid = memo(function ProductGrid({
                 )}
             </div>
 
-            {/* FILTROS DE CATEGORÍA PRINCIPAL */}
             <div className="flex gap-2 overflow-x-auto pb-2 mb-1 scrollbar-hide shrink-0">
                 <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>Todas</button>
                 {categories.map(cat => (
@@ -109,7 +103,6 @@ const ProductGrid = memo(function ProductGrid({
                 ))}
             </div>
 
-            {/* FILTROS DE SUBCATEGORÍA (Solo si hay disponibles) */}
             {currentSubcategories.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide shrink-0 animate-in slide-in-from-left-2 fade-in">
                     <div className="flex items-center text-xs font-bold text-slate-400 mr-1"><Filter size={12} className="mr-1" /> Sub:</div>
@@ -122,7 +115,6 @@ const ProductGrid = memo(function ProductGrid({
                 </div>
             )}
 
-            {/* LISTADO */}
             <div className="flex-1 min-h-0">
                 {filteredProducts.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400">

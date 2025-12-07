@@ -3,7 +3,7 @@ import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckC
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
-// ... (ConfirmModal, ProcessingModal, InvitationModal, ExpenseModal se mantienen IGUAL)
+// --- CONFIRM MODAL ---
 export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
     return (
         <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
@@ -22,6 +22,7 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
     );
 }
 
+// --- PROCESSING MODAL ---
 export function ProcessingModal() {
     return (
         <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000] animate-in fade-in duration-300">
@@ -38,6 +39,7 @@ export function ProcessingModal() {
     );
 }
 
+// --- INVITATION MODAL ---
 export function InvitationModal({ onClose, onGenerate }) {
     const [generatedCode, setGeneratedCode] = useState(null);
     const handleGenerate = () => { const code = Math.random().toString(36).substring(2, 8).toUpperCase(); onGenerate(code); setGeneratedCode(code); };
@@ -52,6 +54,7 @@ export function InvitationModal({ onClose, onGenerate }) {
     );
 }
 
+// --- EXPENSE MODAL ---
 export function ExpenseModal({ onClose, onSave }) {
     return (
         <div className={modalOverlayClass}>
@@ -70,6 +73,14 @@ export function ExpenseModal({ onClose, onSave }) {
 // --- PRODUCT MODAL CON SUBCATEGORÍAS ---
 export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories, subcategories }) {
     const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
+
+    // Efecto para limpiar la subcategoría si cambia la categoría padre
+    useEffect(() => {
+        if (selectedCat !== editingProduct?.categoryId) {
+            // Si el usuario cambia la categoría manualmente, podrías querer resetear el select de subcategoría visualmente
+            // Pero como es un form no controlado (uncontrolled inputs), el select se actualizará solo al renderizar las opciones filtradas.
+        }
+    }, [selectedCat]);
 
     return (
         <div className={modalOverlayClass}>
@@ -94,7 +105,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                             <label className="text-xs text-slate-500 font-bold">Subcategoría</label>
                             <select name="subcategory" defaultValue={editingProduct?.subCategoryId || ""} className="w-full p-2 border rounded bg-white text-sm" disabled={!selectedCat}>
                                 <option value="">Ninguna</option>
-                                {subcategories.filter(s => s.parentId === selectedCat).map(s => (
+                                {subcategories && subcategories.filter(s => s.parentId === selectedCat).map(s => (
                                     <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                             </select>
@@ -112,7 +123,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 }
 
 // --- CATEGORY MODAL MEJORADO PARA GESTIONAR SUBCATEGORÍAS ---
-export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories }) {
+export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [] }) {
     const [expandedCat, setExpandedCat] = useState(null);
 
     return (
@@ -130,7 +141,7 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
                                 <button onClick={() => onDelete(cat.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={16} /></button>
                             </div>
 
-                            {/* ZONA DE SUBCATEGORÍAS */}
+                            {/* ZONA DE SUBCATEGORÍAS (FORMULARIO OCULTO HASTA EXPANDIR) */}
                             {expandedCat === cat.id && (
                                 <div className="bg-white p-3 border-t border-slate-100 animate-in slide-in-from-top-2">
                                     <div className="space-y-2 mb-3">
@@ -168,7 +179,7 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
     );
 }
 
-// ... (CustomerModal, StoreModal, AddStockModal, LogoutConfirmModal, TransactionModal se mantienen IGUAL)
+// --- CUSTOMER MODAL ---
 export function CustomerModal({ onClose, onSave, editingCustomer }) {
     return (
         <div className={modalOverlayClass}>
@@ -186,6 +197,7 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
     );
 }
 
+// --- STORE MODAL ---
 export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
     return (
         <div className={modalOverlayClass}>
@@ -201,6 +213,7 @@ export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageM
     );
 }
 
+// --- ADD STOCK MODAL ---
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
         <div className={modalOverlayClass}>
@@ -217,6 +230,7 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
+// --- LOGOUT CONFIRM MODAL ---
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>
@@ -233,6 +247,7 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
+// --- TRANSACTION MODAL ---
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     const updateItem = (index, field, value) => { const newItems = [...localItems]; newItems[index] = { ...newItems[index], [field]: value }; setLocalItems(newItems); };
