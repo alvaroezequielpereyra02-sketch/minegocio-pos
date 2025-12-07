@@ -14,7 +14,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   if (!userData) return null;
 
   return (
-    <div className="hidden lg:flex flex-col w-64 bg-white border-r  shrink-0">
+    <div className="hidden lg:flex flex-col w-64 h-full bg-white border-r shrink-0 relative z-10">
       {/* 2. Convertimos el encabezado en botón para editar perfil en PC */}
       <button
         onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}

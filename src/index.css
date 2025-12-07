@@ -54,19 +54,23 @@ textarea {
     animation-fill-mode: forwards;
 }
 
-/* Restaurado de forma segura para móviles */
-body,
-button,
-input,
-select,
-textarea {
+/* Corrección segura para toques en móviles y evitar parpadeos */
+body {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
 }
 
-/* Solo si usas animaciones 3D específicas */
-.animate-in,
-.animate-out {
+/* Aplicar solo a elementos interactivos, NO a todo (*) */
+button,
+input,
+a {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    touch-action: manipulation;
+    /* Mejora la respuesta táctil */
+}
+
+/* Opcional: Para asegurar que el contenedor principal no tenga scroll fantasma */
+#root {
+    isolation: isolate;
 }
