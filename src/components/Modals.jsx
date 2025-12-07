@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree } from 'lucide-react';
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
@@ -76,10 +76,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 
     // Efecto para limpiar la subcategoría si cambia la categoría padre
     useEffect(() => {
-        if (selectedCat !== editingProduct?.categoryId) {
-            // Si el usuario cambia la categoría manualmente, podrías querer resetear el select de subcategoría visualmente
-            // Pero como es un form no controlado (uncontrolled inputs), el select se actualizará solo al renderizar las opciones filtradas.
-        }
+        // Opcional: podrías resetear algo aquí si fuera necesario
     }, [selectedCat]);
 
     return (
@@ -122,64 +119,80 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
-// --- CATEGORY MODAL MEJORADO PARA GESTIONAR SUBCATEGORÍAS ---
+// --- CATEGORY MODAL MEJORADO (VISUALMENTE CLARO) ---
 export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [] }) {
     const [expandedCat, setExpandedCat] = useState(null);
 
     return (
         <div className={modalOverlayClass}>
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
-                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Categorías</h3><button onClick={onClose}><X size={20} /></button></div>
-
-                <div className="flex-1 overflow-y-auto space-y-2 border-b pb-4 pr-1 custom-scrollbar">
-                    {categories.map(cat => (
-                        <div key={cat.id} className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                            <div className="flex justify-between items-center p-3">
-                                <div className="font-bold text-slate-700 flex items-center gap-2 cursor-pointer flex-1" onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}>
-                                    {expandedCat === cat.id ? <Minus size={14} /> : <Plus size={14} />} {cat.name}
-                                </div>
-                                <button onClick={() => onDelete(cat.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={16} /></button>
-                            </div>
-
-                            {/* ZONA DE SUBCATEGORÍAS (FORMULARIO OCULTO HASTA EXPANDIR) */}
-                            {expandedCat === cat.id && (
-                                <div className="bg-white p-3 border-t border-slate-100 animate-in slide-in-from-top-2">
-                                    <div className="space-y-2 mb-3">
-                                        <p className="text-[10px] uppercase font-bold text-slate-400">Subcategorías de {cat.name}</p>
-                                        {subcategories.filter(s => s.parentId === cat.id).map(sub => (
-                                            <div key={sub.id} className="flex justify-between items-center pl-2 text-sm text-slate-600">
-                                                <span>• {sub.name}</span>
-                                                <button onClick={() => onDeleteSub(sub.id)} className="text-red-400 hover:text-red-600"><X size={14} /></button>
-                                            </div>
-                                        ))}
-                                        {subcategories.filter(s => s.parentId === cat.id).length === 0 && <span className="text-xs text-slate-400 italic">Sin subcategorías</span>}
-                                    </div>
-                                    <form onSubmit={(e) => {
-                                        e.preventDefault();
-                                        if (e.target.subName.value) {
-                                            onSaveSub(cat.id, e.target.subName.value);
-                                            e.target.subName.value = '';
-                                        }
-                                    }} className="flex gap-2">
-                                        <input name="subName" placeholder="Nueva sub..." className="flex-1 p-1.5 text-xs border rounded bg-slate-50" />
-                                        <button type="submit" className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs font-bold hover:bg-blue-200">Agregar</button>
-                                    </form>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-bold text-lg text-slate-800">Gestionar Categorías</h3>
+                    <button onClick={onClose}><X size={20} /></button>
                 </div>
 
-                <form onSubmit={onSave} className="flex gap-2">
-                    <input name="catName" required className="flex-1 p-3 border rounded-lg text-sm" placeholder="Nueva Categoría Principal..." />
-                    <button type="submit" className="bg-slate-800 text-white px-4 rounded-lg font-bold hover:bg-slate-900">+</button>
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                    {categories.map(cat => {
+                        const subs = subcategories.filter(s => s.parentId === cat.id);
+                        const isExpanded = expandedCat === cat.id;
+
+                        return (
+                            <div key={cat.id} className={`bg-white rounded-xl border transition-all ${isExpanded ? 'border-blue-300 shadow-md' : 'border-slate-200'}`}>
+                                <div className="flex justify-between items-center p-3">
+                                    <div className="font-bold text-slate-700">{cat.name}</div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setExpandedCat(isExpanded ? null : cat.id)}
+                                            className={`text-xs font-bold px-2 py-1.5 rounded flex items-center gap-1 transition-colors ${isExpanded ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                        >
+                                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            {subs.length} Subs
+                                        </button>
+                                        <button onClick={() => onDelete(cat.id)} className="text-slate-300 hover:text-red-500 p-1.5 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                    </div>
+                                </div>
+
+                                {/* ZONA DE SUBCATEGORÍAS (VISIBLE AL EXPANDIR) */}
+                                {isExpanded && (
+                                    <div className="bg-slate-50 p-3 border-t border-slate-100 rounded-b-xl animate-in slide-in-from-top-2">
+                                        <div className="space-y-2 mb-3">
+                                            {subs.map(sub => (
+                                                <div key={sub.id} className="flex justify-between items-center pl-3 pr-1 py-1 bg-white border border-slate-100 rounded text-sm text-slate-600 shadow-sm">
+                                                    <span>{sub.name}</span>
+                                                    <button onClick={() => onDeleteSub(sub.id)} className="text-slate-400 hover:text-red-600 p-1"><X size={14} /></button>
+                                                </div>
+                                            ))}
+                                            {subs.length === 0 && <span className="text-xs text-slate-400 italic block text-center py-2">No hay subcategorías aún.</span>}
+                                        </div>
+
+                                        {/* FORMULARIO AGREGAR SUB */}
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            if (e.target.subName.value) {
+                                                onSaveSub(cat.id, e.target.subName.value);
+                                                e.target.subName.value = '';
+                                            }
+                                        }} className="flex gap-2">
+                                            <input name="subName" placeholder="Nueva sub..." className="flex-1 p-2 text-xs border rounded-lg focus:outline-none focus:border-blue-500" />
+                                            <button type="submit" className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-bold hover:bg-blue-700"><Plus size={14} /></button>
+                                        </form>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <form onSubmit={onSave} className="flex gap-2 pt-2 border-t">
+                    <input name="catName" required className="flex-1 p-3 border rounded-lg text-sm bg-slate-50" placeholder="Nueva Categoría Principal..." />
+                    <button type="submit" className="bg-slate-800 text-white px-4 rounded-lg font-bold hover:bg-slate-900 shadow-md"><Plus size={20} /></button>
                 </form>
             </div>
         </div>
     );
 }
 
-// --- CUSTOMER MODAL ---
+// ... (CustomerModal, StoreModal, AddStockModal, LogoutConfirmModal, TransactionModal se mantienen IGUAL)
 export function CustomerModal({ onClose, onSave, editingCustomer }) {
     return (
         <div className={modalOverlayClass}>
@@ -197,7 +210,6 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
     );
 }
 
-// --- STORE MODAL ---
 export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
     return (
         <div className={modalOverlayClass}>
@@ -213,7 +225,6 @@ export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageM
     );
 }
 
-// --- ADD STOCK MODAL ---
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
         <div className={modalOverlayClass}>
@@ -230,7 +241,6 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
-// --- LOGOUT CONFIRM MODAL ---
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>
@@ -247,7 +257,6 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
-// --- TRANSACTION MODAL ---
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     const updateItem = (index, field, value) => { const newItems = [...localItems]; newItems[index] = { ...newItems[index], [field]: value }; setLocalItems(newItems); };
