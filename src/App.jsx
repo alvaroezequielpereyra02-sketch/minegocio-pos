@@ -20,7 +20,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
-// NUEVO COMPONENTE LAZY
+// NUEVO COMPONENTE DE REPARTO
 const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
@@ -78,9 +78,10 @@ export default function App() {
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
 
   const {
-    products, categories, customers, expenses, storeProfile,
+    products, categories, subcategories, customers, expenses, storeProfile, // Agregado subcategories
     addProduct, updateProduct, deleteProduct, addStock,
     addCategory, deleteCategory,
+    addSubCategory, deleteSubCategory, // Agregado acciones de subcategorías
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
     updateStoreProfile, generateInvitationCode
@@ -133,14 +134,15 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA ---
+  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
 
     try {
+      // 1. Construir el CSV con Múltiples Secciones
       let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
 
-      // SECCIÓN A: RESUMEN DE BALANCE
+      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
 
@@ -170,10 +172,12 @@ export default function App() {
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
+        // Escapar comillas para CSV
         const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
+      // 2. Descargar
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -183,6 +187,7 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
+      // 3. Ofrecer Purgar (Limpiar Base de Datos)
       setTimeout(() => {
         requestConfirm(
           "¿Limpiar Base de Datos?",
@@ -255,10 +260,14 @@ export default function App() {
     e.preventDefault();
     const f = e.target;
     const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
+
+    // AQUÍ SE AGREGA LA LÓGICA PARA GUARDAR LA SUBCATEGORÍA
     const data = {
       name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
       cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),
-      categoryId: f.category.value, imageUrl: img
+      categoryId: f.category.value,
+      subCategoryId: f.subcategory.value, // <--- CAMPO NUEVO
+      imageUrl: img
     };
     try {
       if (editingProduct) await updateProduct(editingProduct.id, data);
@@ -337,7 +346,8 @@ export default function App() {
         <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
-              <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
+              {/* SE AGREGARON LAS SUBCATEGORÍAS A PRODUCTGRID */}
+              <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
               <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>
               {showMobileCart && <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>}
               {cart.length > 0 && !showMobileCart && <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-20 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal}</div></button>}
@@ -351,8 +361,8 @@ export default function App() {
                 expenses={expenses}
                 setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
                 handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dashboardDateRange} // Nuevo
-                setDateRange={setDashboardDateRange} // Nuevo
+                dateRange={dashboardDateRange}
+                setDateRange={setDashboardDateRange}
               />
             </Suspense>
           )}
@@ -369,7 +379,7 @@ export default function App() {
             </Suspense>
           )}
 
-          {/* NUEVA PESTAÑA: REPARTO */}
+          {/* NUEVA SECCIÓN DE REPARTO */}
           {activeTab === 'delivery' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
               <Delivery
@@ -382,7 +392,7 @@ export default function App() {
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            // FIX: Padding corregido (lg:pb-0 en lugar de pb-20)
+            // FIX DE PADDING: lg:pb-0 para evitar el hueco blanco
             <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
@@ -391,12 +401,13 @@ export default function App() {
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
               </div>
-              <ProductGrid products={products} addToCart={(p) => { setEditingProduct(p); setPreviewImage(p.imageUrl || ''); setImageMode(p.imageUrl?.startsWith('data:') ? 'file' : 'link'); toggleModal('product', true); }} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
+              {/* PASAMOS SUBCATEGORÍAS PARA FILTRAR */}
+              <ProductGrid products={products} addToCart={(p) => { setEditingProduct(p); setPreviewImage(p.imageUrl || ''); setImageMode(p.imageUrl?.startsWith('data:') ? 'file' : 'link'); toggleModal('product', true); }} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
             </div>
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            // FIX: Padding corregido (lg:pb-0 en lugar de pb-20)
+            // FIX DE PADDING: lg:pb-0
             <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
@@ -435,6 +446,7 @@ export default function App() {
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
 
+        {/* DETALLE DE TRANSACCIÓN: AQUÍ ESTÁ LA ACTUALIZACIÓN EN TIEMPO REAL */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
             <TransactionDetail
@@ -445,7 +457,7 @@ export default function App() {
               onShare={() => { }}
               onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
               customers={customers}
-              // CORRECCIÓN CRÍTICA: Actualizar estado local + Firebase al mismo tiempo
+              // LÓGICA CRÍTICA: Actualizar estado local para que la nota se vea al instante
               onUpdate={async (id, data) => {
                 await updateTransaction(id, data);
                 setSelectedTransaction(prev => ({ ...prev, ...data }));
@@ -458,8 +470,13 @@ export default function App() {
 
         {/* MODALES CONECTADOS A LOS HOOKS */}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} />}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} />}
+
+        {/* PRODUCT MODAL: AHORA RECIBE SUBCATEGORÍAS */}
+        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} />}
+
+        {/* CATEGORY MODAL: AHORA GESTIONA SUBCATEGORÍAS */}
+        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} />}
+
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
         {modals.store && <StoreModal onClose={() => toggleModal('store', false)} onSave={async (e) => { e.preventDefault(); const img = imageMode === 'file' ? previewImage : e.target.logoUrlLink?.value; await updateStoreProfile({ name: e.target.storeName.value, logoUrl: img }); toggleModal('store', false); }} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
