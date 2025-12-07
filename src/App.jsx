@@ -247,9 +247,24 @@ export default function App() {
     e.preventDefault();
     const form = e.target;
     try {
-      if (isRegistering) await register(form);
-      else await login(form.email.value, form.password.value);
-    } catch (e) { }
+      if (isRegistering) {
+        // CORRECCIÓN IMPORTANTE: Extraemos el VALOR (.value) de cada input
+        const registerData = {
+          name: form.name.value,
+          phone: form.phone.value,
+          address: form.address.value,
+          email: form.email.value,
+          password: form.password.value,
+          // Agregamos inviteCode por si tu useAuth lo espera, aunque sea opcional
+          inviteCode: form.inviteCode ? form.inviteCode.value : ''
+        };
+        await register(registerData);
+      } else {
+        await login(form.email.value, form.password.value);
+      }
+    } catch (e) {
+      console.error("Error autenticación:", e);
+    }
   };
 
   const requestConfirm = (title, message, action, isDanger = false) => {

@@ -57,12 +57,15 @@ export const useAuth = (app) => {
         }
     };
 
-    const register = async ({ email, password, name, phone, address }) => {
+    // En src/hooks/useAuth.js
+    // Agrega inviteCode a los argumentos y al objeto newUserData
+    const register = async ({ email, password, name, phone, address, inviteCode }) => { // <--- AQUI
         try {
             setLoginError('');
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const newUserData = {
                 email, name, phone, address,
+                inviteCode: inviteCode || '', // <--- AQUI (Guardarlo en la base de datos)
                 role: 'client',
                 createdAt: serverTimestamp()
             };
