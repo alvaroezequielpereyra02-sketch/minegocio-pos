@@ -314,7 +314,7 @@ export default function App() {
   }
 
   return (
-    // CAMBIO IMPORTANTE: 'h-full' rellena el contenedor 'fixed'
+    // CAMBIO IMPORTANTE: 'h-full' para llenar el body de 100vh
     <div className="flex h-full w-full bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
 
