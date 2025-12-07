@@ -130,7 +130,7 @@ const ProductGrid = memo(function ProductGrid({
             </div>
 
             {/* LISTADO VIRTUALIZADO */}
-            <div className="flex-1 min-h-0 pb-20 lg:pb-0">
+            <div className="flex-1 min-h-0 pb-16 lg:pb-0">
                 {filteredProducts.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400">
                         <Search size={48} className="mb-2 opacity-20" />

@@ -176,7 +176,7 @@ export default function Orders({ transactions, products, categories, onUpdateTra
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0 bg-slate-50 -m-4">
+        <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0 bg-slate-50 -m-4">
             {/* Header Fijo */}
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3">
                 <div className="flex justify-between items-center">

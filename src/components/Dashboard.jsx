@@ -22,7 +22,7 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-24 lg:pb-0 bg-slate-50 -m-4 p-4">
+        <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0 bg-slate-50 -m-4 p-4">
 
             {/* HEADER */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">

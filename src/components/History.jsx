@@ -49,7 +49,7 @@ export default function History({
 
     if (historySection === 'menu') {
         return (
-            <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0">
                 <div className="flex justify-between items-center mb-6 flex-shrink-0">
                     <h2 className="text-xl font-bold text-slate-800">Transacciones</h2>
                     {userData.role === 'admin' && (
@@ -78,7 +78,7 @@ export default function History({
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0 bg-slate-50 -m-4">
+        <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0 bg-slate-50 -m-4">
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm">
                 <div className="flex items-center gap-3 mb-3">
                     <button onClick={() => setHistorySection('menu')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">

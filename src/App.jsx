@@ -366,7 +366,7 @@ export default function App() {
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden lg:pb-0"> {/* Solo dejamos lg:pb-0 */}
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -379,7 +379,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
