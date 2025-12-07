@@ -54,10 +54,19 @@ textarea {
     animation-fill-mode: forwards;
 }
 
-/* Previene parpadeos blancos en transiciones 3D */
-* {
+/* Restaurado de forma segura para móviles */
+body,
+button,
+input,
+select,
+textarea {
     -webkit-backface-visibility: hidden;
-    /* Para compatibilidad antigua */
     backface-visibility: hidden;
-    /* Estándar moderno */
+}
+
+/* Solo si usas animaciones 3D específicas */
+.animate-in,
+.animate-out {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
