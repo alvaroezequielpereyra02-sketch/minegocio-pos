@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* */
+
+:root {
+    /* Cambia height: 100% por esto para móviles */
+    min-height: 100dvh;
+    height: 100dvh;
+}
+
+html {
+    height: 100dvh;
+    /* IMPORTANTE: El color de fondo debe estar en HTML para cubrir "rebotes" */
+    background-color: #f1f5f9;
+}
+
+body {
+    margin: 0;
+    min-height: 100dvh;
+    /* Padding para iPhone con barra inferior (Home Indicator) */
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: #f1f5f9;
+    /* ... resto de estilos ... */
+}
+
+#root {
+    /* Asegura que el contenedor React ocupe todo */
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Permitir selección solo en campos de texto */
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* Ocultar barras de desplazamiento (estética limpia) */
+::-webkit-scrollbar {
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Clases de utilidad para animaciones */
+.animate-in {
+    animation-fill-mode: forwards;
+}
+
+/* Previene parpadeos blancos en transiciones 3D */
+* {
+    -webkit-backface-visibility: hidden;
+    /* Para compatibilidad antigua */
+    backface-visibility: hidden;
+    /* Estándar moderno */
+}
