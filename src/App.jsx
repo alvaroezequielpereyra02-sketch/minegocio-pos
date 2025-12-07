@@ -359,7 +359,13 @@ export default function App() {
 
           {activeTab === 'orders' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={(id, data) => updateTransaction(id, data)} />
+              <Orders
+                transactions={transactions}
+                products={products}
+                categories={categories}
+                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
+                onSelectTransaction={(t) => setSelectedTransaction(t)}
+              />
             </Suspense>
           )}
 
