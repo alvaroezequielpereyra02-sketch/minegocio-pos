@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// IMPORTANTE: Aquí están todos los iconos necesarios para que no falle
+// CORRECCIÓN: Agregados FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight
 import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
@@ -76,7 +76,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
 
     useEffect(() => {
-        // Reset subcategory selection visually if category changes (handled by disabled state)
+        // Reset visual si cambia categoría
     }, [selectedCat]);
 
     return (
