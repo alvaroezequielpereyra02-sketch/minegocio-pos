@@ -8,6 +8,7 @@ import {
     sendPasswordResetEmail
 } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { appId } from '../config/firebase'; // <--- IMPORTANTE: Importamos el ID de la tienda
 
 export const useAuth = (app) => {
     const [user, setUser] = useState(null);
@@ -30,6 +31,7 @@ export const useAuth = (app) => {
                         setUserData(userDoc.data());
                     } else if (navigator.onLine) {
                         // Si hay internet y no existe perfil, forzar logout por seguridad
+                        // (Opcional: podrías permitirlo si quieres que se autorepare, pero mejor logout)
                         await signOut(auth);
                         setUserData(null);
                         setUser(null);
@@ -57,20 +59,33 @@ export const useAuth = (app) => {
         }
     };
 
-    // En src/hooks/useAuth.js
-    // Agrega inviteCode a los argumentos y al objeto newUserData
-    const register = async ({ email, password, name, phone, address, inviteCode }) => { // <--- AQUI
+    const register = async ({ email, password, name, phone, address, inviteCode }) => {
         try {
             setLoginError('');
+            // 1. Crear usuario en Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const uid = userCredential.user.uid;
+
             const newUserData = {
-                email, name, phone, address,
-                inviteCode: inviteCode || '', // <--- AQUI (Guardarlo en la base de datos)
+                email,
+                name,
+                phone,
+                address,
+                inviteCode: inviteCode || '',
                 role: 'client',
                 createdAt: serverTimestamp()
             };
-            // Guardar perfil extendido en Firestore
-            await setDoc(doc(db, 'users', userCredential.user.uid), newUserData);
+
+            // 2. Guardar en colección global de USUARIOS (Para login y roles)
+            await setDoc(doc(db, 'users', uid), newUserData);
+
+            // 3. Guardar TAMBIÉN en colección de CLIENTES de la tienda (Para que aparezca en la lista del admin)
+            // Usamos el mismo UID para que sea fácil de relacionar
+            await setDoc(doc(db, 'stores', appId, 'customers', uid), {
+                ...newUserData,
+                userId: uid // Referencia al ID de Auth
+            });
+
             return userCredential.user;
         } catch (error) {
             setLoginError(error.message);
