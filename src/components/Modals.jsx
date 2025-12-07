@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+// IMPORTANTE: Aquí están todos los iconos necesarios para que no falle
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
@@ -118,7 +119,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
-// --- CATEGORY MODAL REDISEÑADO ---
+// --- CATEGORY MODAL MEJORADO (VISUALMENTE CLARO) ---
 export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [] }) {
     const [expandedCat, setExpandedCat] = useState(null);
 
