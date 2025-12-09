@@ -49,7 +49,8 @@ export default function Orders({ transactions, products, categories, onUpdateTra
 
         const grouped = {};
         Object.values(needs).forEach(item => {
-            const missing = item.required - item.stock;
+            const missing = item.stock < 0 ? Math.abs(item.stock) : 0;
+
             if (missing > 0) {
                 if (!grouped[item.category]) grouped[item.category] = [];
                 grouped[item.category].push({ ...item, missing });
