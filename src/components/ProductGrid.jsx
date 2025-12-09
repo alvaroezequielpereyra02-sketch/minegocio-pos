@@ -60,7 +60,7 @@ const ProductGrid = memo(function ProductGrid({
                 >
                     <div className="w-full h-32 bg-slate-100 relative shrink-0">
                         {product.imageUrl ? (
-                            <img src={product.imageUrl} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} alt={product.name} />
+                            <img src={product.imageUrl} className="w-full h-full object-contain p-2 mix-blend-multiply" loading="lazy" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} alt={product.name} />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8" /></div>
                         )}

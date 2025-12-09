@@ -111,7 +111,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 
                     <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button></div>
                     {imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e) => setPreviewImage(e.target.value)} />}
-                    {previewImage && <img src={previewImage} className="h-20 w-full object-cover rounded border" />}
+                    {previewImage && <img src={previewImage} className="h-20 w-full object-contain bg-slate-50 rounded border p-1" />}
                     <div className="flex gap-2 pt-2"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
                 </form>
             </div>
