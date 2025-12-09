@@ -1,5 +1,30 @@
-# .gitignore
+# --- SEGURIDAD (CRÍTICO) ---
 .env
 .env.local
-node_modules
-dist
+.env.*.local
+# ¡ESTO ES VITAL! Bloquea la llave maestra que acabamos de generar
+serviceAccountKey.json
+
+# --- DEPENDENCIAS ---
+node_modules/
+
+# --- BUILD Y DISTRIBUCIÓN ---
+dist/
+build/
+
+# --- FIREBASE ---
+.firebase/
+firebase-debug.log
+firebase-debug.log.*
+
+# --- SISTEMA OPERATIVO (Basura) ---
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- IDEs (Opcional pero recomendado) ---
+.vscode/
+.idea/
