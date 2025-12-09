@@ -14,7 +14,8 @@ initializeApp({
 const ADMIN_EMAILS = [
     'alvaroezequielpereyra02@gmail.com',
     'fepereyra75@gmail.com',
-
+    //'socio2@gmail.com',
+    //'gerente@negocio.com' 
 ];
 
 async function grantAdminRoles() {
