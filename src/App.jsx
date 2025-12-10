@@ -402,6 +402,7 @@ export default function App() {
                 customers={customers}
                 onUpdateTransaction={updateTransaction}
                 onSelectTransaction={(t) => setSelectedTransaction(t)}
+                onRequestConfirm={requestConfirm}
               />
             </Suspense>
           )}

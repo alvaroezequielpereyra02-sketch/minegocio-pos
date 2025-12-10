@@ -1,31 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, MapPin, MessageCircle, CheckCircle, Plus, X, ArrowUp, ArrowDown, Navigation, Package, FileText } from 'lucide-react';
 
-export default function Delivery({ transactions, customers, onUpdateTransaction, onSelectTransaction }) {
-    // 1. Estado local para la "Ruta de Reparto" (IDs de los pedidos seleccionados)
+// 1. Recibimos 'onRequestConfirm'
+export default function Delivery({ transactions, customers, onUpdateTransaction, onSelectTransaction, onRequestConfirm }) {
+
     const [routeIds, setRouteIds] = useState(() => {
         const saved = localStorage.getItem('deliveryRoute');
         return saved ? JSON.parse(saved) : [];
     });
 
-    const [activeTab, setActiveTab] = useState('route'); // 'pool' (depósito) o 'route' (ruta)
+    const [activeTab, setActiveTab] = useState('route');
 
-    // Guardar ruta en LocalStorage para no perderla si se recarga la página
     useEffect(() => {
         localStorage.setItem('deliveryRoute', JSON.stringify(routeIds));
     }, [routeIds]);
 
-    // 2. Filtrar pedidos que están "Listos" para repartir
-    // Solo mostramos los que están 'ready' (armados) O los que ya están en nuestra ruta local (aunque sigan ready)
-    // Excluimos los 'delivered' o 'cancelled'.
     const readyOrders = transactions.filter(t =>
         t.fulfillmentStatus === 'ready' && !routeIds.includes(t.id)
     );
 
-    // 3. Obtener los objetos completos de la ruta ordenados según routeIds
     const routeOrders = routeIds
         .map(id => transactions.find(t => t.id === id))
-        .filter(t => t && t.fulfillmentStatus !== 'delivered'); // Limpiamos si ya se entregó externamente
+        .filter(t => t && t.fulfillmentStatus !== 'delivered');
 
     // FUNCIONES DE ACCIÓN
     const addToRoute = (id) => setRouteIds([...routeIds, id]);
@@ -39,14 +35,21 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
         setRouteIds(newRoute);
     };
 
-    const handleMarkDelivered = async (order) => {
-        if (window.confirm(`¿Confirmar entrega de pedido #${order.id.slice(0, 4)}?`)) {
-            await onUpdateTransaction(order.id, { fulfillmentStatus: 'delivered' });
-            removeFromRoute(order.id); // Lo sacamos de la ruta visualmente
-        }
+    // --- CAMBIO PRINCIPAL: Usamos el Modal Nativo ---
+    const handleMarkDelivered = (order) => {
+        // En lugar de window.confirm, usamos la función que nos pasó App.jsx
+        onRequestConfirm(
+            "Confirmar Entrega", // Título
+            `¿Marcar el pedido #${order.id.slice(0, 4)} como ENTREGADO?`, // Mensaje
+            async () => {
+                // Acción a ejecutar si dice "SÍ"
+                await onUpdateTransaction(order.id, { fulfillmentStatus: 'delivered' });
+                removeFromRoute(order.id);
+            },
+            false // isDanger (false para azul, true para rojo)
+        );
     };
 
-    // Helper para datos del cliente
     const getClientData = (t) => {
         const c = customers.find(cust => cust.id === t.clientId);
         return {
@@ -62,7 +65,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
 
         return (
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3 relative animate-in zoom-in-95 duration-200">
-                {/* Header Card */}
                 <div className="flex justify-between items-start">
                     <div>
                         <div className="font-bold text-slate-800 text-lg flex items-center gap-2">
@@ -71,7 +73,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                         </div>
                         <div className="text-xs text-slate-500 font-bold uppercase mt-1">Pedido #{order.id.slice(0, 4)} • ${order.total.toLocaleString()}</div>
 
-                        {/* --- BOTÓN NUEVO: VER BOLETA --- */}
                         <button
                             onClick={() => onSelectTransaction(order)}
                             className="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition-colors"
@@ -89,7 +90,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                     )}
                 </div>
 
-                {/* Dirección y Items Resumidos */}
                 <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-600 space-y-1">
                     {client.address ? (
                         <div className="flex items-start gap-2 text-slate-800 font-medium">
@@ -103,11 +103,9 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                     </div>
                 </div>
 
-                {/* BOTONES DE ACCIÓN (SOLO EN RUTA) */}
                 {isRoute && (
                     <div className="flex flex-col gap-2 mt-1">
                         <div className="flex gap-2">
-                            {/* WhatsApp */}
                             {client.phone && (
                                 <a
                                     href={`https://wa.me/${client.phone}?text=Hola ${client.name}, estamos en camino con tu pedido!`}
@@ -118,7 +116,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                                     <MessageCircle size={16} /> Avisar
                                 </a>
                             )}
-                            {/* Maps */}
                             {client.address && (
                                 <a
                                     href={`https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(client.address)}`}
@@ -132,12 +129,10 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                         </div>
 
                         <div className="flex gap-2 items-center">
-                            {/* Reordenar */}
                             <div className="flex bg-slate-100 rounded-lg p-1">
                                 <button disabled={index === 0} onClick={() => moveOrder(index, -1)} className="p-2 hover:bg-white rounded shadow-sm disabled:opacity-30"><ArrowUp size={16} /></button>
                                 <button disabled={index === routeOrders.length - 1} onClick={() => moveOrder(index, 1)} className="p-2 hover:bg-white rounded shadow-sm disabled:opacity-30"><ArrowDown size={16} /></button>
                             </div>
-                            {/* Entregar */}
                             <button onClick={() => handleMarkDelivered(order)} className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg font-bold text-sm hover:bg-slate-900 flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
                                 <CheckCircle size={18} /> Entregado
                             </button>
@@ -150,8 +145,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-slate-50 -m-4 lg:flex-row">
-
-            {/* --- SECCIÓN 1: DEPÓSITO (Lista de Pedidos Listos) --- */}
             <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeTab === 'route' ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="p-4 bg-white border-b shadow-sm flex-shrink-0 flex justify-between items-center">
                     <h2 className="font-bold text-lg text-slate-700 flex items-center gap-2"><Package className="text-blue-600" /> En Depósito ({readyOrders.length})</h2>
@@ -163,12 +156,11 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                 </div>
             </div>
 
-            {/* --- SECCIÓN 2: MI RUTA (Seleccionados) --- */}
             <div className={`flex-1 flex flex-col h-full overflow-hidden border-l border-slate-200 bg-white ${activeTab === 'pool' ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="p-4 bg-slate-800 text-white shadow-md flex-shrink-0 z-10 flex justify-between items-center">
                     <button onClick={() => setActiveTab('pool')} className="lg:hidden text-slate-300"><ArrowUp className="-rotate-90" size={20} /></button>
                     <h2 className="font-bold text-lg flex items-center gap-2"><Truck className="text-yellow-400" /> Mi Ruta ({routeOrders.length})</h2>
-                    <div className="w-6"></div> {/* Spacer */}
+                    <div className="w-6"></div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 relative">
                     {routeOrders.length === 0 && (
@@ -179,7 +171,6 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
                     )}
                     {routeOrders.map((t, i) => <OrderCard key={t.id} order={t} isRoute={true} index={i} />)}
                 </div>
-                {/* Info Footer de Ruta */}
                 {routeOrders.length > 0 && (
                     <div className="p-4 bg-white border-t text-sm font-bold text-slate-600 flex justify-between">
                         <span>Total a cobrar en ruta:</span>
