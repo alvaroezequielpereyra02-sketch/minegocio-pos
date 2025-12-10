@@ -35,14 +35,36 @@ const ProductGrid = memo(function ProductGrid({
         return subcategories.filter(sub => sub.parentId === selectedCategory);
     }, [selectedCategory, subcategories]);
 
+    // --- LÓGICA DE FILTRADO MEJORADA ---
     const filteredProducts = useMemo(() => {
         const lowerTerm = searchTerm.toLowerCase();
-        return products.filter(p =>
-            p.name.toLowerCase().includes(lowerTerm) &&
-            (selectedCategory === 'all' || p.categoryId === selectedCategory) &&
-            (selectedSubCategory === 'all' || p.subCategoryId === selectedSubCategory)
+
+        // 1. Creamos una lista rápida de IDs de categorías permitidas (Activas)
+        // Si una categoría tiene isActive: false, NO entra en esta lista.
+        const activeCategoryIds = new Set(
+            categories
+                .filter(c => c.isActive !== false) // Si es undefined (legacy), cuenta como true
+                .map(c => c.id)
         );
-    }, [products, searchTerm, selectedCategory, selectedSubCategory]);
+
+        return products.filter(p => {
+            // A. Coincidencia por nombre (Buscador)
+            const matchesSearch = p.name.toLowerCase().includes(lowerTerm);
+
+            // B. Coincidencia por Categoría seleccionada (Botones)
+            const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
+
+            // C. Coincidencia por Subcategoría
+            const matchesSub = selectedSubCategory === 'all' || p.subCategoryId === selectedSubCategory;
+
+            // D. REGLA MAESTRA: ¿La categoría de este producto está activa?
+            // Si la categoría fue "apagada" con el ojo, el producto desaparece de TODOS lados.
+            // (Nota: Si el producto no tiene categoría asignada, lo mostramos por defecto)
+            const isCategoryActive = !p.categoryId || activeCategoryIds.has(p.categoryId);
+
+            return matchesSearch && matchesCategory && matchesSub && isCategoryActive;
+        });
+    }, [products, searchTerm, selectedCategory, selectedSubCategory, categories]); // <--- 'categories' es clave aquí
 
     const Cell = ({ columnIndex, rowIndex, style, data }) => {
         const { products, columnCount } = data;
@@ -102,7 +124,7 @@ const ProductGrid = memo(function ProductGrid({
 
             <div className="flex gap-2 overflow-x-auto pb-2 mb-1 scrollbar-hide shrink-0">
                 <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>Todas</button>
-                {/* FILTRO: Solo mostramos las categorías que NO están desactivadas */}
+                {/* FILTRO: Solo mostramos las categorías que NO están desactivadas en la barra */}
                 {categories.filter(cat => cat.isActive !== false).map(cat => (
                     <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat.id ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                         {cat.name}
