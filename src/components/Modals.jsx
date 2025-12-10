@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff } from 'lucide-react';
+// AGREGADO: Edit3 y Check para la interfaz de edición
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
@@ -100,7 +101,6 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                     </div>
                     <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button></div>
                     {imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e) => setPreviewImage(e.target.value)} />}
-                    {/* FIXED: Image contain */}
                     {previewImage && <img src={previewImage} className="h-20 w-full object-contain bg-slate-50 rounded border p-1" />}
                     <div className="flex gap-2 pt-2"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
                 </form>
@@ -109,8 +109,31 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
+// --- CATEGORY MODAL MEJORADO (CON EDICIÓN DE NOMBRE) ---
 export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [], onUpdate }) {
     const [expandedCat, setExpandedCat] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState("");
+
+    const startEdit = (cat, e) => {
+        e.stopPropagation();
+        setEditingId(cat.id);
+        setEditName(cat.name);
+    };
+
+    const saveEdit = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (editName.trim()) {
+            onUpdate(editingId, { name: editName });
+            setEditingId(null);
+        }
+    };
+
+    const cancelEdit = (e) => {
+        e.stopPropagation();
+        setEditingId(null);
+    };
 
     return (
         <div className={modalOverlayClass}>
@@ -124,39 +147,70 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
                         const subs = subcategories.filter(s => s.parentId === cat.id);
                         const isExpanded = expandedCat === cat.id;
                         const isActive = cat.isActive !== false;
+                        const isEditing = editingId === cat.id;
 
                         return (
                             <div key={cat.id} className={`bg-white rounded-xl border transition-all duration-200 ${isExpanded ? 'border-blue-400 shadow-md ring-1 ring-blue-100' : 'border-slate-200 shadow-sm'} ${!isActive ? 'opacity-60 grayscale' : ''}`}>
+
+                                {/* CABECERA CATEGORÍA */}
                                 <div className="flex justify-between items-center p-3">
-                                    <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
-                                        <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                                            {isExpanded ? <FolderOpen size={20} /> : <Folder size={20} />}
+                                    {isEditing ? (
+                                        // MODO EDICIÓN
+                                        <div className="flex items-center gap-2 flex-1 animate-in fade-in">
+                                            <input
+                                                autoFocus
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex-1 p-2 border border-blue-400 rounded-lg text-sm font-bold text-slate-800 outline-none shadow-sm"
+                                            />
+                                            <button onClick={saveEdit} className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 shadow-sm"><Check size={18} /></button>
+                                            <button onClick={cancelEdit} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 shadow-sm"><X size={18} /></button>
                                         </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                                {cat.name}
-                                                {!isActive && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase">Inactiva</span>}
+                                    ) : (
+                                        // MODO VISUALIZACIÓN
+                                        <>
+                                            <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
+                                                <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                    {isExpanded ? <FolderOpen size={20} /> : <Folder size={20} />}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                        {cat.name}
+                                                        {!isActive && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase">Inactiva</span>}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-medium">{subs.length} subcategorías</div>
+                                                </div>
                                             </div>
-                                            <div className="text-[10px] text-slate-400 font-medium">{subs.length} subcategorías</div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onUpdate(cat.id, { isActive: !isActive });
-                                            }}
-                                            className={`p-2 rounded-full transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
-                                            title={isActive ? "Desactivar temporalmente" : "Reactivar"}
-                                        >
-                                            {isActive ? <Eye size={18} /> : <EyeOff size={18} />}
-                                        </button>
-                                        <div className={`transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
-                                            <ChevronDown size={20} />
-                                        </div>
-                                    </div>
+                                            <div className="flex items-center gap-1">
+                                                {/* Botón Renombrar */}
+                                                <button
+                                                    onClick={(e) => startEdit(cat, e)}
+                                                    className="p-2 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    title="Renombrar"
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                {/* Botón Activar/Desactivar */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onUpdate(cat.id, { isActive: !isActive });
+                                                    }}
+                                                    className={`p-2 rounded-full transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
+                                                    title={isActive ? "Desactivar" : "Activar"}
+                                                >
+                                                    {isActive ? <Eye size={18} /> : <EyeOff size={18} />}
+                                                </button>
+                                                <div className={`transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
+                                                    <ChevronDown size={20} />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                {isExpanded && (
+
+                                {isExpanded && !isEditing && (
                                     <div className="bg-slate-50/50 border-t border-slate-100 rounded-b-xl animate-in slide-in-from-top-1 fade-in p-3">
                                         <div className="space-y-1 mb-4 pl-4 border-l-2 border-slate-200 ml-3">
                                             {subs.map(sub => (
