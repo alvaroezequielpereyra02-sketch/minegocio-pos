@@ -85,7 +85,7 @@ export default function App() {
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
     updateStoreProfile, generateInvitationCode
-  } = useInventory(user);
+  } = useInventory(user, userData);
 
   // Pasamos dateRange al hook de transacciones
   const {

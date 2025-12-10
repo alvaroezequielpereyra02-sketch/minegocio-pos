@@ -5,10 +5,11 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
-export const useInventory = (user) => {
+// 1. Aceptamos 'userData' como segundo parámetro
+export const useInventory = (user, userData) => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [subcategories, setSubcategories] = useState([]); // <--- NUEVO
+    const [subcategories, setSubcategories] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
@@ -16,37 +17,63 @@ export const useInventory = (user) => {
     useEffect(() => {
         if (!user) return;
 
+        // --- A. DATOS PÚBLICOS O GENERALES (Todos pueden verlos) ---
+
+        // 1. Perfil de la tienda
         const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (d) => {
             if (d.exists()) setStoreProfile(d.data());
         });
 
+        // 2. Productos
         const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (s) =>
             setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
+        // 3. Categorías
         const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (s) =>
             setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
-        // --- 1. ESCUCHAR SUBCATEGORÍAS ---
+        // 4. Subcategorías
         const unsubSubCats = onSnapshot(query(collection(db, 'stores', appId, 'subcategories'), orderBy('name')), (s) =>
             setSubcategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
-        const unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (s) =>
-            setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
-        );
+        // --- B. DATOS PRIVADOS (Solo si es Admin) ---
+        // Definimos funciones vacías por defecto para evitar errores al limpiar
+        let unsubCustomers = () => { };
+        let unsubExpenses = () => { };
 
-        const unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (s) =>
-            setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
-        );
+        // Verificamos el rol antes de suscribirnos
+        if (userData?.role === 'admin') {
+            console.log("🔐 Rol Admin detectado: Cargando datos privados...");
 
+            unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (s) =>
+                setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
+            );
+
+            unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (s) =>
+                setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
+            );
+        } else {
+            // Si deja de ser admin (o es cliente), limpiamos estos datos por seguridad
+            setCustomers([]);
+            setExpenses([]);
+        }
+
+        // Limpieza al desmontar
         return () => {
-            unsubProfile(); unsubProducts(); unsubCats(); unsubSubCats(); unsubCustomers(); unsubExpenses();
+            unsubProfile();
+            unsubProducts();
+            unsubCats();
+            unsubSubCats();
+            unsubCustomers(); // Se ejecuta si fue asignada
+            unsubExpenses();  // Se ejecuta si fue asignada
         };
-    }, [user]);
 
-    // --- ACTIONS ---
+    }, [user, userData]); // <--- IMPORTANTE: Se ejecuta de nuevo si cambia el usuario o sus datos (rol)
+
+    // --- ACTIONS (Funciones de escritura) ---
 
     const addProduct = async (data) => addDoc(collection(db, 'stores', appId, 'products'), { ...data, createdAt: serverTimestamp() });
     const updateProduct = async (id, data) => updateDoc(doc(db, 'stores', appId, 'products', id), data);
@@ -60,7 +87,6 @@ export const useInventory = (user) => {
     const addCategory = async (name) => addDoc(collection(db, 'stores', appId, 'categories'), { name, createdAt: serverTimestamp() });
     const deleteCategory = async (id) => deleteDoc(doc(db, 'stores', appId, 'categories', id));
 
-    // --- 2. ACCIONES SUBCATEGORÍAS ---
     const addSubCategory = async (parentId, name) =>
         addDoc(collection(db, 'stores', appId, 'subcategories'), { parentId, name, createdAt: serverTimestamp() });
 
