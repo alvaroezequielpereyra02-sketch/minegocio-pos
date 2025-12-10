@@ -1,26 +1,19 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
-import { serverTimestamp } from 'firebase/firestore';
-
-// IMPORTS DE HOOKS
 import { useAuth } from './hooks/useAuth';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
 import { usePrinter } from './hooks/usePrinter';
-
-// COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders = lazy(() => import('./components/Orders'));
-// NUEVO COMPONENTE DE REPARTO
 const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
@@ -30,7 +23,6 @@ const TabLoader = () => (
   </div>
 );
 
-// Helper de Imagen
 const compressImage = (file, maxWidth = 500, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -64,8 +56,6 @@ export default function App() {
   const [confirmConfig, setConfirmConfig] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
-
-  // NUEVO ESTADO PARA EL RANGO DE FECHAS (Semana/Mes)
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
   const [modals, setModals] = useState({
@@ -74,20 +64,19 @@ export default function App() {
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // INICIALIZAR HOOKS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
 
+  // IMPORTANTE: Pasamos userData para seguridad
   const {
-    products, categories, subcategories, customers, expenses, storeProfile, // Agregado subcategories
+    products, categories, subcategories, customers, expenses, storeProfile,
     addProduct, updateProduct, deleteProduct, addStock,
-    addCategory, deleteCategory,
-    addSubCategory, deleteSubCategory, // Agregado acciones de subcategorías
+    addCategory, updateCategory, deleteCategory, // Agregamos updateCategory
+    addSubCategory, deleteSubCategory,
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
     updateStoreProfile, generateInvitationCode
   } = useInventory(user, userData);
 
-  // Pasamos dateRange al hook de transacciones
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
   } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
@@ -98,7 +87,6 @@ export default function App() {
 
   const printer = usePrinter();
 
-  // ESTADOS DE SELECCIÓN/EDICIÓN
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -134,50 +122,34 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE EXPORTACIÓN MEJORADA (DATA + GRÁFICOS + PURGA) ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
-
     try {
-      // 1. Construir el CSV con Múltiples Secciones
-      let csvContent = "\uFEFF"; // BOM para que Excel lea tildes
-
-      // SECCIÓN A: RESUMEN DE BALANCE (Datos de los gráficos)
+      let csvContent = "\uFEFF";
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
-
       csvContent += "METRICAS DEL PERIODO\n";
       csvContent += `Ventas Totales,$${balance.periodSales}\n`;
       csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
       csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
       csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
-
       csvContent += "VENTAS POR CATEGORIA\n";
       csvContent += "Categoría,Monto Vendido\n";
-      balance.salesByCategory.forEach(cat => {
-        csvContent += `${cat.name},$${cat.value}\n`;
-      });
+      balance.salesByCategory.forEach(cat => { csvContent += `${cat.name},$${cat.value}\n`; });
       csvContent += "\n";
-
       csvContent += "GASTOS DETALLADOS\n";
       csvContent += "Fecha,Descripción,Monto\n";
-      expenses.forEach(e => {
-        csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`;
-      });
+      expenses.forEach(e => { csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`; });
       csvContent += "\n";
-
-      // SECCIÓN B: LISTA DE TRANSACCIONES
       csvContent += "DETALLE DE TRANSACCIONES\n";
       csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
       transactions.forEach(t => {
         const date = new Date(t.date?.seconds * 1000).toLocaleString();
         const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        // Escapar comillas para CSV
         const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
         csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
       });
 
-      // 2. Descargar
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -187,31 +159,20 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
 
-      // 3. Ofrecer Purgar (Limpiar Base de Datos)
       setTimeout(() => {
-        requestConfirm(
-          "¿Limpiar Base de Datos?",
-          "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
-          async () => {
-            setIsProcessing(true);
-            await purgeTransactions();
-            setIsProcessing(false);
-            showNotification("🧹 Historial limpiado");
-          },
-          true // Es peligroso (Rojo)
-        );
+        requestConfirm("¿Limpiar Base de Datos?", "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.", async () => {
+          setIsProcessing(true);
+          await purgeTransactions();
+          setIsProcessing(false);
+          showNotification("🧹 Historial limpiado");
+        }, true);
       }, 1500);
-
-    } catch (error) {
-      console.error("Error exportando:", error);
-      alert("Error al generar el reporte.");
-    }
+    } catch (error) { console.error("Error exportando:", error); alert("Error al generar el reporte."); }
   };
 
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
-
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
     if (userData?.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
     else if (userData?.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
@@ -236,11 +197,7 @@ export default function App() {
       setIsProcessing(false);
       setShowCheckoutSuccess(true);
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
-    } catch (e) {
-      console.error(e);
-      alert("Error al procesar venta");
-      setIsProcessing(false);
-    }
+    } catch (e) { console.error(e); alert("Error al procesar venta"); setIsProcessing(false); }
   };
 
   const handleAuthSubmit = async (e) => {
@@ -248,23 +205,12 @@ export default function App() {
     const form = e.target;
     try {
       if (isRegistering) {
-        // CORRECCIÓN IMPORTANTE: Extraemos el VALOR (.value) de cada input
         const registerData = {
-          name: form.name.value,
-          phone: form.phone.value,
-          address: form.address.value,
-          email: form.email.value,
-          password: form.password.value,
-          // Agregamos inviteCode por si tu useAuth lo espera, aunque sea opcional
-          inviteCode: form.inviteCode ? form.inviteCode.value : ''
+          name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, password: form.password.value, inviteCode: form.inviteCode ? form.inviteCode.value : ''
         };
         await register(registerData);
-      } else {
-        await login(form.email.value, form.password.value);
-      }
-    } catch (e) {
-      console.error("Error autenticación:", e);
-    }
+      } else { await login(form.email.value, form.password.value); }
+    } catch (e) { console.error("Error autenticación:", e); }
   };
 
   const requestConfirm = (title, message, action, isDanger = false) => {
@@ -275,14 +221,10 @@ export default function App() {
     e.preventDefault();
     const f = e.target;
     const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
-
-    // AQUÍ SE AGREGA LA LÓGICA PARA GUARDAR LA SUBCATEGORÍA
     const data = {
       name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
       cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),
-      categoryId: f.category.value,
-      subCategoryId: f.subcategory.value, // <--- CAMPO NUEVO
-      imageUrl: img
+      categoryId: f.category.value, subCategoryId: f.subcategory.value, imageUrl: img
     };
     try {
       if (editingProduct) await updateProduct(editingProduct.id, data);
@@ -302,12 +244,7 @@ export default function App() {
 
   const handleFileChange = async (e) => {
     const f = e.target.files[0];
-    if (f) {
-      setIsProcessing(true);
-      const base64 = await compressImage(f);
-      setPreviewImage(base64);
-      setIsProcessing(false);
-    }
+    if (f) { setIsProcessing(true); const base64 = await compressImage(f); setPreviewImage(base64); setIsProcessing(false); }
   };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;
@@ -343,9 +280,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
       <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
-
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
-
       {confirmConfig && <ConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} isDanger={confirmConfig.isDanger} />}
       {notification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3"><Bell size={18} className="text-yellow-400" /><span className="font-bold text-sm">{notification}</span></div>}
       {isProcessing && <ProcessingModal />}
@@ -361,7 +296,6 @@ export default function App() {
         <main className="flex-1 overflow-hidden p-4 relative z-0 flex flex-col">
           {activeTab === 'pos' && (
             <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
-              {/* SE AGREGARON LAS SUBCATEGORÍAS A PRODUCTGRID */}
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
               <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>
               {showMobileCart && <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>}
@@ -371,43 +305,23 @@ export default function App() {
 
           {activeTab === 'dashboard' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Dashboard
-                balance={balance}
-                expenses={expenses}
-                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
-                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dashboardDateRange}
-                setDateRange={setDashboardDateRange}
-              />
+              <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={(v) => toggleModal('expense', v)} handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)} dateRange={dashboardDateRange} setDateRange={setDashboardDateRange} />
             </Suspense>
           )}
 
           {activeTab === 'orders' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Orders
-                transactions={transactions}
-                products={products}
-                categories={categories}
-                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
-                onSelectTransaction={(t) => setSelectedTransaction(t)}
-              />
+              <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={(id, data) => updateTransaction(id, data)} onSelectTransaction={(t) => setSelectedTransaction(t)} />
             </Suspense>
           )}
 
-          {/* NUEVA SECCIÓN DE REPARTO */}
           {activeTab === 'delivery' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Delivery
-                transactions={transactions}
-                customers={customers}
-                onUpdateTransaction={updateTransaction}
-                onSelectTransaction={(t) => setSelectedTransaction(t)}
-              />
+              <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} />
             </Suspense>
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            // FIX DE PADDING: lg:pb-0 para evitar el hueco blanco
             <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
@@ -416,13 +330,11 @@ export default function App() {
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
               </div>
-              {/* PASAMOS SUBCATEGORÍAS PARA FILTRAR */}
               <ProductGrid products={products} addToCart={(p) => { setEditingProduct(p); setPreviewImage(p.imageUrl || ''); setImageMode(p.imageUrl?.startsWith('data:') ? 'file' : 'link'); toggleModal('product', true); }} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
             </div>
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            // FIX DE PADDING: lg:pb-0
             <div className="flex flex-col h-full overflow-hidden lg:pb-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
@@ -447,87 +359,27 @@ export default function App() {
 
           {activeTab === 'transactions' && (
             <Suspense fallback={<TabLoader />}>
-              <History
-                transactions={transactions}
-                userData={userData}
-                handleExportCSV={handleExportData}
-                historySection={historySection}
-                setHistorySection={setHistorySection}
-                onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
-              />
+              <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
             </Suspense>
           )}
         </main>
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
 
-        {/* DETALLE DE TRANSACCIÓN: AQUÍ ESTÁ LA ACTUALIZACIÓN EN TIEMPO REAL */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
-            <TransactionDetail
-              transaction={selectedTransaction}
-              onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }}
-              printer={printer}
-              storeProfile={storeProfile}
-              onShare={() => { }}
-              onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)}
-              customers={customers}
-              // LÓGICA CRÍTICA: Actualizar estado local para que la nota se vea al instante
-              onUpdate={async (id, data) => {
-                await updateTransaction(id, data);
-                setSelectedTransaction(prev => ({ ...prev, ...data }));
-              }}
-              onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
-              userData={userData}
-            />
+            <TransactionDetail transaction={selectedTransaction} onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }} printer={printer} storeProfile={storeProfile} onShare={() => { }} onCancel={(id) => requestConfirm("Cancelar Venta", "¿Seguro?", async () => { await deleteTransaction(id); setSelectedTransaction(null); }, true)} customers={customers} onUpdate={async (id, data) => { await updateTransaction(id, data); setSelectedTransaction(prev => ({ ...prev, ...data })); }} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} />
           </Suspense>
         )}
 
-        {/* MODALES CONECTADOS A LOS HOOKS */}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-
-        {/* PRODUCT MODAL: AHORA RECIBE SUBCATEGORÍAS */}
         {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} />}
 
-        {/* CATEGORY MODAL: AHORA GESTIONA SUBCATEGORÍAS */}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} />}
+        {/* MODIFICADO: Agregamos onUpdate al CategoryModal */}
+        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} onUpdate={updateCategory} />}
 
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && (
-          <StoreModal
-            onClose={() => toggleModal('store', false)}
-            storeProfile={storeProfile}
-            imageMode={imageMode}
-            setImageMode={setImageMode}
-            previewImage={previewImage}
-            setPreviewImage={setPreviewImage}
-            handleFileChange={handleFileChange}
-            onSave={async (e) => {
-              e.preventDefault();
-              const form = e.target;
-              const newName = form.storeName.value;
-
-              // Lógica mejorada para la imagen
-              let newLogo = storeProfile.logoUrl; // Por defecto mantenemos la actual
-
-              if (imageMode === 'file') {
-                if (previewImage) newLogo = previewImage; // Si subió foto nueva, la usamos
-              } else {
-                // Si está en modo link y el campo existe, usamos ese valor
-                if (form.logoUrlLink) newLogo = form.logoUrlLink.value;
-              }
-
-              try {
-                await updateStoreProfile({ name: newName, logoUrl: newLogo });
-                toggleModal('store', false);
-                showNotification("✅ Perfil actualizado");
-              } catch (error) {
-                console.error(error);
-                alert("❌ Error al guardar: " + error.message + "\n\nVerifica que tu usuario tenga rol 'admin' en la base de datos.");
-              }
-            }}
-          />
-        )}
+        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { console.error(error); alert("❌ Error al guardar."); } }} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}

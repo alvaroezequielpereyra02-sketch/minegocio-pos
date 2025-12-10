@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-// CORRECCIÓN: Agregados FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight } from 'lucide-react';
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff } from 'lucide-react';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
-// --- CONFIRM MODAL ---
 export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
     return (
         <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
@@ -23,7 +21,6 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
     );
 }
 
-// --- PROCESSING MODAL ---
 export function ProcessingModal() {
     return (
         <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000] animate-in fade-in duration-300">
@@ -40,7 +37,6 @@ export function ProcessingModal() {
     );
 }
 
-// --- INVITATION MODAL ---
 export function InvitationModal({ onClose, onGenerate }) {
     const [generatedCode, setGeneratedCode] = useState(null);
     const handleGenerate = () => { const code = Math.random().toString(36).substring(2, 8).toUpperCase(); onGenerate(code); setGeneratedCode(code); };
@@ -55,7 +51,6 @@ export function InvitationModal({ onClose, onGenerate }) {
     );
 }
 
-// --- EXPENSE MODAL ---
 export function ExpenseModal({ onClose, onSave }) {
     return (
         <div className={modalOverlayClass}>
@@ -71,13 +66,10 @@ export function ExpenseModal({ onClose, onSave }) {
     );
 }
 
-// --- PRODUCT MODAL ---
 export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories, subcategories }) {
     const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
 
-    useEffect(() => {
-        // Reset visual si cambia categoría
-    }, [selectedCat]);
+    useEffect(() => { }, [selectedCat]);
 
     return (
         <div className={modalOverlayClass}>
@@ -88,8 +80,6 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                     <div className="flex gap-2 items-center border p-2 rounded bg-slate-50"><ScanBarcode size={16} className="text-slate-400" /><input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras (Opcional)" /></div>
                     <div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-slate-500 font-bold">Precio Venta</label><input required name="price" type="number" defaultValue={editingProduct?.price} className="w-full p-2 border rounded" /></div><div><label className="text-xs text-slate-500 font-bold">Costo Compra</label><input name="cost" type="number" defaultValue={editingProduct?.cost || ''} className="w-full p-2 border rounded" placeholder="0.00" /></div></div>
                     <div><label className="text-xs text-slate-500 font-bold">Stock</label><input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" /></div>
-
-                    {/* SELECTORES DE CATEGORÍA Y SUBCATEGORÍA */}
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="text-xs text-slate-500 font-bold">Categoría</label>
@@ -108,9 +98,9 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                             </select>
                         </div>
                     </div>
-
                     <div className="flex gap-2 bg-slate-100 p-1 rounded"><button type="button" onClick={() => { setImageMode('file'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button><button type="button" onClick={() => { setImageMode('link'); setPreviewImage('') }} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button></div>
                     {imageMode === 'file' ? <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm w-full" /> : <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e) => setPreviewImage(e.target.value)} />}
+                    {/* FIXED: Image contain */}
                     {previewImage && <img src={previewImage} className="h-20 w-full object-contain bg-slate-50 rounded border p-1" />}
                     <div className="flex gap-2 pt-2"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button></div>
                 </form>
@@ -119,47 +109,53 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
-// --- CATEGORY MODAL MEJORADO (VISUALMENTE CLARO) ---
-export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [] }) {
+export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [], onUpdate }) {
     const [expandedCat, setExpandedCat] = useState(null);
 
     return (
         <div className={modalOverlayClass}>
             <div className="bg-white rounded-2xl w-full max-w-md p-0 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh] overflow-hidden">
-
-                {/* Header */}
                 <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
                     <h3 className="font-bold text-lg flex items-center gap-2"><FolderTree size={20} /> Gestión de Categorías</h3>
                     <button onClick={onClose} className="text-slate-300 hover:text-white"><X size={24} /></button>
                 </div>
-
-                {/* Lista */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50">
                     {categories.map(cat => {
                         const subs = subcategories.filter(s => s.parentId === cat.id);
                         const isExpanded = expandedCat === cat.id;
+                        const isActive = cat.isActive !== false;
 
                         return (
-                            <div key={cat.id} className={`bg-white rounded-xl border transition-all duration-200 ${isExpanded ? 'border-blue-400 shadow-md ring-1 ring-blue-100' : 'border-slate-200 shadow-sm'}`}>
-                                {/* Cabecera de la Categoría */}
-                                <div className="flex justify-between items-center p-3 cursor-pointer select-none hover:bg-slate-50" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
-                                    <div className="flex items-center gap-3">
+                            <div key={cat.id} className={`bg-white rounded-xl border transition-all duration-200 ${isExpanded ? 'border-blue-400 shadow-md ring-1 ring-blue-100' : 'border-slate-200 shadow-sm'} ${!isActive ? 'opacity-60 grayscale' : ''}`}>
+                                <div className="flex justify-between items-center p-3">
+                                    <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
                                         <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                                             {isExpanded ? <FolderOpen size={20} /> : <Folder size={20} />}
                                         </div>
                                         <div>
-                                            <div className="font-bold text-slate-800 text-sm">{cat.name}</div>
+                                            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                {cat.name}
+                                                {!isActive && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase">Inactiva</span>}
+                                            </div>
                                             <div className="text-[10px] text-slate-400 font-medium">{subs.length} subcategorías</div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onUpdate(cat.id, { isActive: !isActive });
+                                            }}
+                                            className={`p-2 rounded-full transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
+                                            title={isActive ? "Desactivar temporalmente" : "Reactivar"}
+                                        >
+                                            {isActive ? <Eye size={18} /> : <EyeOff size={18} />}
+                                        </button>
+                                        <div className={`transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
                                             <ChevronDown size={20} />
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Cuerpo Expandible (Subcategorías) */}
                                 {isExpanded && (
                                     <div className="bg-slate-50/50 border-t border-slate-100 rounded-b-xl animate-in slide-in-from-top-1 fade-in p-3">
                                         <div className="space-y-1 mb-4 pl-4 border-l-2 border-slate-200 ml-3">
@@ -176,8 +172,6 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
                                             ))}
                                             {subs.length === 0 && <div className="text-xs text-slate-400 italic py-2">No hay subcategorías.</div>}
                                         </div>
-
-                                        {/* Input Agregar Subcategoría */}
                                         <form
                                             onSubmit={(e) => {
                                                 e.preventDefault();
@@ -200,7 +194,6 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
                                                 <Plus size={16} />
                                             </button>
                                         </form>
-
                                         <div className="mt-4 pt-3 border-t border-slate-100 text-right">
                                             <button onClick={(e) => { e.stopPropagation(); onDelete(cat.id); }} className="text-xs text-red-500 hover:text-red-700 font-bold flex items-center justify-end gap-1 ml-auto">
                                                 <Trash2 size={12} /> Eliminar Categoría Principal
@@ -212,8 +205,6 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
                         );
                     })}
                 </div>
-
-                {/* Footer: Agregar Categoría Principal */}
                 <div className="p-4 bg-white border-t border-slate-100">
                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Crear Nueva Categoría Principal</label>
                     <form onSubmit={onSave} className="flex gap-2">
@@ -228,7 +219,6 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
     );
 }
 
-// --- CUSTOMER MODAL ---
 export function CustomerModal({ onClose, onSave, editingCustomer }) {
     return (
         <div className={modalOverlayClass}>
@@ -246,7 +236,6 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
     );
 }
 
-// --- STORE MODAL ---
 export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
     return (
         <div className={modalOverlayClass}>
@@ -262,7 +251,6 @@ export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageM
     );
 }
 
-// --- ADD STOCK MODAL ---
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
         <div className={modalOverlayClass}>
@@ -279,7 +267,6 @@ export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInpu
     );
 }
 
-// --- LOGOUT CONFIRM MODAL ---
 export function LogoutConfirmModal({ onClose, onConfirm }) {
     return (
         <div className={modalOverlayClass}>
@@ -296,7 +283,6 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
-// --- TRANSACTION MODAL ---
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
     const updateItem = (index, field, value) => { const newItems = [...localItems]; newItems[index] = { ...newItems[index], [field]: value }; setLocalItems(newItems); };

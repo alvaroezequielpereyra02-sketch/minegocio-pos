@@ -60,7 +60,13 @@ const ProductGrid = memo(function ProductGrid({
                 >
                     <div className="w-full h-32 bg-slate-100 relative shrink-0">
                         {product.imageUrl ? (
-                            <img src={product.imageUrl} className="w-full h-full object-contain p-2 mix-blend-multiply" loading="lazy" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} alt={product.name} />
+                            <img
+                                src={product.imageUrl}
+                                className="w-full h-full object-contain p-1 mix-blend-multiply"
+                                loading="lazy"
+                                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                                alt={product.name}
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon className="w-8 h-8" /></div>
                         )}
@@ -96,7 +102,8 @@ const ProductGrid = memo(function ProductGrid({
 
             <div className="flex gap-2 overflow-x-auto pb-2 mb-1 scrollbar-hide shrink-0">
                 <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'all' ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>Todas</button>
-                {categories.map(cat => (
+                {/* FILTRO: Solo mostramos las categorías que NO están desactivadas */}
+                {categories.filter(cat => cat.isActive !== false).map(cat => (
                     <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat.id ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                         {cat.name}
                     </button>
