@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     collection, query, orderBy, limit, where, onSnapshot,
-    addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch
+    addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch, getDoc, increment
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
-// Ahora aceptamos 'dateRange' como argumento
 export const useTransactions = (user, userData, products = [], expenses = [], categories = [], dateRange = 'week') => {
     const [transactions, setTransactions] = useState([]);
     const [lastTransactionId, setLastTransactionId] = useState(null);
@@ -15,7 +14,6 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         if (!user || !userData) return;
 
         let q;
-        // Traemos suficientes datos para poder filtrar en memoria (últimos 500)
         if (userData.role === 'admin') {
             q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(1000));
         } else {
@@ -31,31 +29,95 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     // 2. Crear Transacción (Venta)
     const createTransaction = async (saleData, cartItems) => {
-        const docRef = await addDoc(collection(db, 'stores', appId, 'transactions'), saleData);
+        const batch = writeBatch(db);
 
-        // Actualizar stock localmente (Optimista)
+        // A) Crear el documento de venta
+        const transactionRef = doc(collection(db, 'stores', appId, 'transactions'));
+        batch.set(transactionRef, saleData);
+
+        // B) Descontar Stock (Atómico)
         cartItems.forEach(item => {
-            const p = products.find(prod => prod.id === item.id);
-            if (p) {
-                updateDoc(doc(db, 'stores', appId, 'products', item.id), { stock: p.stock - item.qty })
-                    .catch(e => console.error("Error stock update", e));
-            }
+            const productRef = doc(db, 'stores', appId, 'products', item.id);
+            // Usamos increment(-qty) para restar de forma segura
+            batch.update(productRef, { stock: increment(-item.qty) });
         });
 
-        // Registrar actividad de cliente
+        // C) Actualizar cliente (si corresponde)
         if (saleData.clientId && saleData.clientId !== 'anonimo') {
-            updateDoc(doc(db, 'stores', appId, 'customers', saleData.clientId), {
-                externalOrdersCount: (saleData.externalOrdersCount || 0) + 1,
+            const customerRef = doc(db, 'stores', appId, 'customers', saleData.clientId);
+            batch.update(customerRef, {
+                externalOrdersCount: increment(1),
                 lastPurchase: serverTimestamp()
-            }).catch(() => { });
+            });
         }
 
-        setLastTransactionId({ ...saleData, id: docRef.id, date: { seconds: Date.now() / 1000 } });
-        return docRef.id;
+        await batch.commit();
+
+        setLastTransactionId({ ...saleData, id: transactionRef.id, date: { seconds: Date.now() / 1000 } });
+        return transactionRef.id;
     };
 
-    const updateTransaction = async (id, data) => updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
-    const deleteTransaction = async (id) => deleteDoc(doc(db, 'stores', appId, 'transactions', id));
+    // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
+    const updateTransaction = async (id, data) => {
+        // Si no estamos modificando items, hacemos un update simple y rápido
+        if (!data.items) {
+            await updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
+            return;
+        }
+
+        // SI HAY CAMBIOS EN ITEMS, TENEMOS QUE AJUSTAR EL STOCK
+        const batch = writeBatch(db);
+        const transactionRef = doc(db, 'stores', appId, 'transactions', id);
+
+        // 1. Obtener la transacción original antes de tocarla
+        const oldTransactionSnap = await getDoc(transactionRef);
+        if (!oldTransactionSnap.exists()) throw new Error("Transacción no existe");
+        const oldItems = oldTransactionSnap.data().items || [];
+        const newItems = data.items;
+
+        // 2. Revertir el stock de los items viejos (Devolver todo a la estantería)
+        oldItems.forEach(item => {
+            const productRef = doc(db, 'stores', appId, 'products', item.id);
+            batch.update(productRef, { stock: increment(item.qty) });
+        });
+
+        // 3. Descontar el stock de los items nuevos (Sacar lo nuevo de la estantería)
+        newItems.forEach(item => {
+            const productRef = doc(db, 'stores', appId, 'products', item.id);
+            batch.update(productRef, { stock: increment(-item.qty) });
+        });
+
+        // 4. Guardar los cambios en la transacción
+        batch.update(transactionRef, data);
+
+        await batch.commit();
+    };
+
+    // 4. Borrar Transacción (¡DEVOLVIENDO EL STOCK!)
+    const deleteTransaction = async (id) => {
+        const batch = writeBatch(db);
+        const transactionRef = doc(db, 'stores', appId, 'transactions', id);
+
+        // 1. Leer qué tenía la transacción para devolverlo
+        const transactionSnap = await getDoc(transactionRef);
+        if (!transactionSnap.exists()) return; // Ya estaba borrada
+
+        const transactionData = transactionSnap.data();
+
+        // 2. Devolver mercadería al stock (si era una venta)
+        if (transactionData.type === 'sale' && transactionData.items) {
+            transactionData.items.forEach(item => {
+                const productRef = doc(db, 'stores', appId, 'products', item.id);
+                // Sumamos la cantidad que se había llevado
+                batch.update(productRef, { stock: increment(item.qty) });
+            });
+        }
+
+        // 3. Borrar el documento
+        batch.delete(transactionRef);
+
+        await batch.commit();
+    };
 
     // Función masiva para borrar todo (Purgar)
     const purgeTransactions = async () => {
@@ -67,52 +129,34 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         await batch.commit();
     };
 
-    // 3. CÁLCULO DE BALANCE (Dinámico según Fecha)
+    // 5. CÁLCULO DE BALANCE (Igual que antes)
     const balance = useMemo(() => {
         let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
-
-        // Definir rango de fechas
         const now = new Date();
         const startDate = new Date();
         const daysToSubtract = dateRange === 'month' ? 30 : 7;
         startDate.setDate(now.getDate() - daysToSubtract);
-
-        // Resetear horas para comparación justa
         startDate.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         let todayCash = 0, todayDigital = 0, todayTotal = 0;
-
-        // Inicializar mapa del gráfico
         const chartDataMap = {};
         for (let i = daysToSubtract - 1; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            // Formato DD/MM para que ocupe menos espacio en móvil
             const key = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
             chartDataMap[key] = { name: key, total: 0, fullDate: d };
         }
 
-        // Datos por Categoría
         const categoryStats = {};
-
-        // Filtrar transacciones dentro del rango para los gráficos
-        // NOTA: Para los totales generales (salesPaid, etc) ¿quieres histórico total o solo del rango?
-        // Normalmente un "Balance" muestra la foto actual de la deuda total, pero los gráficos muestran rendimiento temporal.
-        // Aquí calcularemos TOTALES HISTÓRICOS para la deuda/caja, pero GRÁFICOS filtrados por fecha.
-
         let filteredExpenses = 0;
 
-        // Calcular inventario actual (siempre es total)
         products.forEach(p => { inventoryValue += (p.price * p.stock); });
 
-        // Sumar Gastos (Filtrados por fecha)
         expenses.forEach(e => {
             const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
-            if (eDate >= startDate) {
-                filteredExpenses += e.amount;
-            }
+            if (eDate >= startDate) filteredExpenses += e.amount;
         });
 
         transactions.forEach(t => {
@@ -120,16 +164,13 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
             const isWithinRange = tDate >= startDate;
 
             if (t.type === 'sale') {
-
-                // A) Totales Generales (Históricos)
                 if (t.paymentStatus === 'paid') salesPaid += t.total;
                 else if (t.paymentStatus === 'partial') {
                     salesPartial += t.amountPaid || 0;
-                    salesPaid += t.amountPaid || 0; // Sumamos lo pagado al total recaudado
+                    salesPaid += t.amountPaid || 0;
                 }
                 else if (t.paymentStatus === 'pending') salesPending += t.total;
 
-                // B) Métricas de HOY
                 if (tDate >= today) {
                     const amountToday = t.paymentStatus === 'paid' ? t.total : (t.amountPaid || 0);
                     todayTotal += amountToday;
@@ -137,21 +178,14 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                     else todayDigital += amountToday;
                 }
 
-                // C) Datos Filtrados por Rango (Gráficos y Categorías)
                 if (isWithinRange && (t.paymentStatus === 'paid' || t.paymentStatus === 'partial')) {
                     const amount = t.paymentStatus === 'paid' ? t.total : (t.amountPaid || 0);
-
-                    // Gráfico de Barras
                     const dayLabel = tDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                    if (chartDataMap[dayLabel]) {
-                        chartDataMap[dayLabel].total += amount;
-                    }
+                    if (chartDataMap[dayLabel]) chartDataMap[dayLabel].total += amount;
 
-                    // Categorías y Costos
                     if (t.items) {
                         t.items.forEach(item => {
                             if (isWithinRange) costOfGoodsSold += (item.cost || 0) * item.qty;
-
                             let catName = 'Varios';
                             if (item.categoryId) {
                                 const cat = categories.find(c => c.id === item.categoryId);
@@ -171,19 +205,12 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         })).sort((a, b) => b.value - a.value);
 
         return {
-            // Totales Históricos
             salesPaid, salesPending, salesPartial, inventoryValue,
-
-            // Totales del Periodo (Para KPI de Ganancia)
             periodSales: Object.values(chartDataMap).reduce((a, b) => a + b.total, 0),
             periodExpenses: filteredExpenses,
             periodCost: costOfGoodsSold,
             periodNet: Object.values(chartDataMap).reduce((a, b) => a + b.total, 0) - filteredExpenses - costOfGoodsSold,
-
-            // Del día
             todayCash, todayDigital, todayTotal,
-
-            // Gráficos
             chartData: Object.values(chartDataMap),
             salesByCategory
         };
