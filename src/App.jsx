@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
+import { serverTimestamp } from 'firebase/firestore';
 import { useAuth } from './hooks/useAuth';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
