@@ -5,7 +5,6 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
-// Aceptamos userData para validación de seguridad
 export const useInventory = (user, userData) => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -14,31 +13,55 @@ export const useInventory = (user, userData) => {
     const [expenses, setExpenses] = useState([]);
     const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
 
+    // --- EFECTO 1: DATOS PÚBLICOS (Productos, Categorías, Perfil) ---
+    // Este efecto SOLO depende de 'user'. No se reinicia cuando carga el userData.
     useEffect(() => {
         if (!user) return;
 
-        // --- DATOS PÚBLICOS (Perfil, Productos, Categorías) ---
+        console.log("📦 Iniciando suscripción a Inventario (Público)...");
+
+        // 1. Perfil
         const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (d) => {
             if (d.exists()) setStoreProfile(d.data());
         });
 
+        // 2. Productos (La carga pesada)
         const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (s) =>
             setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
+        // 3. Categorías
         const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (s) =>
             setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
+        // 4. Subcategorías
         const unsubSubCats = onSnapshot(query(collection(db, 'stores', appId, 'subcategories'), orderBy('name')), (s) =>
             setSubcategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
 
-        // --- DATOS PRIVADOS (Solo Admin) ---
+        return () => {
+            console.log("🛑 Limpiando suscripción pública...");
+            unsubProfile();
+            unsubProducts();
+            unsubCats();
+            unsubSubCats();
+        };
+    }, [user]); // <--- ¡CLAVE! Quitamos userData de aquí para evitar recargas dobles.
+
+
+    // --- EFECTO 2: DATOS PRIVADOS (Clientes, Gastos) ---
+    // Este efecto SÍ depende del rol. Se activa después, sin molestar al inventario.
+    useEffect(() => {
+        if (!user) return;
+
         let unsubCustomers = () => { };
         let unsubExpenses = () => { };
 
+        // Solo si es admin activamos este carril
         if (userData?.role === 'admin') {
+            console.log("🔐 Rol Admin confirmado: Cargando datos sensibles...");
+
             unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (s) =>
                 setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
             );
@@ -47,18 +70,18 @@ export const useInventory = (user, userData) => {
                 setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
             );
         } else {
+            // Si no es admin, aseguramos que estos arrays estén vacíos
             setCustomers([]);
             setExpenses([]);
         }
 
         return () => {
-            unsubProfile(); unsubProducts(); unsubCats(); unsubSubCats();
-            unsubCustomers(); unsubExpenses();
+            unsubCustomers();
+            unsubExpenses();
         };
-    }, [user, userData]);
+    }, [user, userData?.role]); // <--- Solo reacciona si cambia el ROL, no todo el objeto userData
 
     // --- ACTIONS ---
-
     const addProduct = async (data) => addDoc(collection(db, 'stores', appId, 'products'), { ...data, createdAt: serverTimestamp() });
     const updateProduct = async (id, data) => updateDoc(doc(db, 'stores', appId, 'products', id), data);
     const deleteProduct = async (id) => deleteDoc(doc(db, 'stores', appId, 'products', id));
@@ -68,14 +91,12 @@ export const useInventory = (user, userData) => {
         await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: product.stock + qty });
     };
 
-    // Categorías con soporte para isActive
     const addCategory = async (name) => addDoc(collection(db, 'stores', appId, 'categories'), {
         name,
         isActive: true,
         createdAt: serverTimestamp()
     });
 
-    // Nueva función para desactivar/activar categorías
     const updateCategory = async (id, data) => updateDoc(doc(db, 'stores', appId, 'categories', id), data);
     const deleteCategory = async (id) => deleteDoc(doc(db, 'stores', appId, 'categories', id));
 
@@ -102,7 +123,7 @@ export const useInventory = (user, userData) => {
     return {
         products, categories, subcategories, customers, expenses, storeProfile,
         addProduct, updateProduct, deleteProduct, addStock,
-        addCategory, updateCategory, deleteCategory, // Exportamos updateCategory
+        addCategory, updateCategory, deleteCategory,
         addSubCategory, deleteSubCategory,
         addCustomer, updateCustomer, deleteCustomer,
         addExpense, deleteExpense,
