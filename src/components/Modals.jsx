@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // AGREGADO: Edit3 y Check para la interfaz de edición
 import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check } from 'lucide-react';
+import { useInventoryContext } from '../context/InventoryContext';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
@@ -338,29 +339,170 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
 }
 
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
+    const { products } = useInventoryContext(); // Acceso directo al inventario
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
+
+    // Estado para el buscador
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const searchRef = useRef(null);
+
+    // Lógica del buscador
+    useEffect(() => {
+        if (searchTerm.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        const lowerTerm = searchTerm.toLowerCase();
+        const results = products.filter(p =>
+            p.name.toLowerCase().includes(lowerTerm) ||
+            (p.barcode && p.barcode.includes(lowerTerm))
+        ).slice(0, 5); // Limitar a 5 resultados
+        setSearchResults(results);
+    }, [searchTerm, products]);
+
+    const addItem = (product) => {
+        setLocalItems(prev => {
+            const existingIndex = prev.findIndex(i => i.id === product.id);
+            if (existingIndex >= 0) {
+                // Si ya existe, sumamos 1
+                const newItems = [...prev];
+                newItems[existingIndex] = { ...newItems[existingIndex], qty: newItems[existingIndex].qty + 1 };
+                return newItems;
+            } else {
+                // Si es nuevo, lo agregamos
+                return [...prev, {
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    cost: product.cost || 0, // Importante para el balance
+                    qty: 1,
+                    imageUrl: product.imageUrl // Para que se vea bonito si usas fotos
+                }];
+            }
+        });
+        setSearchTerm(''); // Limpiar buscador
+        setSearchResults([]);
+    };
+
     const updateItem = (index, field, value) => { const newItems = [...localItems]; newItems[index] = { ...newItems[index], [field]: value }; setLocalItems(newItems); };
     const updateQty = (index, delta) => { const newItems = [...localItems]; const newQty = (newItems[index].qty || 0) + delta; if (newQty < 1) return; newItems[index].qty = newQty; setLocalItems(newItems); };
     const deleteItem = (index) => { const newItems = localItems.filter((_, i) => i !== index); setLocalItems(newItems); };
-    const handleSave = () => { const newTotal = localItems.reduce((acc, item) => acc + (item.price * item.qty), 0); onSave({ items: localItems, total: newTotal }); };
+
+    const handleSave = () => {
+        const newTotal = localItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+        onSave({ items: localItems, total: newTotal });
+    };
 
     return (
         <div className="fixed inset-0 z-[20000] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
             <div className="w-full max-w-2xl h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl flex flex-col relative">
-                <div className="bg-white px-4 py-3 border-b flex items-center justify-between sticky top-0 z-10 sm:rounded-t-2xl">
-                    <div className="flex items-center gap-3"><button onClick={onClose} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button><div><h3 className="font-bold text-lg text-slate-800">Editar Pedido</h3><p className="text-xs text-slate-500">Modifica cantidades o precios</p></div></div>
-                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:bg-blue-700 transition-colors flex items-center gap-2"><CheckCircle size={18} /> Guardar</button>
+
+                {/* HEADER */}
+                <div className="bg-white px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20 sm:rounded-t-2xl">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
+                        <div>
+                            <h3 className="font-bold text-lg text-slate-800">Editar Pedido</h3>
+                            <p className="text-xs text-slate-500">Agrega o modifica productos</p>
+                        </div>
+                    </div>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:bg-blue-700 transition-colors flex items-center gap-2">
+                        <CheckCircle size={18} /> Guardar
+                    </button>
                 </div>
+
+                {/* BUSCADOR DE PRODUCTOS (NUEVO) */}
+                <div className="px-4 py-2 bg-slate-50 border-b relative z-10">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                        <input
+                            ref={searchRef}
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Buscar producto para agregar..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {/* LISTA FLOTANTE DE RESULTADOS */}
+                        {searchResults.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+                                {searchResults.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => addItem(p)}
+                                        className="w-full text-left p-3 hover:bg-blue-50 flex justify-between items-center border-b last:border-0 transition-colors"
+                                    >
+                                        <div>
+                                            <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                                            <div className="text-xs text-slate-500">Stock: {p.stock}</div>
+                                        </div>
+                                        <div className="font-bold text-blue-600 text-sm">+ ${p.price}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* LISTA DE ITEMS */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                    {localItems.length === 0 && (
+                        <div className="text-center py-10 text-slate-400">
+                            <Box size={40} className="mx-auto mb-2 opacity-50" />
+                            <p>No hay productos en este pedido.</p>
+                        </div>
+                    )}
                     {localItems.map((item, index) => (
                         <div key={index} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <div className="flex justify-between items-start mb-3"><input className="font-bold text-slate-800 text-lg w-full outline-none border-b border-transparent focus:border-blue-300 mr-2" value={item.name} onChange={(e) => updateItem(index, 'name', e.target.value)} /><button onClick={() => deleteItem(index)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={20} /></button></div>
-                            <div className="flex items-center justify-between gap-4"><div className="flex-1"><label className="text-[10px] uppercase font-bold text-slate-400">Precio Unit.</label><div className="flex items-center gap-1 border rounded-lg p-2 bg-slate-50"><span className="text-slate-400 font-bold">$</span><input type="number" className="w-full bg-transparent outline-none font-bold text-slate-700" value={item.price} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)} /></div></div><div className="flex items-center gap-3"><button onClick={() => updateQty(index, -1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200"><Minus size={18} /></button><div className="w-8 text-center font-bold text-xl">{item.qty}</div><button onClick={() => updateQty(index, 1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200"><Plus size={18} /></button></div></div>
-                            <div className="text-right mt-2 text-xs font-bold text-blue-600">Subtotal: ${(item.price * item.qty).toLocaleString()}</div>
+                            <div className="flex justify-between items-start mb-3">
+                                <input
+                                    className="font-bold text-slate-800 text-base w-full outline-none border-b border-transparent focus:border-blue-300 mr-2 bg-transparent"
+                                    value={item.name}
+                                    onChange={(e) => updateItem(index, 'name', e.target.value)}
+                                />
+                                <button onClick={() => deleteItem(index)} className="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-lg">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1">
+                                    <label className="text-[10px] uppercase font-bold text-slate-400">Precio Unit.</label>
+                                    <div className="flex items-center gap-1 border rounded-lg p-2 bg-slate-50">
+                                        <span className="text-slate-400 font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            className="w-full bg-transparent outline-none font-bold text-slate-700"
+                                            value={item.price}
+                                            onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => updateQty(index, -1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200">
+                                        <Minus size={18} />
+                                    </button>
+                                    <div className="w-8 text-center font-bold text-xl">{item.qty}</div>
+                                    <button onClick={() => updateQty(index, 1)} className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200">
+                                        <Plus size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="text-right mt-2 text-xs font-bold text-blue-600">
+                                Subtotal: ${(item.price * item.qty).toLocaleString()}
+                            </div>
                         </div>
                     ))}
                 </div>
-                <div className="p-4 bg-white border-t sm:rounded-b-2xl sticky bottom-0 z-10"><div className="flex justify-between items-center text-lg"><span className="font-bold text-slate-600">Nuevo Total</span><span className="font-extrabold text-2xl text-slate-900">${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}</span></div></div>
+
+                {/* FOOTER TOTAL */}
+                <div className="p-4 bg-white border-t sm:rounded-b-2xl sticky bottom-0 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+                    <div className="flex justify-between items-center text-lg">
+                        <span className="font-bold text-slate-600">Nuevo Total</span>
+                        <span className="font-extrabold text-2xl text-slate-900">
+                            ${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
     );
