@@ -8,31 +8,23 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
 import { CartProvider } from './context/CartContext';
-import { TransactionsProvider } from './context/TransactionsContext'; // ✅ AHORA SÍ ESTÁ
+import { TransactionsProvider } from './context/TransactionsContext';
 
-// Autocorrección de versiones
+// Autocorrección de versiones (Manejo suave de errores de carga)
 window.addEventListener('vite:preloadError', (event) => {
+  console.warn("Error de precarga detectado, recargando página...");
+  event.preventDefault(); // Previene el error por defecto
   window.location.reload();
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {/* 1. AUTENTICACIÓN */}
       <AuthProvider>
-
-        {/* 2. INVENTARIO */}
         <InventoryProvider>
-
-          {/* 3. TRANSACCIONES (IMPORTANTE: Antes del carrito) */}
           <TransactionsProvider>
-
-            {/* 4. CARRITO */}
             <CartProvider>
-
-              {/* LA APLICACIÓN */}
               <App />
-
             </CartProvider>
           </TransactionsProvider>
         </InventoryProvider>
@@ -41,21 +33,38 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// REGISTRO DE SERVICE WORKER
+// --- REGISTRO DE SERVICE WORKER (VERSIÓN ANTI-BUCLE) ---
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').then(registration => {
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
-      }
-    }).catch(err => console.log('SW Error:', err));
 
+    // 1. Registrar el SW
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(registration => {
+        // console.log('SW registrado:', registration.scope);
+
+        // Si el SW está esperando, no forzamos recarga inmediata.
+        // Dejamos que el propio SW (que tiene self.skipWaiting) haga su trabajo.
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      })
+      .catch(err => console.log('SW Error:', err));
+
+    // 2. Limpieza de SW viejos (zombies)
     navigator.serviceWorker.getRegistrations().then(registrations => {
       for (let registration of registrations) {
         if (registration.active && registration.active.scriptURL.includes('sw.js')) {
           registration.unregister();
         }
+      }
+    });
+
+    // 3. RECARGA SEGURA: Solo recargar cuando el control cambie REALMENTE
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
       }
     });
   });
