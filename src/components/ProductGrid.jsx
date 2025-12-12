@@ -107,7 +107,7 @@ const ProductGrid = memo(function ProductGrid({
 
     return (
         // 👇 CAMBIO CLAVE: pb-32 (Mucho espacio abajo para librar la barra alta)
-        <div className="flex-1 flex flex-col min-h-0 pb-6 lg:pb-0 h-full">
+        <div className="flex-1 flex flex-col min-h-0 pb-4 lg:pb-0 h-full">
             <div className="mb-3 flex gap-3 shrink-0">
                 <div className="flex-1">
                     <div className="flex items-center w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 transition-all duration-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 focus-within:shadow-sm">
