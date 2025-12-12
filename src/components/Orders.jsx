@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 1. IMPORTAMOS ESTO
 import {
     Package, Search, Clock, CheckCircle, AlertTriangle,
     X, Plus, Minus, CheckSquare, Trash2, ArrowLeft,
@@ -135,7 +136,8 @@ function OrderWorkModal({ order, onClose }) {
         return "bg-white border-slate-200";
     };
 
-    return (
+    // 👇 2. USAMOS createPortal PARA SACAR EL MODAL AL BODY
+    return createPortal(
         <div className="fixed inset-0 z-[20000] bg-slate-900/50 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
             <div className="w-full h-full sm:h-[90vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
@@ -233,7 +235,8 @@ function OrderWorkModal({ order, onClose }) {
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body // 👈 3. RENDERIZAMOS DIRECTO EN EL BODY
     );
 }
 
@@ -264,14 +267,12 @@ export default function Orders() {
             const matchesSearch = t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 t.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-            // Filtro estricto (ya no existe 'all')
             if (status !== filterStatus) return false;
 
             return matchesSearch;
         });
     }, [activeOrders, filterStatus, searchTerm]);
 
-    // Labels para el contador
     const statusLabels = {
         pending: 'Pendientes',
         partial: 'En Proceso',
@@ -285,13 +286,11 @@ export default function Orders() {
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Package className="text-blue-600" /> Pedidos
                     </h2>
-                    {/* 3. CAMBIO: Contador dinámico según pestaña */}
                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold">
                         {filteredOrders.length} {statusLabels[filterStatus]}
                     </span>
                 </div>
 
-                {/* 2. CAMBIO: Pestañas simplificadas (Sin 'Todos') */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {[
                         { id: 'pending', l: 'Pendientes' },
