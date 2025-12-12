@@ -3,7 +3,7 @@ import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from
 // ✅ FIX: Importación necesaria para handleCheckout
 import { serverTimestamp } from 'firebase/firestore';
 
-// --- IMPORTS DE CONTEXTOS (La nueva arquitectura) ---
+// --- IMPORTS DE CONTEXTOS ---
 import { useAuthContext } from './context/AuthContext';
 import { useInventoryContext } from './context/InventoryContext';
 import { useTransactionsContext } from './context/TransactionsContext';
@@ -121,10 +121,9 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // ✅ NUEVO: Escuchar el botón "Atrás" del navegador para cerrar modales
+  // Escuchar el botón "Atrás" del navegador
   useEffect(() => {
     const handlePopState = (event) => {
-      // Si el usuario navega atrás, cerramos el detalle de transacción si está abierto
       if (selectedTransaction) {
         setSelectedTransaction(null);
       }
@@ -330,7 +329,10 @@ export default function App() {
         onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)}
         supportsPWA={supportsPWA} installApp={installApp}
       />
+
+      {/* 👇 CAMBIO CLAVE: bottom-24 (96px) para que flote por encima de la barra de 80px */}
       {!isOnline && <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
+
       {confirmConfig && <ConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} isDanger={confirmConfig.isDanger} />}
       {notification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3"><Bell size={18} className="text-yellow-400" /><span className="font-bold text-sm">{notification}</span></div>}
       {isProcessing && <ProcessingModal />}
@@ -349,7 +351,9 @@ export default function App() {
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
               <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>
               {showMobileCart && <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>}
-              {cart.length > 0 && !showMobileCart && <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-20 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal}</div></button>}
+
+              {/* 👇 CAMBIO CLAVE: bottom-24 (96px) para que flote por encima de la barra de 80px */}
+              {cart.length > 0 && !showMobileCart && <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal.toLocaleString()}</div></button>}
             </div>
           )}
 
@@ -420,7 +424,6 @@ export default function App() {
           <Suspense fallback={<ProcessingModal />}>
             <TransactionDetail
               transaction={selectedTransaction}
-              // ✅ CORRECCIÓN CLAVE: Cerrar explícitamente el estado visual Y limpiar historia
               onClose={() => {
                 setSelectedTransaction(null);
                 if (window.history.state) window.history.back();

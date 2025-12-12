@@ -61,7 +61,6 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
       </nav>
 
       <div className="p-4 border-t space-y-2">
-        {/* BOTÓN INSTALAR PWA (Solo aparece si es instalable) */}
         {supportsPWA && (
           <button
             onClick={installApp}
@@ -91,7 +90,8 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 // NAV MÓVIL
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout, supportsPWA, installApp }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2">
+    // 👇 CAMBIO CLAVE: h-20 (80px) para que sea más alto y cómodo
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2 pb-2 items-center">
       <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
@@ -105,7 +105,6 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout, support
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
       </div>
 
-      {/* Si es instalable, mostramos un botón mini flotante o al final */}
       {supportsPWA && (
         <button
           onClick={installApp}
