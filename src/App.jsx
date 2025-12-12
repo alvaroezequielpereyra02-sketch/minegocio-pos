@@ -148,10 +148,9 @@ export default function App() {
     setIsProcessing(true);
     try {
       // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
-      // Si es 0, no entra (porque no "debo" nada, solo no tengo).
       const negativeStockProducts = products
         .filter(p => p.stock < 0)
-        .sort((a, b) => a.stock - b.stock); // Los más negativos primero
+        .sort((a, b) => a.stock - b.stock);
 
       if (negativeStockProducts.length === 0) {
         alert("✅ ¡Excelente! No tienes productos con stock negativo.");
@@ -168,7 +167,7 @@ export default function App() {
         logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
         storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
         invoiceInfo: "text-align: right; flex: 1;",
-        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo alerta
+        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
         meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
         table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
         th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
@@ -208,9 +207,7 @@ export default function App() {
                 </thead>
                 <tbody>
                     ${negativeStockProducts.map(p => {
-        // Calculamos la deuda real
         const debt = Math.abs(p.stock);
-
         return `
                         <tr>
                             <td style="${styles.td}">
@@ -439,7 +436,7 @@ export default function App() {
 
           {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -454,7 +451,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">

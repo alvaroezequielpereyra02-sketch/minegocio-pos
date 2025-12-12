@@ -1,33 +1,42 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    ArrowLeft, Printer, MessageCircle, X, MapPin, Edit,
-    DollarSign, Download, Share2, Loader2, StickyNote
+    ArrowLeft,
+    Printer,
+    MessageCircle,
+    X,
+    MapPin,
+    Edit,
+    DollarSign,
+    Download,
+    Share2,
+    Loader2,
+    StickyNote
 } from 'lucide-react';
 
-// --- 1. CONEXIÓN A LOS CEREBROS (CONTEXTOS) ---
+// --- IMPORTS DE CONTEXTO (CORREGIDOS) ---
 import { useAuthContext } from '../context/AuthContext';
 import { useTransactionsContext } from '../context/TransactionsContext';
 import { ConfirmModal } from './Modals';
 
 export default function TransactionDetail({
-    transaction: initialTransaction, // Renombramos la prop inicial
+    transaction: initialTransaction,
     onClose,
     storeProfile,
     customers = [],
     onEditItems
 }) {
-    // 2. OBTENER DATOS Y FUNCIONES GLOBALES
+    // 1. CONECTAMOS LOS CONTEXTOS
     const { userData } = useAuthContext();
     const { transactions, deleteTransaction, updateTransaction } = useTransactionsContext();
 
-    // 3. BUSQUEDA EN VIVO (Para que se actualice sin F5)
-    // Buscamos la transacción en la lista global usando su ID.
-    // Si existe (está actualizada), usamos esa. Si no, usamos la inicial.
+    // 2. BUSCAMOS LA VERSIÓN "EN VIVO" DE LA TRANSACCIÓN
+    // Esto asegura que si cambias el estado a "Pagado", se vea reflejado al instante sin recargar.
     const transaction = useMemo(() => {
+        if (!initialTransaction || !initialTransaction.id) return null;
         return transactions.find(t => t.id === initialTransaction.id) || initialTransaction;
     }, [transactions, initialTransaction]);
 
-    // Si por alguna razón no hay transacción, no mostramos nada
+    // Si no hay datos, no renderizamos nada
     if (!transaction) return null;
 
     // --- ESTADOS LOCALES ---
@@ -39,15 +48,13 @@ export default function TransactionDetail({
 
     const isAdmin = userData?.role === 'admin';
 
-    // Estados temporales para el Modal de Pago
+    // Estados para el modal de pago (Edición)
     const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
     const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction.paymentMethod || 'unspecified');
 
-    // 4. SINCRONIZADOR DE ESTADO
-    // Cada vez que la transacción cambia (ej: guardamos un pago), 
-    // actualizamos los valores del formulario.
+    // Sincronizar el formulario cada vez que la transacción cambia externamente
     useEffect(() => {
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
@@ -55,27 +62,26 @@ export default function TransactionDetail({
         setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
     }, [transaction]);
 
-    // Cálculos de montos
+    // --- CÁLCULOS ---
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
     const debt = total - paid;
 
-    // Qué mostrar en el encabezado grande
     const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
     const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
     const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
 
-    // Datos del cliente
+    // Datos del Cliente
     const clientData = customers.find(c => c.id === transaction.clientId) || {};
     const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
     const clientPhone = clientData.phone || '';
     const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
-    // --- MANEJADORES DE ACCIÓN ---
+    // --- MANEJADORES ---
 
     const openPaymentModal = () => {
-        // Aseguramos que el modal abra con los datos frescos
+        // Reiniciamos los valores del modal con los datos actuales
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
         setTempNote(transaction.paymentNote || '');
@@ -88,11 +94,11 @@ export default function TransactionDetail({
 
         let finalAmountPaid = tempAmountPaid;
 
-        // Lógica automática de montos según estado
+        // Lógica automática: Si es pagado, el monto es el total. Si es pendiente, es 0.
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        // Actualizamos en la base de datos (Contexto)
+        // Actualizamos usando la función del contexto (Firebase)
         await updateTransaction(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
@@ -104,39 +110,159 @@ export default function TransactionDetail({
     };
 
     const handleConfirmCancel = async () => {
+        // Usamos la función del contexto para borrar (y devolver stock)
         await deleteTransaction(transaction.id);
         setShowDeleteConfirm(false);
-        onClose(); // Cerramos todo porque la venta ya no existe
+        onClose(); // Cerramos el detalle
     };
 
-    // --- GENERADOR DE BOLETA HTML (Diseño Visual) ---
+    // --- GENERADOR DE BOLETA (ESTILOS Y HTML) ---
+    // Mantenemos esto expandido para que sea fácil de leer y editar
     const getTicketElement = () => {
         const styles = {
-            container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
-            header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
-            brand: "flex: 1;",
-            logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
-            storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
-            invoiceInfo: "text-align: right; flex: 1;",
-            invoiceTitle: "font-size: 32px; font-weight: 200; color: #cbd5e1; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
-            meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
-            clientSection: "background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0;",
-            sectionTitle: "font-size: 11px; text-transform: uppercase; font-weight: bold; color: #94a3b8; margin-bottom: 5px;",
-            clientName: "font-size: 16px; font-weight: bold; color: #1e293b; margin: 0;",
-            clientDetails: "font-size: 13px; color: #475569; margin-top: 2px;",
-            table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
-            th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
-            td: "padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155;",
-            tdRight: "text-align: right;",
-            totalSection: "display: flex; justify-content: flex-end;",
-            totalBox: "width: 250px;",
-            totalRow: "display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #64748b;",
-            finalTotal: "display: flex; justify-content: space-between; padding: 15px 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; margin-top: 10px; font-size: 18px; font-weight: bold; color: #0f172a;",
-            noteSection: "margin-top: 30px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e;",
-            footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
+            container: `
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                padding: 40px;
+                color: #333;
+                background: white;
+                width: 100%;
+                max-width: 800px;
+                margin: auto;
+            `,
+            header: `
+                display: flex;
+                justify-content: space-between;
+                align-items: start;
+                margin-bottom: 40px;
+                border-bottom: 2px solid #f3f4f6;
+                padding-bottom: 20px;
+            `,
+            brand: `
+                flex: 1;
+            `,
+            logo: `
+                height: 60px;
+                width: auto;
+                object-fit: contain;
+                margin-bottom: 10px;
+            `,
+            storeName: `
+                font-size: 24px;
+                font-weight: bold;
+                color: #2563eb;
+                margin: 0;
+            `,
+            invoiceInfo: `
+                text-align: right;
+                flex: 1;
+            `,
+            invoiceTitle: `
+                font-size: 32px;
+                font-weight: 200;
+                color: #cbd5e1;
+                margin: 0;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            `,
+            meta: `
+                font-size: 12px;
+                color: #64748b;
+                margin-top: 5px;
+                line-height: 1.5;
+            `,
+            clientSection: `
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                border: 1px solid #e2e8f0;
+            `,
+            sectionTitle: `
+                font-size: 11px;
+                text-transform: uppercase;
+                font-weight: bold;
+                color: #94a3b8;
+                margin-bottom: 5px;
+            `,
+            clientName: `
+                font-size: 16px;
+                font-weight: bold;
+                color: #1e293b;
+                margin: 0;
+            `,
+            clientDetails: `
+                font-size: 13px;
+                color: #475569;
+                margin-top: 2px;
+            `,
+            table: `
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+            `,
+            th: `
+                text-align: left;
+                padding: 12px 10px;
+                background: #f1f5f9;
+                color: #475569;
+                font-size: 11px;
+                font-weight: bold;
+                text-transform: uppercase;
+                border-bottom: 1px solid #e2e8f0;
+            `,
+            td: `
+                padding: 14px 10px;
+                border-bottom: 1px solid #f1f5f9;
+                font-size: 13px;
+                color: #334155;
+            `,
+            tdRight: `
+                text-align: right;
+            `,
+            totalSection: `
+                display: flex;
+                justify-content: flex-end;
+            `,
+            totalBox: `
+                width: 250px;
+            `,
+            totalRow: `
+                display: flex;
+                justify-content: space-between;
+                padding: 5px 0;
+                font-size: 13px;
+                color: #64748b;
+            `,
+            finalTotal: `
+                display: flex;
+                justify-content: space-between;
+                padding: 15px 0;
+                border-top: 2px solid #e2e8f0;
+                border-bottom: 2px solid #e2e8f0;
+                margin-top: 10px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #0f172a;
+            `,
+            noteSection: `
+                margin-top: 30px;
+                padding: 15px;
+                background: #fffbeb;
+                border: 1px solid #fcd34d;
+                border-radius: 6px;
+                font-size: 12px;
+                color: #92400e;
+            `,
+            footer: `
+                margin-top: 60px;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #f1f5f9;
+                padding-top: 20px;
+            `
         };
 
-        // Construcción del HTML
         const content = `
         <div style="${styles.container}">
             <div style="${styles.header}">
@@ -223,7 +349,7 @@ export default function TransactionDetail({
         return el;
     };
 
-    // --- FUNCIONES DE EXPORTACIÓN ---
+    // --- FUNCIONES DE PDF Y COMPARTIR ---
 
     const generatePDFBlob = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
@@ -260,7 +386,9 @@ export default function TransactionDetail({
             const blob = await generatePDFBlob();
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
         setIsGenerating(false);
     };
 
@@ -293,11 +421,10 @@ export default function TransactionDetail({
         setIsGenerating(false);
     };
 
-    // --- RENDERIZADO DEL COMPONENTE ---
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* 1. MODAL CONFIRMACIÓN DE CANCELACIÓN */}
+            {/* MODAL CONFIRMACIÓN DE CANCELACIÓN */}
             {showDeleteConfirm && (
                 <ConfirmModal
                     title="Cancelar Venta"
@@ -309,7 +436,7 @@ export default function TransactionDetail({
                 />
             )}
 
-            {/* 2. MODAL GESTIÓN DE PAGO */}
+            {/* MODAL DE PAGO */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -320,7 +447,6 @@ export default function TransactionDetail({
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
 
-                        {/* Selector de Método */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
                             <select value={tempPaymentMethod} onChange={(e) => setTempPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none">
@@ -330,7 +456,6 @@ export default function TransactionDetail({
                             </select>
                         </div>
 
-                        {/* Botones de Estado */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -340,7 +465,6 @@ export default function TransactionDetail({
                             </div>
                         </div>
 
-                        {/* Input condicional para pago parcial */}
                         {tempStatus === 'partial' && (
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
                                 <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
@@ -352,7 +476,6 @@ export default function TransactionDetail({
                             </div>
                         )}
 
-                        {/* Notas */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Nota / Observaciones</label>
                             <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
@@ -363,7 +486,7 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* 3. MODAL OPCIONES DE COMPARTIR */}
+            {/* MODAL COMPARTIR */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -381,7 +504,7 @@ export default function TransactionDetail({
                                 </div>
                             )}
 
-                            {/* Opción 1: WhatsApp */}
+                            {/* WhatsApp */}
                             <button onClick={handleWhatsAppWithFile} className="w-full flex items-center p-4 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition-all shadow-sm group">
                                 <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
                                     <MessageCircle size={20} />
@@ -392,8 +515,8 @@ export default function TransactionDetail({
                                 </div>
                             </button>
 
-                            {/* Opciones 2 y 3: Imprimir y Descargar */}
                             <div className="grid grid-cols-2 gap-3">
+                                {/* Imprimir */}
                                 <button onClick={handleBrowserPrint} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
                                         <Printer size={20} />
@@ -402,6 +525,7 @@ export default function TransactionDetail({
                                     <div className="text-[10px] text-slate-500">Wifi / A4</div>
                                 </button>
 
+                                {/* Descargar */}
                                 <button onClick={handleDownloadPDF} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
                                         <Download size={20} />
@@ -415,10 +539,10 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* --- PANEL PRINCIPAL DEL DETALLE --- */}
+            {/* CONTENEDOR PRINCIPAL */}
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
 
-                {/* Header Superior */}
+                {/* Header */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16 shrink-0">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -434,10 +558,8 @@ export default function TransactionDetail({
                     )}
                 </div>
 
-                {/* Contenido Scrolleable */}
+                {/* Cuerpo Scrolleable */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-4">
-
-                    {/* Caja de Estado / Monto */}
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
@@ -455,7 +577,6 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
-                    {/* Pestañas (Items / Detalles) */}
                     <div className="flex border-b bg-white z-10 shadow-sm sticky top-0">
                         {['items', 'details'].map(tab => (
                             <button
@@ -523,7 +644,6 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
-                {/* Footer de Acciones Inferiores */}
                 {!showShareOptions && (
                     <div className="bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4 shrink-0">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
