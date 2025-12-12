@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-// AGREGADO: Edit3 y Check para la interfaz de edición
-import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react'; // ✅ AQUÍ FALTABA useRef
+import { X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus, CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree, ChevronDown, ChevronUp, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check, Search } from 'lucide-react';
+
+// ✅ IMPORT DEL CONTEXTO (Necesario para el buscador de productos)
 import { useInventoryContext } from '../context/InventoryContext';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
@@ -110,165 +111,49 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
     );
 }
 
-// --- CATEGORY MODAL MEJORADO (CON EDICIÓN DE NOMBRE) ---
 export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [], onUpdate }) {
     const [expandedCat, setExpandedCat] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState("");
 
-    const startEdit = (cat, e) => {
-        e.stopPropagation();
-        setEditingId(cat.id);
-        setEditName(cat.name);
-    };
-
-    const saveEdit = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (editName.trim()) {
-            onUpdate(editingId, { name: editName });
-            setEditingId(null);
-        }
-    };
-
-    const cancelEdit = (e) => {
-        e.stopPropagation();
-        setEditingId(null);
-    };
+    const startEdit = (cat, e) => { e.stopPropagation(); setEditingId(cat.id); setEditName(cat.name); };
+    const saveEdit = (e) => { e.preventDefault(); e.stopPropagation(); if (editName.trim()) { onUpdate(editingId, { name: editName }); setEditingId(null); } };
+    const cancelEdit = (e) => { e.stopPropagation(); setEditingId(null); };
 
     return (
         <div className={modalOverlayClass}>
             <div className="bg-white rounded-2xl w-full max-w-md p-0 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh] overflow-hidden">
-                <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
-                    <h3 className="font-bold text-lg flex items-center gap-2"><FolderTree size={20} /> Gestión de Categorías</h3>
-                    <button onClick={onClose} className="text-slate-300 hover:text-white"><X size={24} /></button>
-                </div>
+                <div className="p-4 bg-slate-800 text-white flex justify-between items-center"><h3 className="font-bold text-lg flex items-center gap-2"><FolderTree size={20} /> Gestión de Categorías</h3><button onClick={onClose} className="text-slate-300 hover:text-white"><X size={24} /></button></div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50">
                     {categories.map(cat => {
                         const subs = subcategories.filter(s => s.parentId === cat.id);
                         const isExpanded = expandedCat === cat.id;
                         const isActive = cat.isActive !== false;
                         const isEditing = editingId === cat.id;
-
                         return (
                             <div key={cat.id} className={`bg-white rounded-xl border transition-all duration-200 ${isExpanded ? 'border-blue-400 shadow-md ring-1 ring-blue-100' : 'border-slate-200 shadow-sm'} ${!isActive ? 'opacity-60 grayscale' : ''}`}>
-
-                                {/* CABECERA CATEGORÍA */}
                                 <div className="flex justify-between items-center p-3">
                                     {isEditing ? (
-                                        // MODO EDICIÓN
-                                        <div className="flex items-center gap-2 flex-1 animate-in fade-in">
-                                            <input
-                                                autoFocus
-                                                value={editName}
-                                                onChange={(e) => setEditName(e.target.value)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="flex-1 p-2 border border-blue-400 rounded-lg text-sm font-bold text-slate-800 outline-none shadow-sm"
-                                            />
-                                            <button onClick={saveEdit} className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 shadow-sm"><Check size={18} /></button>
-                                            <button onClick={cancelEdit} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 shadow-sm"><X size={18} /></button>
-                                        </div>
+                                        <div className="flex items-center gap-2 flex-1 animate-in fade-in"><input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} onClick={(e) => e.stopPropagation()} className="flex-1 p-2 border border-blue-400 rounded-lg text-sm font-bold text-slate-800 outline-none shadow-sm" /><button onClick={saveEdit} className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 shadow-sm"><Check size={18} /></button><button onClick={cancelEdit} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 shadow-sm"><X size={18} /></button></div>
                                     ) : (
-                                        // MODO VISUALIZACIÓN
                                         <>
-                                            <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
-                                                <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                                                    {isExpanded ? <FolderOpen size={20} /> : <Folder size={20} />}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                                        {cat.name}
-                                                        {!isActive && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase">Inactiva</span>}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-400 font-medium">{subs.length} subcategorías</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                {/* Botón Renombrar */}
-                                                <button
-                                                    onClick={(e) => startEdit(cat, e)}
-                                                    className="p-2 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                                    title="Renombrar"
-                                                >
-                                                    <Edit3 size={16} />
-                                                </button>
-                                                {/* Botón Activar/Desactivar */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onUpdate(cat.id, { isActive: !isActive });
-                                                    }}
-                                                    className={`p-2 rounded-full transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
-                                                    title={isActive ? "Desactivar" : "Activar"}
-                                                >
-                                                    {isActive ? <Eye size={18} /> : <EyeOff size={18} />}
-                                                </button>
-                                                <div className={`transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} onClick={() => setExpandedCat(isExpanded ? null : cat.id)}>
-                                                    <ChevronDown size={20} />
-                                                </div>
-                                            </div>
+                                            <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => setExpandedCat(isExpanded ? null : cat.id)}><div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{isExpanded ? <FolderOpen size={20} /> : <Folder size={20} />}</div><div><div className="font-bold text-slate-800 text-sm flex items-center gap-2">{cat.name}{!isActive && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase">Inactiva</span>}</div><div className="text-[10px] text-slate-400 font-medium">{subs.length} subcategorías</div></div></div>
+                                            <div className="flex items-center gap-1"><button onClick={(e) => startEdit(cat, e)} className="p-2 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Renombrar"><Edit3 size={16} /></button><button onClick={(e) => { e.stopPropagation(); onUpdate(cat.id, { isActive: !isActive }); }} className={`p-2 rounded-full transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`} title={isActive ? "Desactivar" : "Activar"}>{isActive ? <Eye size={18} /> : <EyeOff size={18} />}</button><div className={`transition-transform duration-200 cursor-pointer ${isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-400'}`} onClick={() => setExpandedCat(isExpanded ? null : cat.id)}><ChevronDown size={20} /></div></div>
                                         </>
                                     )}
                                 </div>
-
                                 {isExpanded && !isEditing && (
                                     <div className="bg-slate-50/50 border-t border-slate-100 rounded-b-xl animate-in slide-in-from-top-1 fade-in p-3">
-                                        <div className="space-y-1 mb-4 pl-4 border-l-2 border-slate-200 ml-3">
-                                            {subs.map(sub => (
-                                                <div key={sub.id} className="flex justify-between items-center py-2 px-2 hover:bg-white rounded-lg group transition-colors">
-                                                    <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                                                        <CornerDownRight size={14} className="text-slate-300" />
-                                                        {sub.name}
-                                                    </div>
-                                                    <button onClick={(e) => { e.stopPropagation(); onDeleteSub(sub.id); }} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {subs.length === 0 && <div className="text-xs text-slate-400 italic py-2">No hay subcategorías.</div>}
-                                        </div>
-                                        <form
-                                            onSubmit={(e) => {
-                                                e.preventDefault();
-                                                const val = e.target.elements.subName.value.trim();
-                                                if (val) {
-                                                    onSaveSub(cat.id, val);
-                                                    e.target.reset();
-                                                }
-                                            }}
-                                            className="flex gap-2 items-center mt-2 pl-3"
-                                        >
-                                            <CornerDownRight size={16} className="text-blue-400 shrink-0" />
-                                            <input
-                                                name="subName"
-                                                placeholder="Nueva subcategoría..."
-                                                className="flex-1 p-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
-                                                autoComplete="off"
-                                            />
-                                            <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 shadow-sm active:scale-95 transition-transform">
-                                                <Plus size={16} />
-                                            </button>
-                                        </form>
-                                        <div className="mt-4 pt-3 border-t border-slate-100 text-right">
-                                            <button onClick={(e) => { e.stopPropagation(); onDelete(cat.id); }} className="text-xs text-red-500 hover:text-red-700 font-bold flex items-center justify-end gap-1 ml-auto">
-                                                <Trash2 size={12} /> Eliminar Categoría Principal
-                                            </button>
-                                        </div>
+                                        <div className="space-y-1 mb-4 pl-4 border-l-2 border-slate-200 ml-3">{subs.map(sub => (<div key={sub.id} className="flex justify-between items-center py-2 px-2 hover:bg-white rounded-lg group transition-colors"><div className="flex items-center gap-2 text-sm text-slate-600 font-medium"><CornerDownRight size={14} className="text-slate-300" />{sub.name}</div><button onClick={(e) => { e.stopPropagation(); onDeleteSub(sub.id); }} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button></div>))}{subs.length === 0 && <div className="text-xs text-slate-400 italic py-2">No hay subcategorías.</div>}</div>
+                                        <form onSubmit={(e) => { e.preventDefault(); const val = e.target.elements.subName.value.trim(); if (val) { onSaveSub(cat.id, val); e.target.reset(); } }} className="flex gap-2 items-center mt-2 pl-3"><CornerDownRight size={16} className="text-blue-400 shrink-0" /><input name="subName" placeholder="Nueva subcategoría..." className="flex-1 p-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white" autoComplete="off" /><button type="submit" className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 shadow-sm active:scale-95 transition-transform"><Plus size={16} /></button></form>
+                                        <div className="mt-4 pt-3 border-t border-slate-100 text-right"><button onClick={(e) => { e.stopPropagation(); onDelete(cat.id); }} className="text-xs text-red-500 hover:text-red-700 font-bold flex items-center justify-end gap-1 ml-auto"><Trash2 size={12} /> Eliminar Categoría Principal</button></div>
                                     </div>
                                 )}
                             </div>
                         );
                     })}
                 </div>
-                <div className="p-4 bg-white border-t border-slate-100">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Crear Nueva Categoría Principal</label>
-                    <form onSubmit={onSave} className="flex gap-2">
-                        <input name="catName" required className="flex-1 p-3 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:border-slate-800 transition-colors outline-none" placeholder="Ej: Bebidas, Limpieza..." />
-                        <button type="submit" className="bg-slate-800 text-white px-5 rounded-xl font-bold hover:bg-slate-900 shadow-lg active:scale-95 transition-transform flex items-center">
-                            <Plus size={20} />
-                        </button>
-                    </form>
-                </div>
+                <div className="p-4 bg-white border-t border-slate-100"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Crear Nueva Categoría Principal</label><form onSubmit={onSave} className="flex gap-2"><input name="catName" required className="flex-1 p-3 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:border-slate-800 transition-colors outline-none" placeholder="Ej: Bebidas, Limpieza..." /><button type="submit" className="bg-slate-800 text-white px-5 rounded-xl font-bold hover:bg-slate-900 shadow-lg active:scale-95 transition-transform flex items-center"><Plus size={20} /></button></form></div>
             </div>
         </div>
     );
@@ -338,8 +223,9 @@ export function LogoutConfirmModal({ onClose, onConfirm }) {
     );
 }
 
+// ✅ COMPONENTE MODIFICADO CON BUSCADOR DE PRODUCTOS
 export function TransactionModal({ onClose, onSave, editingTransaction }) {
-    const { products } = useInventoryContext(); // Acceso directo al inventario
+    const { products } = useInventoryContext();
     const [localItems, setLocalItems] = useState(editingTransaction.items || []);
 
     // Estado para el buscador
@@ -357,7 +243,7 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         const results = products.filter(p =>
             p.name.toLowerCase().includes(lowerTerm) ||
             (p.barcode && p.barcode.includes(lowerTerm))
-        ).slice(0, 5); // Limitar a 5 resultados
+        ).slice(0, 5);
         setSearchResults(results);
     }, [searchTerm, products]);
 
@@ -365,23 +251,21 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         setLocalItems(prev => {
             const existingIndex = prev.findIndex(i => i.id === product.id);
             if (existingIndex >= 0) {
-                // Si ya existe, sumamos 1
                 const newItems = [...prev];
                 newItems[existingIndex] = { ...newItems[existingIndex], qty: newItems[existingIndex].qty + 1 };
                 return newItems;
             } else {
-                // Si es nuevo, lo agregamos
                 return [...prev, {
                     id: product.id,
                     name: product.name,
                     price: product.price,
-                    cost: product.cost || 0, // Importante para el balance
+                    cost: product.cost || 0,
                     qty: 1,
-                    imageUrl: product.imageUrl // Para que se vea bonito si usas fotos
+                    imageUrl: product.imageUrl
                 }];
             }
         });
-        setSearchTerm(''); // Limpiar buscador
+        setSearchTerm('');
         setSearchResults([]);
     };
 
@@ -412,7 +296,7 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                     </button>
                 </div>
 
-                {/* BUSCADOR DE PRODUCTOS (NUEVO) */}
+                {/* BUSCADOR DE PRODUCTOS */}
                 <div className="px-4 py-2 bg-slate-50 border-b relative z-10">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
