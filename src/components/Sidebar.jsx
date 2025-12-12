@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList, Truck } from 'lucide-react';
+import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList, Truck, Download } from 'lucide-react';
 
 function NavButton({ active, onClick, icon, label }) {
   return (
@@ -9,13 +9,12 @@ function NavButton({ active, onClick, icon, label }) {
   );
 }
 
-// 1. Agregamos 'onEditStore' a las props para poder abrir el modal
-export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore }) {
+// Recibimos 'supportsPWA' e 'installApp'
+export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore, supportsPWA, installApp }) {
   if (!userData) return null;
 
   return (
     <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0">
-      {/* 2. Convertimos el encabezado en botón para editar perfil en PC */}
       <button
         onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}
         className="w-full text-left p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800 hover:bg-slate-50 transition-colors"
@@ -61,9 +60,19 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
         </button>
       </nav>
 
-      <div className="p-4 border-t">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">
+      <div className="p-4 border-t space-y-2">
+        {/* BOTÓN INSTALAR PWA (Solo aparece si es instalable) */}
+        {supportsPWA && (
+          <button
+            onClick={installApp}
+            className="w-full p-3 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all animate-in fade-in slide-in-from-bottom-2"
+          >
+            <Download size={18} /> Instalar App
+          </button>
+        )}
+
+        <div className="flex items-center gap-3 pt-2">
+          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold shrink-0">
             {userData.name.charAt(0)}
           </div>
           <div className="overflow-hidden">
@@ -79,24 +88,33 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
   );
 }
 
-// NAV MÓVIL CON SCROLL
-export function MobileNav({ activeTab, setActiveTab, userData, onLogout }) {
+// NAV MÓVIL
+export function MobileNav({ activeTab, setActiveTab, userData, onLogout, supportsPWA, installApp }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg">
-      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2">
+      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
-
         {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={24} />} label="Reparto" />}
 
-        {/* 3. CAMBIO: Etiqueta corregida a "Transacciones" */}
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Transacciones" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
 
         {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}
         {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
       </div>
+
+      {/* Si es instalable, mostramos un botón mini flotante o al final */}
+      {supportsPWA && (
+        <button
+          onClick={installApp}
+          className="h-full px-4 bg-blue-50 text-blue-600 flex flex-col items-center justify-center border-l border-slate-100"
+        >
+          <Download size={20} />
+          <span className="text-[9px] font-bold uppercase mt-1">App</span>
+        </button>
+      )}
     </nav>
   );
 }

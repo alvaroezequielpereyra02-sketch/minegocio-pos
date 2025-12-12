@@ -9,6 +9,7 @@ import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
 import { usePrinter } from './hooks/usePrinter';
 import { uploadProductImage } from './utils/uploadImage';
+import { usePWA } from './hooks/usePWA';
 
 // COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -65,6 +66,7 @@ export default function App() {
   const [confirmConfig, setConfirmConfig] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
+  const { supportsPWA, installApp } = usePWA();
 
   // NUEVO ESTADO PARA EL RANGO DE FECHAS (Semana/Mes)
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
@@ -379,7 +381,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
-      <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} />
+      <Sidebar user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)} supportsPWA={supportsPWA} installApp={installApp} />
 
       {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
 
@@ -497,7 +499,7 @@ export default function App() {
           )}
         </main>
 
-        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} />}
+        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} />}
 
         {/* DETALLE DE TRANSACCIÓN: AQUÍ ESTÁ LA ACTUALIZACIÓN EN TIEMPO REAL */}
         {selectedTransaction && (
