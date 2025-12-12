@@ -4,7 +4,7 @@ import App from './App.jsx'
 import './index.css'
 import ErrorBoundary from './components/ErrorBoundary';
 
-// --- IMPORTANTE: IMPORTAR LOS PROVEEDORES DE CONTEXTO ---
+// --- 1. IMPORTAR LOS PROVEEDORES DE CONTEXTO ---
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
 import { CartProvider } from './context/CartContext';
@@ -18,21 +18,12 @@ window.addEventListener('vite:preloadError', (event) => {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {/* 1. Proveedor de Autenticación (El más externo) */}
+      {/* 2. ENVOLVER LA APP CON LOS PROVEEDORES (CEREBROS) */}
       <AuthProvider>
-
-        {/* 2. Proveedor de Inventario (Productos, Clientes) */}
         <InventoryProvider>
-
-          {/* 3. Proveedor de Transacciones (Ventas, Historial) */}
           <TransactionsProvider>
-
-            {/* 4. Proveedor de Carrito (Depende de productos) */}
             <CartProvider>
-
-              {/* LA APP PRINCIPAL */}
               <App />
-
             </CartProvider>
           </TransactionsProvider>
         </InventoryProvider>
@@ -45,6 +36,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js').then(registration => {
+      // console.log('SW registrado:', registration.scope);
       if (registration.waiting) {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         window.location.reload();
