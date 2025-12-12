@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
-import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
+import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE CONTEXTOS
@@ -119,7 +119,6 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // Escuchar botón "Atrás"
   useEffect(() => {
     const handlePopState = () => {
       if (selectedTransaction) setSelectedTransaction(null);
@@ -144,52 +143,119 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleExportData = () => {
-    if (transactions.length === 0) return alert("No hay datos para exportar.");
+  // --- FUNCIÓN DE LISTA DE FALTANTES (Estilo Boleta) ---
+  const handlePrintShoppingList = async () => {
+    setIsProcessing(true);
     try {
-      let csvContent = "\uFEFF";
-      csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
-      csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
-      csvContent += "METRICAS DEL PERIODO\n";
-      csvContent += `Ventas Totales,$${balance.periodSales}\n`;
-      csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
-      csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
-      csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
-      csvContent += "VENTAS POR CATEGORIA\n";
-      csvContent += "Categoría,Monto Vendido\n";
-      balance.salesByCategory.forEach(cat => { csvContent += `${cat.name},$${cat.value}\n`; });
-      csvContent += "\n";
-      csvContent += "GASTOS DETALLADOS\n";
-      csvContent += "Fecha,Descripción,Monto\n";
-      expenses.forEach(e => { csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`; });
-      csvContent += "\n";
-      csvContent += "DETALLE DE TRANSACCIONES\n";
-      csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
-      transactions.forEach(t => {
-        const date = new Date(t.date?.seconds * 1000).toLocaleString();
-        const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
-        csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
-      });
+      // Filtrar productos con stock 0 o negativo
+      const missingProducts = products
+        .filter(p => p.stock <= 0)
+        .sort((a, b) => a.stock - b.stock); // Los más negativos primero
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Reporte_Completo_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (missingProducts.length === 0) {
+        alert("✅ ¡Excelente! No tienes stock negativo ni en cero.");
+        setIsProcessing(false);
+        return;
+      }
 
-      setTimeout(() => {
-        requestConfirm("¿Limpiar Base de Datos?", "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.", async () => {
-          setIsProcessing(true);
-          await purgeTransactions();
-          setIsProcessing(false);
-          showNotification("🧹 Historial limpiado");
-        }, true);
-      }, 1500);
-    } catch (error) { console.error("Error exportando:", error); alert("Error al generar el reporte."); }
+      const html2pdf = (await import('html2pdf.js')).default;
+
+      // ESTILOS IDÉNTICOS A LA BOLETA DE VENTA
+      const styles = {
+        container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
+        header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
+        brand: "flex: 1;",
+        logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
+        storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
+        invoiceInfo: "text-align: right; flex: 1;",
+        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo para alerta
+        meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
+        table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
+        th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
+        td: "padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155;",
+        tdRight: "text-align: right;",
+        tdCenter: "text-align: center;",
+        footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
+      };
+
+      const content = `
+        <div style="${styles.container}">
+            <div style="${styles.header}">
+                <div style="${styles.brand}">
+                    ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="${styles.logo}" crossorigin="anonymous"/>` : ''}
+                    <h1 style="${styles.storeName}">${storeProfile.name}</h1>
+                </div>
+                <div style="${styles.invoiceInfo}">
+                    <h2 style="${styles.invoiceTitle}">REPORTE DE FALTANTES</h2>
+                    <div style="${styles.meta}">
+                        FECHA: ${new Date().toLocaleDateString()}<br/>
+                        HORA: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #fff1f2; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #fecdd3; color: #9f1239; font-size: 13px;">
+                <strong>ATENCIÓN:</strong> El siguiente listado muestra productos con stock crítico (0 o negativo) que requieren reposición inmediata para normalizar el inventario.
+            </div>
+
+            <table style="${styles.table}">
+                <thead>
+                    <tr>
+                        <th style="${styles.th}">PRODUCTO / CÓDIGO</th>
+                        <th style="${styles.th} ${styles.tdCenter}">STOCK ACTUAL</th>
+                        <th style="${styles.th} ${styles.tdRight}">REPONER MÍNIMO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${missingProducts.map(p => {
+        // Calculamos cuánto falta para llegar a 0 (si es negativo)
+        // Si stock es -5, necesitamos +5 para llegar a 0.
+        const recoveryQty = Math.abs(p.stock);
+
+        return `
+                        <tr>
+                            <td style="${styles.td}">
+                                <span style="font-weight: bold; display: block;">${p.name}</span>
+                                <span style="font-size: 11px; color: #94a3b8;">${p.barcode || 'Sin código'}</span>
+                            </td>
+                            <td style="${styles.td} ${styles.tdCenter}">
+                                <span style="font-weight: bold; color: #ef4444;">${p.stock}</span>
+                            </td>
+                            <td style="${styles.td} ${styles.tdRight}">
+                                <span style="font-weight: bold; font-size: 14px;">+${recoveryQty}</span>
+                                <span style="font-size: 10px; color: #64748b; display: block;">para llegar a 0</span>
+                            </td>
+                        </tr>
+                    `}).join('')}
+                </tbody>
+            </table>
+
+            <div style="${styles.footer}">
+                <p>Generado automáticamente por el sistema de gestión.</p>
+                <p>${storeProfile.name} • Control de Stock</p>
+            </div>
+        </div>`;
+
+      const el = document.createElement('div');
+      el.innerHTML = content;
+
+      const opt = {
+        margin: 0, // Márgenes 0 como la boleta
+        filename: `Faltantes_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(el).save();
+      showNotification("✅ Lista generada");
+
+    } catch (e) {
+      console.error(e);
+      alert("Error generando PDF");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCheckout = async () => {
@@ -340,7 +406,7 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        {/* --- MAIN LIMPIO SIN PADDING GLOBAL (Solución Visual) --- */}
+        {/* --- MAIN SIN PADDING GLOBAL --- */}
         <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
 
           {activeTab === 'pos' && (
@@ -366,19 +432,22 @@ export default function App() {
           )}
 
           {activeTab === 'delivery' && userData.role === 'admin' && (
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
               <Suspense fallback={<TabLoader />}>
                 <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} onRequestConfirm={requestConfirm} />
               </Suspense>
             </div>
           )}
 
+          {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-28 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
+                  {/* BOTÓN NUEVO: Faltantes */}
+                  <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
               </div>
@@ -387,7 +456,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-28 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
@@ -410,7 +479,7 @@ export default function App() {
           )}
 
           {activeTab === 'transactions' && (
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
               <Suspense fallback={<TabLoader />}>
                 <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
               </Suspense>
@@ -420,7 +489,6 @@ export default function App() {
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} />}
 
-        {/* MODALES */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
             <TransactionDetail transaction={selectedTransaction} onClose={() => { setSelectedTransaction(null); if (window.history.state) window.history.back(); }} printer={printer} storeProfile={storeProfile} customers={customers} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} />
