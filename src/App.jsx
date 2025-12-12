@@ -3,7 +3,7 @@ import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from
 import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE HOOKS
-import { useAuth } from './hooks/useAuth';
+import { useAuthContext } from './context/AuthContext';
 import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
@@ -78,7 +78,7 @@ export default function App() {
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
   // INICIALIZAR HOOKS
-  const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuth();
+  const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
 
   const {
     products, categories, subcategories, customers, expenses, storeProfile, // Agregado subcategories
