@@ -119,12 +119,10 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // Escuchar el botón "Atrás" del navegador
+  // Escuchar botón "Atrás"
   useEffect(() => {
-    const handlePopState = (event) => {
-      if (selectedTransaction) {
-        setSelectedTransaction(null);
-      }
+    const handlePopState = () => {
+      if (selectedTransaction) setSelectedTransaction(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -146,15 +144,14 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE LISTA DE FALTANTES CORREGIDA (SOLO NEGATIVOS) ---
+  // --- 1. FUNCIÓN DE FALTANTES (Restaurada y corregida) ---
   const handlePrintShoppingList = async () => {
     setIsProcessing(true);
     try {
       // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
-      // Si es 0, no entra (porque no "debo" nada, solo no tengo).
       const negativeStockProducts = products
         .filter(p => p.stock < 0)
-        .sort((a, b) => a.stock - b.stock); // Los más negativos primero
+        .sort((a, b) => a.stock - b.stock);
 
       if (negativeStockProducts.length === 0) {
         alert("✅ ¡Excelente! No tienes productos con stock negativo.");
@@ -171,7 +168,7 @@ export default function App() {
         logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
         storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
         invoiceInfo: "text-align: right; flex: 1;",
-        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo alerta
+        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
         meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
         table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
         th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
@@ -255,6 +252,55 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // --- 2. FUNCIÓN DE EXPORTAR CSV (¡LA QUE FALTABA!) ---
+  const handleExportData = () => {
+    if (transactions.length === 0) return alert("No hay datos para exportar.");
+    try {
+      let csvContent = "\uFEFF";
+      csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
+      csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
+      csvContent += "METRICAS DEL PERIODO\n";
+      csvContent += `Ventas Totales,$${balance.periodSales}\n`;
+      csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
+      csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
+      csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
+      csvContent += "VENTAS POR CATEGORIA\n";
+      csvContent += "Categoría,Monto Vendido\n";
+      balance.salesByCategory.forEach(cat => { csvContent += `${cat.name},$${cat.value}\n`; });
+      csvContent += "\n";
+      csvContent += "GASTOS DETALLADOS\n";
+      csvContent += "Fecha,Descripción,Monto\n";
+      expenses.forEach(e => { csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`; });
+      csvContent += "\n";
+      csvContent += "DETALLE DE TRANSACCIONES\n";
+      csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
+      transactions.forEach(t => {
+        const date = new Date(t.date?.seconds * 1000).toLocaleString();
+        const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
+        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
+        csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Reporte_Completo_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => {
+        requestConfirm("¿Limpiar Base de Datos?", "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.", async () => {
+          setIsProcessing(true);
+          await purgeTransactions();
+          setIsProcessing(false);
+          showNotification("🧹 Historial limpiado");
+        }, true);
+      }, 1500);
+    } catch (error) { console.error("Error exportando:", error); alert("Error al generar el reporte."); }
   };
 
   const handleCheckout = async () => {
