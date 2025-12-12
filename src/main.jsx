@@ -3,10 +3,13 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import ErrorBoundary from './components/ErrorBoundary';
+
+// IMPORTS DE LOS 4 CONTEXTOS
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
 import { CartProvider } from './context/CartContext';
-import { TransactionsProvider } from './context/TransactionsContext';
+import { TransactionsProvider } from './context/TransactionsContext'; // <--- ESTE FALTABA
+
 // Autocorrección de versiones
 window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
@@ -15,19 +18,29 @@ window.addEventListener('vite:preloadError', (event) => {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
+      {/* 1. AUTENTICACIÓN (La base de todo) */}
       <AuthProvider>
+
+        {/* 2. INVENTARIO (Necesita usuario) */}
         <InventoryProvider>
-          {/* 👇 2. ENVOLVER (El orden importa: Inventario -> Transacciones) */}
+
+          {/* 3. TRANSACCIONES (Necesita usuario e inventario) */}
           <TransactionsProvider>
+
+            {/* 4. CARRITO (Necesita productos del inventario) */}
             <CartProvider>
+
+              {/* LA APLICACIÓN */}
               <App />
+
             </CartProvider>
           </TransactionsProvider>
         </InventoryProvider>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,
-);
+)
+
 // REGISTRO DE SERVICE WORKER
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
