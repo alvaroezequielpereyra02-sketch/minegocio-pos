@@ -1,25 +1,33 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Package, Search, Clock, CheckCircle, AlertTriangle,
     X, Plus, Minus, CheckSquare, Trash2, ArrowLeft,
     Save, Filter, ChevronRight
 } from 'lucide-react';
 
-// 1. IMPORTS DE CONTEXTO
+// CONTEXTOS
 import { useTransactionsContext } from '../context/TransactionsContext';
 import { useInventoryContext } from '../context/InventoryContext';
 
-// --- SUB-COMPONENTE: MODAL DE ARMADO (La "Boleta de Trabajo") ---
+// --- MODAL DE ARMADO (BOLETA DE TRABAJO) ---
 function OrderWorkModal({ order, onClose }) {
     const { updateTransaction } = useTransactionsContext();
-    const { products } = useInventoryContext(); // Para buscar productos nuevos
+    const { products } = useInventoryContext();
+
+    // ESTADO LOCAL (OPTIMISTA) - Para que la UI reaccione instantáneamente
+    const [localItems, setLocalItems] = useState(order.items || []);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
-    const [editingItemIndex, setEditingItemIndex] = useState(null); // Índice del item que edito manualmente
+    const [editingItemIndex, setEditingItemIndex] = useState(null);
     const [manualQty, setManualQty] = useState(0);
 
-    // Lógica del Buscador de Productos (Igual que en TransactionDetail)
+    // Sincronizar estado local si la base de datos cambia externamente
+    useEffect(() => {
+        setLocalItems(order.items || []);
+    }, [order]);
+
+    // Buscador
     useEffect(() => {
         if (searchTerm.length < 2) { setSearchResults([]); return; }
         const lowerTerm = searchTerm.toLowerCase();
@@ -30,16 +38,37 @@ function OrderWorkModal({ order, onClose }) {
         setSearchResults(results);
     }, [searchTerm, products]);
 
-    // 1. AGREGAR PRODUCTO AL PEDIDO
-    const handleAddItem = async (product) => {
-        const newItems = [...order.items];
+    // --- FUNCIONES DE ACCIÓN ---
+
+    const syncChanges = async (newItems) => {
+        // 1. Actualización Visual Inmediata (Optimista)
+        setLocalItems(newItems);
+
+        // 2. Calcular nuevo estado y total
+        const newStatus = calculateNewStatus(newItems);
+        // Recalcular total basado en lo que realmente está en la lista
+        // (Opcional: Si quieres cobrar solo lo entregado, usa packedQty. Si es preventa, usa qty)
+        // Aquí asumimos que el total sigue siendo precio * cantidad pedida, a menos que cambies el modelo.
+        const newTotal = newItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
+
+        // 3. Actualización en Base de Datos (Segundo plano)
+        await updateTransaction(order.id, {
+            items: newItems,
+            total: newTotal,
+            fulfillmentStatus: newStatus
+        });
+    };
+
+    const handleAddItem = (product) => {
+        const newItems = [...localItems];
         const existingIndex = newItems.findIndex(i => i.id === product.id);
 
         if (existingIndex >= 0) {
-            // Si ya existe, sumamos 1 a la cantidad requerida (pero NO a lo empacado)
-            newItems[existingIndex].qty += 1;
+            newItems[existingIndex] = {
+                ...newItems[existingIndex],
+                qty: newItems[existingIndex].qty + 1
+            };
         } else {
-            // Si es nuevo, lo agregamos (packedQty: 0 para que obligue a puntear)
             newItems.push({
                 id: product.id,
                 name: product.name,
@@ -51,74 +80,52 @@ function OrderWorkModal({ order, onClose }) {
                 imageUrl: product.imageUrl
             });
         }
-
-        // Recalcular estado y total
-        const newStatus = calculateNewStatus(newItems);
-        const newTotal = newItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
-
-        await updateTransaction(order.id, {
-            items: newItems,
-            total: newTotal,
-            fulfillmentStatus: newStatus
-        });
+        syncChanges(newItems);
         setSearchTerm('');
     };
 
-    // 2. LOGICA DE CHECKLIST (Punteo Rápido)
-    const handleQuickToggle = async (idx) => {
-        const newItems = [...order.items];
+    const handleQuickToggle = (idx) => {
+        const newItems = [...localItems];
         const item = newItems[idx];
         const currentPacked = item.packedQty || 0;
 
-        // Toggle: Si tiene algo, lo pone a 0. Si es 0, lo llena completo.
+        // Lógica de Toggle: Si tiene algo, a 0. Si está en 0, llenar todo.
         const nextQty = currentPacked > 0 ? 0 : item.qty;
 
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
-        const newStatus = calculateNewStatus(newItems);
-
-        await updateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
+        syncChanges(newItems);
     };
 
-    // 3. EDICIÓN MANUAL DE CANTIDAD EMPACADA
-    const saveManualEdit = async (idx) => {
-        const newItems = [...order.items];
+    const saveManualEdit = (idx) => {
+        const newItems = [...localItems];
         const item = newItems[idx];
-        // Asegurar que no supere la cantidad pedida (o sí, si decides permitir overpacking)
         const finalQty = Math.max(0, manualQty);
 
         newItems[idx] = { ...item, packedQty: finalQty, packed: finalQty === item.qty };
-        const newStatus = calculateNewStatus(newItems);
-
-        await updateTransaction(order.id, { items: newItems, fulfillmentStatus: newStatus });
+        syncChanges(newItems);
         setEditingItemIndex(null);
     };
 
-    // 4. ELIMINAR ITEM (En caso de error o faltante total)
-    const handleDeleteItem = async (idx) => {
+    const handleDeleteItem = (idx) => {
         if (!window.confirm("¿Quitar este producto del pedido?")) return;
-        const newItems = order.items.filter((_, i) => i !== idx);
-        const newStatus = calculateNewStatus(newItems);
-        const newTotal = newItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
-        await updateTransaction(order.id, { items: newItems, total: newTotal, fulfillmentStatus: newStatus });
+        const newItems = localItems.filter((_, i) => i !== idx);
+        syncChanges(newItems);
     };
 
-    // Helper: Calcular si está pendiente, parcial o listo
     const calculateNewStatus = (items) => {
         if (items.length === 0) return 'pending';
         const totalReq = items.reduce((acc, i) => acc + i.qty, 0);
         const totalPack = items.reduce((acc, i) => acc + (i.packedQty || 0), 0);
         if (totalPack === 0) return 'pending';
-        if (totalPack >= totalReq) return 'ready'; // Podríamos ponerlo ready automático o dejarlo partial
+        if (totalPack >= totalReq) return 'ready';
         return 'partial';
     };
 
-    // 5. CONFIRMAR ARMADO FINAL
     const handleConfirmOrder = async () => {
-        // Filtrar items que tienen 0 empacados (no se envían)
-        // y ajustar la cantidad final del pedido a lo que realmente se empacó
-        const finalItems = order.items.map(i => ({
+        // Filtrar y limpiar para entrega final
+        const finalItems = localItems.map(i => ({
             ...i,
-            qty: i.packedQty || 0, // La cantidad real pasa a ser la empacada
+            qty: i.packedQty || 0, // La cantidad oficial pasa a ser lo que se armó
             packed: true
         })).filter(i => i.qty > 0);
 
@@ -127,35 +134,35 @@ function OrderWorkModal({ order, onClose }) {
         await updateTransaction(order.id, {
             items: finalItems,
             total: finalTotal,
-            amountPaid: order.paymentStatus === 'paid' ? finalTotal : order.amountPaid, // Ajustar pago si era total
-            fulfillmentStatus: 'ready' // Listo para reparto
+            // Si estaba pagado, actualizamos el monto pagado al nuevo total real
+            amountPaid: order.paymentStatus === 'paid' ? finalTotal : order.amountPaid,
+            fulfillmentStatus: 'ready'
         });
         onClose();
     };
 
-    // ESTILOS SEGÚN ESTADO DEL ITEM
     const getItemStyle = (item) => {
         const packed = item.packedQty || 0;
-        if (packed === item.qty) return "bg-green-50 border-green-200"; // Completo
-        if (packed > 0) return "bg-orange-50 border-orange-200"; // Parcial
-        return "bg-white border-slate-200"; // Pendiente
+        if (packed === item.qty) return "bg-green-50 border-green-200";
+        if (packed > 0) return "bg-orange-50 border-orange-200";
+        return "bg-white border-slate-200";
     };
 
     return (
         <div className="fixed inset-0 z-[20000] bg-slate-900/50 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
             <div className="w-full h-full sm:h-[90vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
-                {/* HEADER DEL MODAL */}
+                {/* HEADER */}
                 <div className="bg-white p-4 border-b flex items-center justify-between shadow-sm z-20">
                     <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-100"><ArrowLeft size={24} className="text-slate-600" /></button>
                     <div className="text-center">
                         <h2 className="font-bold text-slate-800 text-lg">{order.clientName}</h2>
                         <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Pedido #{order.id.slice(0, 4)}</div>
                     </div>
-                    <div className="w-8"></div> {/* Espaciador para centrar título */}
+                    <div className="w-8"></div>
                 </div>
 
-                {/* BUSCADOR PARA AGREGAR */}
+                {/* BUSCADOR */}
                 <div className="p-4 bg-slate-50 border-b z-10 relative">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
@@ -165,7 +172,6 @@ function OrderWorkModal({ order, onClose }) {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        {/* RESULTADOS FLOTANTES */}
                         {searchResults.length > 0 && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 max-h-48 overflow-y-auto">
                                 {searchResults.map(p => (
@@ -179,15 +185,15 @@ function OrderWorkModal({ order, onClose }) {
                     </div>
                 </div>
 
-                {/* LISTA DE CHECKLIST */}
+                {/* LISTA DE ITEMS (USANDO localItems) */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
-                    {order.items.map((item, idx) => {
+                    {localItems.map((item, idx) => {
                         const packed = item.packedQty || 0;
                         const isEditing = editingItemIndex === idx;
 
                         return (
                             <div key={idx} className={`p-3 rounded-xl border-2 transition-all ${getItemStyle(item)} flex items-center gap-3 shadow-sm`}>
-                                {/* BOTÓN DE CHECK PRINCIPAL */}
+                                {/* CHECK BUTTON */}
                                 <button
                                     onClick={() => handleQuickToggle(idx)}
                                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform active:scale-90 ${packed === item.qty ? 'bg-green-500 text-white shadow-green-200 shadow-lg' : packed > 0 ? 'bg-orange-500 text-white' : 'bg-white border-2 border-slate-200 text-slate-300'}`}
@@ -209,7 +215,6 @@ function OrderWorkModal({ order, onClose }) {
                                     </div>
                                 </div>
 
-                                {/* CONTROLES DE EDICIÓN O ELIMINAR */}
                                 {isEditing ? (
                                     <div className="flex items-center bg-white border border-blue-500 rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95">
                                         <button onClick={() => setManualQty(Math.max(0, manualQty - 1))} className="p-3 bg-slate-100 hover:bg-slate-200"><Minus size={16} /></button>
@@ -232,7 +237,7 @@ function OrderWorkModal({ order, onClose }) {
                     })}
                 </div>
 
-                {/* FOOTER CONFIRMACIÓN */}
+                {/* FOOTER */}
                 <div className="p-4 bg-white border-t z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                     <button
                         onClick={handleConfirmOrder}
@@ -250,20 +255,24 @@ function OrderWorkModal({ order, onClose }) {
 export default function Orders() {
     const { transactions } = useTransactionsContext();
 
-    // Estados locales
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedOrder, setSelectedOrder] = useState(null); // Pedido abierto en modal
 
-    // Filtrar pedidos activos (No entregados ni cancelados)
+    // 🔥 CAMBIO CLAVE: Guardamos ID, no el objeto completo.
+    const [selectedOrderId, setSelectedOrderId] = useState(null);
+
+    // 🔥 Buscamos el pedido "vivo" del contexto
+    const selectedOrder = useMemo(() => {
+        return transactions.find(t => t.id === selectedOrderId);
+    }, [transactions, selectedOrderId]);
+
     const activeOrders = useMemo(() => {
         return transactions.filter(t => {
             const status = t.fulfillmentStatus || 'pending';
             return status !== 'delivered' && status !== 'cancelled';
-        }).sort((a, b) => (a.date?.seconds || 0) - (b.date?.seconds || 0)); // Más antiguos primero
+        }).sort((a, b) => (a.date?.seconds || 0) - (b.date?.seconds || 0));
     }, [transactions]);
 
-    // Aplicar filtros de texto y estado
     const filteredOrders = useMemo(() => {
         return activeOrders.filter(t => {
             const status = t.fulfillmentStatus || 'pending';
@@ -277,7 +286,6 @@ export default function Orders() {
 
     return (
         <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0 bg-slate-50 -m-4">
-            {/* HEADER DE LA PESTAÑA */}
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -288,7 +296,6 @@ export default function Orders() {
                     </span>
                 </div>
 
-                {/* FILTROS TIPO CAPSULA */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {[{ id: 'all', l: 'Todos' }, { id: 'pending', l: 'Nuevos' }, { id: 'partial', l: 'En Proceso' }, { id: 'ready', l: 'Listos' }].map(t => (
                         <button key={t.id} onClick={() => setFilterStatus(t.id)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
@@ -297,7 +304,6 @@ export default function Orders() {
                     ))}
                 </div>
 
-                {/* BUSCADOR */}
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-400 w-5 h-5" />
                     <input
@@ -309,7 +315,6 @@ export default function Orders() {
                 </div>
             </div>
 
-            {/* LISTA SIMPLIFICADA (SOLO TARJETAS CLICKEABLES) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {filteredOrders.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center opacity-60">
@@ -326,7 +331,8 @@ export default function Orders() {
                     return (
                         <button
                             key={order.id}
-                            onClick={() => setSelectedOrder(order)}
+                            // 🔥 Al clickear, guardamos el ID para que se refresque siempre
+                            onClick={() => setSelectedOrderId(order.id)}
                             className={`w-full text-left bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex justify-between items-center group relative overflow-hidden ${status === 'ready' ? 'border-green-300' : 'border-slate-200'}`}
                         >
                             {status === 'ready' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-green-500"></div>}
@@ -354,11 +360,11 @@ export default function Orders() {
                 })}
             </div>
 
-            {/* MODAL FLOTANTE (SE ABRE AL TOCAR UN PEDIDO) */}
-            {selectedOrder && (
+            {/* MODAL QUE SE ALIMENTA DEL PEDIDO "VIVO" */}
+            {selectedOrderId && selectedOrder && (
                 <OrderWorkModal
                     order={selectedOrder}
-                    onClose={() => setSelectedOrder(null)}
+                    onClose={() => setSelectedOrderId(null)}
                 />
             )}
         </div>
