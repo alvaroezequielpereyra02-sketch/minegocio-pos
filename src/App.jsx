@@ -4,7 +4,7 @@ import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE HOOKS
 import { useAuthContext } from './context/AuthContext';
-import { useInventory } from './hooks/useInventory';
+import { useInventoryContext } from './context/InventoryContext';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
 import { usePrinter } from './hooks/usePrinter';
@@ -81,14 +81,14 @@ export default function App() {
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
 
   const {
-    products, categories, subcategories, customers, expenses, storeProfile, // Agregado subcategories
+    products, categories, subcategories, customers, expenses, storeProfile,
     addProduct, updateProduct, deleteProduct, addStock,
-    addCategory, deleteCategory, updateCategory, // <--- CAMBIO 1: Agregamos updateCategory aquí
-    addSubCategory, deleteSubCategory, // Agregado acciones de subcategorías
+    addCategory, deleteCategory, updateCategory,
+    addSubCategory, deleteSubCategory,
     addCustomer, updateCustomer, deleteCustomer,
     addExpense, deleteExpense,
     updateStoreProfile, generateInvitationCode
-  } = useInventory(user, userData);
+  } = useInventoryContext();
 
   // Pasamos dateRange al hook de transacciones
   const {

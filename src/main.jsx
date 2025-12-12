@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import ErrorBoundary from './components/ErrorBoundary';
-// 👇 1. IMPORTANTE: Importar el proveedor
 import { AuthProvider } from './context/AuthContext';
+import { InventoryProvider } from './context/InventoryContext';
 
 // Autocorrección de versiones
 window.addEventListener('vite:preloadError', (event) => {
@@ -14,9 +14,11 @@ window.addEventListener('vite:preloadError', (event) => {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {/* 👇 2. IMPORTANTE: Envolver App con AuthProvider */}
       <AuthProvider>
-        <App />
+        {/* 👇 2. ENVOLVER (Dentro de AuthProvider) */}
+        <InventoryProvider>
+          <App />
+        </InventoryProvider>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,
