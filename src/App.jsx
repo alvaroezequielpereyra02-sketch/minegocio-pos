@@ -6,7 +6,7 @@ import { serverTimestamp } from 'firebase/firestore';
 import { useAuthContext } from './context/AuthContext';
 import { useInventoryContext } from './context/InventoryContext';
 import { useTransactions } from './hooks/useTransactions';
-import { useCart } from './hooks/useCart';
+import { useCartContext } from './context/CartContext';
 import { usePrinter } from './hooks/usePrinter';
 import { uploadProductImage } from './utils/uploadImage';
 import { usePWA } from './hooks/usePWA';
@@ -97,7 +97,7 @@ export default function App() {
 
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
-  } = useCart();
+  } = useCartContext();
 
   const printer = usePrinter();
 

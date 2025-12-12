@@ -5,6 +5,7 @@ import './index.css'
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
+import { CartProvider } from './context/CartContext';
 
 // Autocorrección de versiones
 window.addEventListener('vite:preloadError', (event) => {
@@ -15,9 +16,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
-        {/* 👇 2. ENVOLVER (Dentro de AuthProvider) */}
         <InventoryProvider>
-          <App />
+          {/* 👇 2. ENVOLVER (El último de la cadena) */}
+          <CartProvider>
+            <App />
+          </CartProvider>
         </InventoryProvider>
       </AuthProvider>
     </ErrorBoundary>
