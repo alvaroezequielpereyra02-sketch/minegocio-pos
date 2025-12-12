@@ -366,7 +366,7 @@ export default function App() {
           )}
 
           {activeTab === 'delivery' && userData.role === 'admin' && (
-            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex-1 overflow-hidden">
               <Suspense fallback={<TabLoader />}>
                 <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} onRequestConfirm={requestConfirm} />
               </Suspense>
@@ -374,7 +374,7 @@ export default function App() {
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-28 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -387,7 +387,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-28 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
@@ -410,7 +410,7 @@ export default function App() {
           )}
 
           {activeTab === 'transactions' && (
-            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex-1 overflow-hidden">
               <Suspense fallback={<TabLoader />}>
                 <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
               </Suspense>
