@@ -143,24 +143,24 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE LISTA DE FALTANTES (Estilo Boleta) ---
+  // --- FUNCIÓN DE LISTA DE FALTANTES CORREGIDA (SOLO NEGATIVOS) ---
   const handlePrintShoppingList = async () => {
     setIsProcessing(true);
     try {
-      // Filtrar productos con stock 0 o negativo
-      const missingProducts = products
-        .filter(p => p.stock <= 0)
+      // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
+      // Si es 0, no entra (porque no "debo" nada, solo no tengo).
+      const negativeStockProducts = products
+        .filter(p => p.stock < 0)
         .sort((a, b) => a.stock - b.stock); // Los más negativos primero
 
-      if (missingProducts.length === 0) {
-        alert("✅ ¡Excelente! No tienes stock negativo ni en cero.");
+      if (negativeStockProducts.length === 0) {
+        alert("✅ ¡Excelente! No tienes productos con stock negativo.");
         setIsProcessing(false);
         return;
       }
 
       const html2pdf = (await import('html2pdf.js')).default;
 
-      // ESTILOS IDÉNTICOS A LA BOLETA DE VENTA
       const styles = {
         container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
         header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
@@ -168,7 +168,7 @@ export default function App() {
         logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
         storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
         invoiceInfo: "text-align: right; flex: 1;",
-        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo para alerta
+        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo alerta
         meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
         table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
         th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
@@ -186,7 +186,7 @@ export default function App() {
                     <h1 style="${styles.storeName}">${storeProfile.name}</h1>
                 </div>
                 <div style="${styles.invoiceInfo}">
-                    <h2 style="${styles.invoiceTitle}">REPORTE DE FALTANTES</h2>
+                    <h2 style="${styles.invoiceTitle}">STOCK NEGATIVO</h2>
                     <div style="${styles.meta}">
                         FECHA: ${new Date().toLocaleDateString()}<br/>
                         HORA: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -195,7 +195,7 @@ export default function App() {
             </div>
 
             <div style="background: #fff1f2; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #fecdd3; color: #9f1239; font-size: 13px;">
-                <strong>ATENCIÓN:</strong> El siguiente listado muestra productos con stock crítico (0 o negativo) que requieren reposición inmediata para normalizar el inventario.
+                <strong>INFORME DE RECUPERACIÓN:</strong> Listado de productos vendidos sin stock. La columna "A COMPRAR" indica la cantidad necesaria estrictamente para volver el stock a 0.
             </div>
 
             <table style="${styles.table}">
@@ -203,14 +203,13 @@ export default function App() {
                     <tr>
                         <th style="${styles.th}">PRODUCTO / CÓDIGO</th>
                         <th style="${styles.th} ${styles.tdCenter}">STOCK ACTUAL</th>
-                        <th style="${styles.th} ${styles.tdRight}">REPONER MÍNIMO</th>
+                        <th style="${styles.th} ${styles.tdRight}">A COMPRAR (PARA LLEGAR A 0)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${missingProducts.map(p => {
-        // Calculamos cuánto falta para llegar a 0 (si es negativo)
-        // Si stock es -5, necesitamos +5 para llegar a 0.
-        const recoveryQty = Math.abs(p.stock);
+                    ${negativeStockProducts.map(p => {
+        // Calculamos la deuda real
+        const debt = Math.abs(p.stock);
 
         return `
                         <tr>
@@ -222,8 +221,7 @@ export default function App() {
                                 <span style="font-weight: bold; color: #ef4444;">${p.stock}</span>
                             </td>
                             <td style="${styles.td} ${styles.tdRight}">
-                                <span style="font-weight: bold; font-size: 14px;">+${recoveryQty}</span>
-                                <span style="font-size: 10px; color: #64748b; display: block;">para llegar a 0</span>
+                                <span style="font-weight: bold; font-size: 14px; color: #2563eb;">+${debt}</span>
                             </td>
                         </tr>
                     `}).join('')}
@@ -240,8 +238,8 @@ export default function App() {
       el.innerHTML = content;
 
       const opt = {
-        margin: 0, // Márgenes 0 como la boleta
-        filename: `Faltantes_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
+        margin: 0,
+        filename: `Recuperacion_Stock_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -441,7 +439,7 @@ export default function App() {
 
           {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -456,7 +454,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
