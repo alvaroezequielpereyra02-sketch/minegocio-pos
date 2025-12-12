@@ -91,7 +91,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 // NAV MÓVIL
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout, supportsPWA, installApp }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2">
       <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
 

@@ -330,7 +330,7 @@ export default function App() {
         onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)}
         supportsPWA={supportsPWA} installApp={installApp}
       />
-      {!isOnline && <div className="fixed bottom-16 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
+      {!isOnline && <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
       {confirmConfig && <ConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} isDanger={confirmConfig.isDanger} />}
       {notification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3"><Bell size={18} className="text-yellow-400" /><span className="font-bold text-sm">{notification}</span></div>}
       {isProcessing && <ProcessingModal />}

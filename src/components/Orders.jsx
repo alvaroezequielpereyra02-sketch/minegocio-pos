@@ -280,7 +280,7 @@ export default function Orders() {
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0 bg-slate-50 -m-4">
+        <div className="flex flex-col h-full overflow-hidden pb-28 lg:pb-0 bg-slate-50 -m-4">
             <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">

@@ -118,7 +118,7 @@ const ProductGrid = memo(function ProductGrid({
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 pb-16 lg:pb-0 h-full">
+        <div className="flex-1 flex flex-col min-h-0 pb-32 lg:pb-0 h-full">
             {/* Header de Búsqueda */}
             <div className="mb-3 flex gap-3 shrink-0">
                 <div className="flex-1">
