@@ -5,7 +5,7 @@ import { serverTimestamp } from 'firebase/firestore';
 // IMPORTS DE HOOKS
 import { useAuthContext } from './context/AuthContext';
 import { useInventoryContext } from './context/InventoryContext';
-import { useTransactions } from './hooks/useTransactions';
+import { useTransactions } from './context/TransactionsContext';
 import { useCartContext } from './context/CartContext';
 import { usePrinter } from './hooks/usePrinter';
 import { uploadProductImage } from './utils/uploadImage';
@@ -93,8 +93,7 @@ export default function App() {
   // Pasamos dateRange al hook de transacciones
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
-  } = useTransactions(user, userData, products, expenses, categories, dashboardDateRange);
-
+  } = useTransactionsContext();
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
   } = useCartContext();

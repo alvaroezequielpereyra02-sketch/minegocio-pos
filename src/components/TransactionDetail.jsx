@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Printer, MessageCircle, X, MapPin, Edit, DollarSign, Download, Share2, Loader2, StickyNote } from 'lucide-react';
+// 1. IMPORTS DE CONTEXTO
+import { useAuthContext } from '../context/AuthContext';
+import { useTransactionsContext } from '../context/TransactionsContext';
+// 2. IMPORTAR EL MODAL
+import { ConfirmModal } from './Modals';
 
 export default function TransactionDetail({
     transaction,
     onClose,
     storeProfile,
-    onCancel,
     customers = [],
-    onUpdate,
-    onEditItems,
-    userData
+    onEditItems
 }) {
+    // 3. HOOKS DE CONTEXTO
+    const { userData } = useAuthContext();
+    const { deleteTransaction, updateTransaction } = useTransactionsContext();
+
     if (!transaction) return null;
 
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [activeTab, setActiveTab] = useState('items');
 
-    // Estado para mostrar carga mientras se genera el PDF
+    // 4. ESTADO PARA EL MODAL DE CANCELACIÓN
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    const [activeTab, setActiveTab] = useState('items');
     const [isGenerating, setIsGenerating] = useState(false);
 
     const isAdmin = userData?.role === 'admin';
@@ -28,7 +36,6 @@ export default function TransactionDetail({
     const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
     const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction?.paymentMethod || 'unspecified');
 
-    // Sincronizar estado local si la transacción cambia (ej: al guardar)
     useEffect(() => {
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
@@ -50,7 +57,6 @@ export default function TransactionDetail({
     const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
-    // --- FUNCIÓN RECUPERADA: ABRIR MODAL DE PAGO ---
     const openPaymentModal = () => {
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
@@ -59,7 +65,6 @@ export default function TransactionDetail({
         setShowPaymentModal(true);
     };
 
-    // --- FUNCIÓN: GUARDAR PAGO ---
     const handleSavePayment = () => {
         if (!isAdmin) return;
         let finalAmountPaid = tempAmountPaid;
@@ -68,8 +73,7 @@ export default function TransactionDetail({
         // Si se marca como pendiente, el monto pagado es 0
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        // Enviamos los datos actualizados
-        onUpdate(transaction.id, {
+        updateTransaction(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
             paymentNote: tempNote,
@@ -78,7 +82,14 @@ export default function TransactionDetail({
         setShowPaymentModal(false);
     };
 
-    // --- DISEÑO DE LA BOLETA (ESTILO FACTURA A4 CON NOTA) ---
+    // --- LOGICA DE CANCELACIÓN (NUEVA) ---
+    const handleConfirmCancel = async () => {
+        await deleteTransaction(transaction.id);
+        setShowDeleteConfirm(false);
+        onClose(); // Cerramos el detalle porque la venta ya no existe
+    };
+
+    // --- DISEÑO DE LA BOLETA ---
     const getTicketElement = () => {
         const styles = {
             container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
@@ -89,22 +100,18 @@ export default function TransactionDetail({
             invoiceInfo: "text-align: right; flex: 1;",
             invoiceTitle: "font-size: 32px; font-weight: 200; color: #cbd5e1; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
             meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
-
             clientSection: "background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0;",
             sectionTitle: "font-size: 11px; text-transform: uppercase; font-weight: bold; color: #94a3b8; margin-bottom: 5px;",
             clientName: "font-size: 16px; font-weight: bold; color: #1e293b; margin: 0;",
             clientDetails: "font-size: 13px; color: #475569; margin-top: 2px;",
-
             table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
             th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
             td: "padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155;",
             tdRight: "text-align: right;",
-
             totalSection: "display: flex; justify-content: flex-end;",
             totalBox: "width: 250px;",
             totalRow: "display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #64748b;",
             finalTotal: "display: flex; justify-content: space-between; padding: 15px 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; margin-top: 10px; font-size: 18px; font-weight: bold; color: #0f172a;",
-
             noteSection: "margin-top: 30px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e;",
             footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
         };
@@ -195,11 +202,9 @@ export default function TransactionDetail({
         return el;
     };
 
-    // --- GENERAR PDF ---
     const generatePDFBlob = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const el = getTicketElement();
-        // Configuración A4 estándar
         const opt = {
             margin: 0,
             filename: `recibo-${transaction.id.slice(0, 5)}.pdf`,
@@ -269,6 +274,18 @@ export default function TransactionDetail({
 
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
+
+            {/* --- MODAL CONFIRMACIÓN DE CANCELACIÓN (NUEVO) --- */}
+            {showDeleteConfirm && (
+                <ConfirmModal
+                    title="Cancelar Venta"
+                    message={`¿Estás seguro de que quieres CANCELAR la venta #${transaction.id.slice(0, 4)}?\n\n⚠️ El stock de los productos se devolverá automáticamente al inventario.`}
+                    isDanger={true}
+                    confirmText="Sí, Cancelar Venta"
+                    onCancel={() => setShowDeleteConfirm(false)}
+                    onConfirm={handleConfirmCancel}
+                />
+            )}
 
             {/* MODAL PAGO */}
             {showPaymentModal && (
@@ -473,7 +490,8 @@ export default function TransactionDetail({
                             <Share2 size={20} /> <span className="text-sm">Compartir / Imprimir</span>
                         </button>
                         {isAdmin && (
-                            <button onClick={() => onCancel(transaction.id)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
+                            // --- BOTÓN QUE DISPARA EL MODAL LOCAL ---
+                            <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
                                 Cancelar
                             </button>
                         )}

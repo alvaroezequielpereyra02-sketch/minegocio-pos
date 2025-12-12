@@ -6,7 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
 import { CartProvider } from './context/CartContext';
-
+import { TransactionsProvider } from './context/TransactionsContext';
 // Autocorrección de versiones
 window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
@@ -17,16 +17,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <AuthProvider>
         <InventoryProvider>
-          {/* 👇 2. ENVOLVER (El último de la cadena) */}
-          <CartProvider>
-            <App />
-          </CartProvider>
+          {/* 👇 2. ENVOLVER (El orden importa: Inventario -> Transacciones) */}
+          <TransactionsProvider>
+            <CartProvider>
+              <App />
+            </CartProvider>
+          </TransactionsProvider>
         </InventoryProvider>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,
-)
-
+);
 // REGISTRO DE SERVICE WORKER
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
