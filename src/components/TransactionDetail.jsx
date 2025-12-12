@@ -1,41 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Printer, MessageCircle, X, MapPin, Edit, DollarSign, Download, Share2, Loader2, StickyNote } from 'lucide-react';
-// 1. IMPORTS DE CONTEXTO
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    ArrowLeft, Printer, MessageCircle, X, MapPin, Edit,
+    DollarSign, Download, Share2, Loader2, StickyNote
+} from 'lucide-react';
+
+// --- 1. CONEXIÓN A LOS CEREBROS (CONTEXTOS) ---
 import { useAuthContext } from '../context/AuthContext';
 import { useTransactionsContext } from '../context/TransactionsContext';
-// 2. IMPORTAR EL MODAL
 import { ConfirmModal } from './Modals';
 
 export default function TransactionDetail({
-    transaction,
+    transaction: initialTransaction, // Renombramos la prop inicial
     onClose,
     storeProfile,
     customers = [],
     onEditItems
 }) {
-    // 3. HOOKS DE CONTEXTO
+    // 2. OBTENER DATOS Y FUNCIONES GLOBALES
     const { userData } = useAuthContext();
-    const { deleteTransaction, updateTransaction } = useTransactionsContext();
+    const { transactions, deleteTransaction, updateTransaction } = useTransactionsContext();
 
+    // 3. BUSQUEDA EN VIVO (Para que se actualice sin F5)
+    // Buscamos la transacción en la lista global usando su ID.
+    // Si existe (está actualizada), usamos esa. Si no, usamos la inicial.
+    const transaction = useMemo(() => {
+        return transactions.find(t => t.id === initialTransaction.id) || initialTransaction;
+    }, [transactions, initialTransaction]);
+
+    // Si por alguna razón no hay transacción, no mostramos nada
     if (!transaction) return null;
 
+    // --- ESTADOS LOCALES ---
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-
-    // 4. ESTADO PARA EL MODAL DE CANCELACIÓN
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-    const [activeTab, setActiveTab] = useState('items');
+    const [activeTab, setActiveTab] = useState('items'); // 'items' | 'details'
     const [isGenerating, setIsGenerating] = useState(false);
 
     const isAdmin = userData?.role === 'admin';
 
-    // Estados locales para el modal de pago
-    const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
-    const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
-    const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
-    const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction?.paymentMethod || 'unspecified');
+    // Estados temporales para el Modal de Pago
+    const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
+    const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
+    const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
+    const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction.paymentMethod || 'unspecified');
 
+    // 4. SINCRONIZADOR DE ESTADO
+    // Cada vez que la transacción cambia (ej: guardamos un pago), 
+    // actualizamos los valores del formulario.
     useEffect(() => {
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
@@ -43,21 +55,27 @@ export default function TransactionDetail({
         setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
     }, [transaction]);
 
+    // Cálculos de montos
     const total = transaction.total || 0;
     const paid = transaction.amountPaid || 0;
     const debt = total - paid;
 
+    // Qué mostrar en el encabezado grande
     const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
     const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
     const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
 
+    // Datos del cliente
     const clientData = customers.find(c => c.id === transaction.clientId) || {};
     const clientName = transaction.clientName || clientData.name || 'Consumidor Final';
     const clientPhone = clientData.phone || '';
     const clientAddress = clientData.address || '';
     const dateObj = transaction.date?.seconds ? new Date(transaction.date.seconds * 1000) : new Date();
 
+    // --- MANEJADORES DE ACCIÓN ---
+
     const openPaymentModal = () => {
+        // Aseguramos que el modal abra con los datos frescos
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
         setTempNote(transaction.paymentNote || '');
@@ -65,31 +83,33 @@ export default function TransactionDetail({
         setShowPaymentModal(true);
     };
 
-    const handleSavePayment = () => {
+    const handleSavePayment = async () => {
         if (!isAdmin) return;
+
         let finalAmountPaid = tempAmountPaid;
-        // Si se marca como pagado, el monto pagado es el total
+
+        // Lógica automática de montos según estado
         if (tempStatus === 'paid') finalAmountPaid = total;
-        // Si se marca como pendiente, el monto pagado es 0
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        updateTransaction(transaction.id, {
+        // Actualizamos en la base de datos (Contexto)
+        await updateTransaction(transaction.id, {
             paymentStatus: tempStatus,
             amountPaid: finalAmountPaid,
             paymentNote: tempNote,
             paymentMethod: tempPaymentMethod
         });
+
         setShowPaymentModal(false);
     };
 
-    // --- LOGICA DE CANCELACIÓN (NUEVA) ---
     const handleConfirmCancel = async () => {
         await deleteTransaction(transaction.id);
         setShowDeleteConfirm(false);
-        onClose(); // Cerramos el detalle porque la venta ya no existe
+        onClose(); // Cerramos todo porque la venta ya no existe
     };
 
-    // --- DISEÑO DE LA BOLETA ---
+    // --- GENERADOR DE BOLETA HTML (Diseño Visual) ---
     const getTicketElement = () => {
         const styles = {
             container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
@@ -116,6 +136,7 @@ export default function TransactionDetail({
             footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
         };
 
+        // Construcción del HTML
         const content = `
         <div style="${styles.container}">
             <div style="${styles.header}">
@@ -202,6 +223,8 @@ export default function TransactionDetail({
         return el;
     };
 
+    // --- FUNCIONES DE EXPORTACIÓN ---
+
     const generatePDFBlob = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const el = getTicketElement();
@@ -237,9 +260,7 @@ export default function TransactionDetail({
             const blob = await generatePDFBlob();
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
         setIsGenerating(false);
     };
 
@@ -272,10 +293,11 @@ export default function TransactionDetail({
         setIsGenerating(false);
     };
 
+    // --- RENDERIZADO DEL COMPONENTE ---
     return (
         <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
-            {/* --- MODAL CONFIRMACIÓN DE CANCELACIÓN (NUEVO) --- */}
+            {/* 1. MODAL CONFIRMACIÓN DE CANCELACIÓN */}
             {showDeleteConfirm && (
                 <ConfirmModal
                     title="Cancelar Venta"
@@ -287,7 +309,7 @@ export default function TransactionDetail({
                 />
             )}
 
-            {/* MODAL PAGO */}
+            {/* 2. MODAL GESTIÓN DE PAGO */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
@@ -297,6 +319,8 @@ export default function TransactionDetail({
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
+
+                        {/* Selector de Método */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
                             <select value={tempPaymentMethod} onChange={(e) => setTempPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none">
@@ -305,6 +329,8 @@ export default function TransactionDetail({
                                 <option value="transfer">🏦 Transferencia</option>
                             </select>
                         </div>
+
+                        {/* Botones de Estado */}
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -313,6 +339,8 @@ export default function TransactionDetail({
                                 <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
                             </div>
                         </div>
+
+                        {/* Input condicional para pago parcial */}
                         {tempStatus === 'partial' && (
                             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
                                 <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
@@ -323,16 +351,19 @@ export default function TransactionDetail({
                                 <div className="text-right text-xs text-orange-600 mt-2 font-bold">Restan: ${(total - tempAmountPaid).toLocaleString()}</div>
                             </div>
                         )}
+
+                        {/* Notas */}
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase">Nota / Observaciones (Visible en Boleta)</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase">Nota / Observaciones</label>
                             <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
+
                         <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
                     </div>
                 </div>
             )}
 
-            {/* MODAL COMPARTIR */}
+            {/* 3. MODAL OPCIONES DE COMPARTIR */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
@@ -350,7 +381,7 @@ export default function TransactionDetail({
                                 </div>
                             )}
 
-                            {/* 1. WHATSAPP CON PDF */}
+                            {/* Opción 1: WhatsApp */}
                             <button onClick={handleWhatsAppWithFile} className="w-full flex items-center p-4 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition-all shadow-sm group">
                                 <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform">
                                     <MessageCircle size={20} />
@@ -361,8 +392,8 @@ export default function TransactionDetail({
                                 </div>
                             </button>
 
+                            {/* Opciones 2 y 3: Imprimir y Descargar */}
                             <div className="grid grid-cols-2 gap-3">
-                                {/* 2. IMPRIMIR */}
                                 <button onClick={handleBrowserPrint} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
                                         <Printer size={20} />
@@ -371,7 +402,6 @@ export default function TransactionDetail({
                                     <div className="text-[10px] text-slate-500">Wifi / A4</div>
                                 </button>
 
-                                {/* 3. DESCARGAR */}
                                 <button onClick={handleDownloadPDF} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
                                         <Download size={20} />
@@ -385,8 +415,10 @@ export default function TransactionDetail({
                 </div>
             )}
 
-            {/* DETALLE PRINCIPAL */}
+            {/* --- PANEL PRINCIPAL DEL DETALLE --- */}
             <div className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
+
+                {/* Header Superior */}
                 <div className="bg-white px-4 py-3 flex items-center gap-4 border-b shadow-sm h-16 shrink-0">
                     <button onClick={onClose} className="p-2 -ml-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors active:scale-95">
                         <ArrowLeft size={26} className="text-slate-700" />
@@ -402,7 +434,10 @@ export default function TransactionDetail({
                     )}
                 </div>
 
+                {/* Contenido Scrolleable */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/50 pb-4">
+
+                    {/* Caja de Estado / Monto */}
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
@@ -420,9 +455,14 @@ export default function TransactionDetail({
                         </div>
                     </div>
 
+                    {/* Pestañas (Items / Detalles) */}
                     <div className="flex border-b bg-white z-10 shadow-sm sticky top-0">
                         {['items', 'details'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            >
                                 {tab === 'items' ? 'Items' : 'Detalles'}
                             </button>
                         ))}
@@ -457,7 +497,6 @@ export default function TransactionDetail({
                                     <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente</div></div>
                                 </div>
 
-                                {/* NOTA INTERNA VISIBLE */}
                                 {transaction.paymentNote && (
                                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
                                         <div className="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1"><StickyNote size={12} /> Observaciones:</div>
@@ -484,13 +523,13 @@ export default function TransactionDetail({
                     </div>
                 </div>
 
+                {/* Footer de Acciones Inferiores */}
                 {!showShareOptions && (
                     <div className="bg-white p-4 border-t shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex gap-3 pb-6 sm:pb-4 shrink-0">
                         <button onClick={() => setShowShareOptions(true)} className="flex-1 h-12 flex items-center justify-center gap-2 border-2 border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 active:bg-slate-100">
                             <Share2 size={20} /> <span className="text-sm">Compartir / Imprimir</span>
                         </button>
                         {isAdmin && (
-                            // --- BOTÓN QUE DISPARA EL MODAL LOCAL ---
                             <button onClick={() => setShowDeleteConfirm(true)} className="flex-1 h-12 bg-white border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 active:bg-red-100">
                                 Cancelar
                             </button>
