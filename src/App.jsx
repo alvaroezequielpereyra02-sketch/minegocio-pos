@@ -8,6 +8,7 @@ import { useInventory } from './hooks/useInventory';
 import { useTransactions } from './hooks/useTransactions';
 import { useCart } from './hooks/useCart';
 import { usePrinter } from './hooks/usePrinter';
+import { uploadProductImage } from './utils/uploadImage';
 
 // COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -274,21 +275,41 @@ export default function App() {
   const handleSaveProductWrapper = async (e) => {
     e.preventDefault();
     const f = e.target;
-    const img = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
 
-    // AQUÍ SE AGREGA LA LÓGICA PARA GUARDAR LA SUBCATEGORÍA
-    const data = {
-      name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
-      cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),
-      categoryId: f.category.value,
-      subCategoryId: f.subcategory.value, // <--- CAMPO NUEVO
-      imageUrl: img
-    };
+    // Obtenemos la imagen actual (sea archivo nuevo base64 o URL vieja)
+    const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
+
+    setIsProcessing(true); // <--- Bloqueamos pantalla (Loading...)
+
     try {
+      // --- AQUÍ OCURRE LA MAGIA ---
+      // 1. Subimos la imagen a Cloudinary y esperamos la URL
+      const finalImageUrl = await uploadProductImage(rawImage, f.name.value);
+
+      const data = {
+        name: f.name.value,
+        barcode: f.barcode.value,
+        price: parseFloat(f.price.value),
+        cost: parseFloat(f.cost.value || 0),
+        stock: parseInt(f.stock.value),
+        categoryId: f.category.value,
+        subCategoryId: f.subcategory.value,
+        // 2. Guardamos la URL corta de Cloudinary en Firebase
+        imageUrl: finalImageUrl || ''
+      };
+
       if (editingProduct) await updateProduct(editingProduct.id, data);
       else await addProduct(data);
+
       toggleModal('product', false);
-    } catch (e) { alert("Error al guardar producto"); }
+      showNotification("✅ Producto guardado correctamente");
+
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar: " + e.message);
+    } finally {
+      setIsProcessing(false); // <--- Liberamos pantalla
+    }
   };
 
   const handleInventoryBarcodeSubmit = (e) => {

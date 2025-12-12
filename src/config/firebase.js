@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage'; // <--- 1. IMPORTAR ESTO
 import {
     initializeFirestore,
     persistentLocalCache,
@@ -7,6 +8,7 @@ import {
 } from 'firebase/firestore';
 
 const firebaseConfig = {
+    // ... (tu configuración sigue igual) ...
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -17,14 +19,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-
-// Habilitar caché persistente para Offline
 const db = initializeFirestore(app, {
     localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
     })
 });
 
+const storage = getStorage(app); // <--- 2. INICIALIZAR STORAGE
+
 const appId = 'tienda-principal';
 
-export { app, auth, db, appId };
+export { app, auth, db, storage, appId }; // <--- 3. EXPORTAR storage
