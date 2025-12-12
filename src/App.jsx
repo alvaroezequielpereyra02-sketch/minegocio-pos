@@ -11,8 +11,8 @@ import { useCartContext } from './context/CartContext';
 
 // --- HOOKS DE UI Y UTILIDADES ---
 import { usePrinter } from './hooks/usePrinter';
-import { usePWA } from './hooks/usePWA'; // ✅ Hook de instalación
-import { uploadProductImage } from './utils/uploadImage'; // ✅ Subida a Cloudinary
+import { usePWA } from './hooks/usePWA';
+import { uploadProductImage } from './utils/uploadImage';
 
 // --- COMPONENTES ---
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -34,7 +34,6 @@ const TabLoader = () => (
   </div>
 );
 
-// Helper simple para previsualización local (la subida real la hace uploadImage.js)
 const compressImage = (file, maxWidth = 500, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -69,7 +68,6 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
-  // ✅ Estado PWA
   const { supportsPWA, installApp } = usePWA();
 
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
@@ -80,7 +78,7 @@ export default function App() {
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // --- 1. CONSUMIR CONTEXTOS (Adiós a los hooks gigantes aquí) ---
+  // --- CONSUMIR CONTEXTOS ---
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
 
   const {
@@ -95,11 +93,11 @@ export default function App() {
 
   const {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
-  } = useTransactionsContext(); // ✅ Ahora viene del contexto
+  } = useTransactionsContext();
 
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
-  } = useCartContext(); // ✅ Ahora viene del contexto
+  } = useCartContext();
 
   const printer = usePrinter();
 
@@ -122,6 +120,18 @@ export default function App() {
   const [historySection, setHistorySection] = useState('menu');
 
   const quantityInputRef = useRef(null);
+
+  // ✅ NUEVO: Escuchar el botón "Atrás" del navegador para cerrar modales
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // Si el usuario navega atrás, cerramos el detalle de transacción si está abierto
+      if (selectedTransaction) {
+        setSelectedTransaction(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedTransaction]);
 
   useEffect(() => {
     const handleStatus = () => {
@@ -201,7 +211,7 @@ export default function App() {
 
     const saleData = {
       type: 'sale', total: cartTotal, amountPaid: 0, items: itemsWithCost,
-      date: serverTimestamp(), // ✅ Aquí se usa el import
+      date: serverTimestamp(),
       clientId: finalClient.id, clientName: finalClient.name,
       clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending',
       paymentNote: '', paymentMethod: paymentMethod, fulfillmentStatus: 'pending'
@@ -235,7 +245,6 @@ export default function App() {
     setConfirmConfig({ title, message, onConfirm: async () => { setConfirmConfig(null); await action(); }, onCancel: () => setConfirmConfig(null), isDanger });
   };
 
-  // ✅ Wrapper optimizado con subida a Cloudinary
   const handleSaveProductWrapper = async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -244,7 +253,6 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      // 1. Subida Inteligente (Cloudinary)
       const finalImageUrl = await uploadProductImage(rawImage, f.name.value);
 
       const data = {
@@ -410,7 +418,18 @@ export default function App() {
 
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
-            <TransactionDetail transaction={selectedTransaction} onClose={() => { if (window.history.state) window.history.back(); else setSelectedTransaction(null); }} printer={printer} storeProfile={storeProfile} customers={customers} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} />
+            <TransactionDetail
+              transaction={selectedTransaction}
+              // ✅ CORRECCIÓN CLAVE: Cerrar explícitamente el estado visual Y limpiar historia
+              onClose={() => {
+                setSelectedTransaction(null);
+                if (window.history.state) window.history.back();
+              }}
+              printer={printer}
+              storeProfile={storeProfile}
+              customers={customers}
+              onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
+            />
           </Suspense>
         )}
 
