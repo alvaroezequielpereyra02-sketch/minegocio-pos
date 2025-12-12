@@ -323,12 +323,28 @@ export default function App() {
 
   const handleFileChange = async (e) => {
     const f = e.target.files[0];
-    if (f) {
-      setIsProcessing(true);
-      const base64 = await compressImage(f);
-      setPreviewImage(base64);
-      setIsProcessing(false);
+    if (!f) return;
+
+    // 1. Validar Tipo
+    if (!f.type.startsWith('image/')) {
+      alert('⚠️ Solo se permiten imágenes (JPG, PNG, WebP).');
+      e.target.value = ''; // Limpiar input
+      return;
     }
+
+    // 2. Validar Tamaño (Ej: Máximo 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB en bytes
+    if (f.size > maxSize) {
+      alert('⚠️ La imagen es muy pesada (Máx 5MB).');
+      e.target.value = '';
+      return;
+    }
+
+    // Si pasa, procedemos...
+    setIsProcessing(true);
+    const base64 = await compressImage(f);
+    setPreviewImage(base64);
+    setIsProcessing(false);
   };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;

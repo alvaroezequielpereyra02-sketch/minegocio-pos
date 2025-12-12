@@ -1,8 +1,8 @@
 // src/utils/uploadImage.js
 
 // TUS DATOS DE CLOUDINARY
-const CLOUD_NAME = 'dlxbtzftv'; // <--- Tu Cloud Name (Ya puesto)
-const UPLOAD_PRESET = 'minegocio_preset'; // <--- ¡BORRA ESTO Y PEGA EL NOMBRE DEL PASO 1!
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PRESET;
 
 export const uploadProductImage = async (base64Image, productName) => {
     // 1. Si no hay imagen o ya es una URL de internet, no hacemos nada

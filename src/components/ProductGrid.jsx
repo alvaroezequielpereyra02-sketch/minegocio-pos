@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, memo } from 'react';
 import { Search, ScanBarcode, Image as ImageIcon, Filter, X } from 'lucide-react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
+import { getThumbnailUrl } from '../utils/uploadImage';
 
 const getColumnCount = (width) => {
     if (width < 640) return 2;
@@ -83,10 +84,8 @@ const ProductGrid = memo(function ProductGrid({
                     <div className="w-full h-32 bg-slate-100 relative shrink-0">
                         {product.imageUrl ? (
                             <img
-                                src={product.imageUrl}
-                                className="w-full h-full object-contain p-1 mix-blend-multiply"
-                                loading="lazy"
-                                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                                src={getThumbnailUrl(product.imageUrl)} // <--- ¡Magia!
+                                className="w-full h-full object-contain..."
                                 alt={product.name}
                             />
                         ) : (
