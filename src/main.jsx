@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { InventoryProvider } from './context/InventoryContext';
 import { CartProvider } from './context/CartContext';
-import { TransactionsProvider } from './context/TransactionsContext'; // <--- ESTE FALTABA
+import { TransactionsProvider } from './context/TransactionsContext'; // ✅ AHORA SÍ ESTÁ
 
 // Autocorrección de versiones
 window.addEventListener('vite:preloadError', (event) => {
@@ -18,16 +18,16 @@ window.addEventListener('vite:preloadError', (event) => {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {/* 1. AUTENTICACIÓN (La base de todo) */}
+      {/* 1. AUTENTICACIÓN */}
       <AuthProvider>
 
-        {/* 2. INVENTARIO (Necesita usuario) */}
+        {/* 2. INVENTARIO */}
         <InventoryProvider>
 
-          {/* 3. TRANSACCIONES (Necesita usuario e inventario) */}
+          {/* 3. TRANSACCIONES (IMPORTANTE: Antes del carrito) */}
           <TransactionsProvider>
 
-            {/* 4. CARRITO (Necesita productos del inventario) */}
+            {/* 4. CARRITO */}
             <CartProvider>
 
               {/* LA APLICACIÓN */}
