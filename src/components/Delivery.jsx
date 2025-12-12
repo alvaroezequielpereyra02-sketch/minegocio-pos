@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, MapPin, MessageCircle, CheckCircle, Plus, X, ArrowUp, ArrowDown, Navigation, Package, FileText } from 'lucide-react';
 
-// 1. Recibimos 'onRequestConfirm'
 export default function Delivery({ transactions, customers, onUpdateTransaction, onSelectTransaction, onRequestConfirm }) {
 
     const [routeIds, setRouteIds] = useState(() => {
@@ -19,6 +18,7 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
         t.fulfillmentStatus === 'ready' && !routeIds.includes(t.id)
     );
 
+    // LISTA VISUAL (Filtrada: solo lo que no se ha entregado)
     const routeOrders = routeIds
         .map(id => transactions.find(t => t.id === id))
         .filter(t => t && t.fulfillmentStatus !== 'delivered');
@@ -28,25 +28,44 @@ export default function Delivery({ transactions, customers, onUpdateTransaction,
 
     const removeFromRoute = (id) => setRouteIds(routeIds.filter(rid => rid !== id));
 
-    const moveOrder = (index, direction) => {
+    // ✅ FUNCIÓN CORREGIDA: Mueve basándose en IDs, no en índices ciegos
+    const moveOrder = (visualIndex, direction) => {
+        // 1. Validar límites visuales
+        if (visualIndex + direction < 0 || visualIndex + direction >= routeOrders.length) return;
+
+        // 2. Identificar los objetos reales involucrados (El que muevo y su vecino destino)
+        const itemToMove = routeOrders[visualIndex];
+        const itemNeighbor = routeOrders[visualIndex + direction];
+
+        // 3. Trabajar sobre la lista CRUDA (routeIds)
         const newRoute = [...routeIds];
-        const [movedItem] = newRoute.splice(index, 1);
-        newRoute.splice(index + direction, 0, movedItem);
+        const realIndex = newRoute.indexOf(itemToMove.id);
+
+        // 4. Sacar el elemento de su posición actual
+        newRoute.splice(realIndex, 1);
+
+        // 5. Buscar la nueva posición del vecino (que pudo cambiar al sacar el anterior)
+        const neighborRealIndex = newRoute.indexOf(itemNeighbor.id);
+
+        // 6. Insertar en la posición correcta relativa al vecino
+        // Si bajamos (+1), queremos quedar DESPUÉS del vecino.
+        // Si subimos (-1), queremos quedar ANTES del vecino.
+        const insertIndex = direction === 1 ? neighborRealIndex + 1 : neighborRealIndex;
+
+        newRoute.splice(insertIndex, 0, itemToMove.id);
+
         setRouteIds(newRoute);
     };
 
-    // --- CAMBIO PRINCIPAL: Usamos el Modal Nativo ---
     const handleMarkDelivered = (order) => {
-        // En lugar de window.confirm, usamos la función que nos pasó App.jsx
         onRequestConfirm(
-            "Confirmar Entrega", // Título
-            `¿Marcar el pedido #${order.id.slice(0, 4)} como ENTREGADO?`, // Mensaje
+            "Confirmar Entrega",
+            `¿Marcar el pedido #${order.id.slice(0, 4)} como ENTREGADO?`,
             async () => {
-                // Acción a ejecutar si dice "SÍ"
                 await onUpdateTransaction(order.id, { fulfillmentStatus: 'delivered' });
                 removeFromRoute(order.id);
             },
-            false // isDanger (false para azul, true para rojo)
+            false
         );
     };
 
