@@ -1,4 +1,4 @@
-const CACHE_NAME = 'minegocio-pos-v14.5-FINAL'; // Versión nueva
+const CACHE_NAME = 'minegocio-pos-v14.6-FINAL'; // Versión nueva
 
 const STATIC_ASSETS = [
   '/',
