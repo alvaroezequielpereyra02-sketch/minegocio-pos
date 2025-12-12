@@ -14,7 +14,7 @@ function OrderWorkModal({ order, onClose }) {
     const { updateTransaction } = useTransactionsContext();
     const { products } = useInventoryContext();
 
-    // ESTADO LOCAL (OPTIMISTA) - Para que la UI reaccione instantáneamente
+    // ESTADO LOCAL (OPTIMISTA)
     const [localItems, setLocalItems] = useState(order.items || []);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -22,7 +22,7 @@ function OrderWorkModal({ order, onClose }) {
     const [editingItemIndex, setEditingItemIndex] = useState(null);
     const [manualQty, setManualQty] = useState(0);
 
-    // Sincronizar estado local si la base de datos cambia externamente
+    // Sincronizar estado local
     useEffect(() => {
         setLocalItems(order.items || []);
     }, [order]);
@@ -41,17 +41,10 @@ function OrderWorkModal({ order, onClose }) {
     // --- FUNCIONES DE ACCIÓN ---
 
     const syncChanges = async (newItems) => {
-        // 1. Actualización Visual Inmediata (Optimista)
         setLocalItems(newItems);
-
-        // 2. Calcular nuevo estado y total
         const newStatus = calculateNewStatus(newItems);
-        // Recalcular total basado en lo que realmente está en la lista
-        // (Opcional: Si quieres cobrar solo lo entregado, usa packedQty. Si es preventa, usa qty)
-        // Aquí asumimos que el total sigue siendo precio * cantidad pedida, a menos que cambies el modelo.
         const newTotal = newItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
-        // 3. Actualización en Base de Datos (Segundo plano)
         await updateTransaction(order.id, {
             items: newItems,
             total: newTotal,
@@ -88,10 +81,7 @@ function OrderWorkModal({ order, onClose }) {
         const newItems = [...localItems];
         const item = newItems[idx];
         const currentPacked = item.packedQty || 0;
-
-        // Lógica de Toggle: Si tiene algo, a 0. Si está en 0, llenar todo.
         const nextQty = currentPacked > 0 ? 0 : item.qty;
-
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
         syncChanges(newItems);
     };
@@ -100,7 +90,6 @@ function OrderWorkModal({ order, onClose }) {
         const newItems = [...localItems];
         const item = newItems[idx];
         const finalQty = Math.max(0, manualQty);
-
         newItems[idx] = { ...item, packedQty: finalQty, packed: finalQty === item.qty };
         syncChanges(newItems);
         setEditingItemIndex(null);
@@ -122,10 +111,9 @@ function OrderWorkModal({ order, onClose }) {
     };
 
     const handleConfirmOrder = async () => {
-        // Filtrar y limpiar para entrega final
         const finalItems = localItems.map(i => ({
             ...i,
-            qty: i.packedQty || 0, // La cantidad oficial pasa a ser lo que se armó
+            qty: i.packedQty || 0,
             packed: true
         })).filter(i => i.qty > 0);
 
@@ -134,7 +122,6 @@ function OrderWorkModal({ order, onClose }) {
         await updateTransaction(order.id, {
             items: finalItems,
             total: finalTotal,
-            // Si estaba pagado, actualizamos el monto pagado al nuevo total real
             amountPaid: order.paymentStatus === 'paid' ? finalTotal : order.amountPaid,
             fulfillmentStatus: 'ready'
         });
@@ -185,7 +172,7 @@ function OrderWorkModal({ order, onClose }) {
                     </div>
                 </div>
 
-                {/* LISTA DE ITEMS (USANDO localItems) */}
+                {/* LISTA DE ITEMS */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
                     {localItems.map((item, idx) => {
                         const packed = item.packedQty || 0;
@@ -193,7 +180,6 @@ function OrderWorkModal({ order, onClose }) {
 
                         return (
                             <div key={idx} className={`p-3 rounded-xl border-2 transition-all ${getItemStyle(item)} flex items-center gap-3 shadow-sm`}>
-                                {/* CHECK BUTTON */}
                                 <button
                                     onClick={() => handleQuickToggle(idx)}
                                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform active:scale-90 ${packed === item.qty ? 'bg-green-500 text-white shadow-green-200 shadow-lg' : packed > 0 ? 'bg-orange-500 text-white' : 'bg-white border-2 border-slate-200 text-slate-300'}`}
@@ -255,13 +241,12 @@ function OrderWorkModal({ order, onClose }) {
 export default function Orders() {
     const { transactions } = useTransactionsContext();
 
-    const [filterStatus, setFilterStatus] = useState('all');
+    // 1. CAMBIO: Default 'pending' en vez de 'all'
+    const [filterStatus, setFilterStatus] = useState('pending');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 🔥 CAMBIO CLAVE: Guardamos ID, no el objeto completo.
     const [selectedOrderId, setSelectedOrderId] = useState(null);
 
-    // 🔥 Buscamos el pedido "vivo" del contexto
     const selectedOrder = useMemo(() => {
         return transactions.find(t => t.id === selectedOrderId);
     }, [transactions, selectedOrderId]);
@@ -279,10 +264,19 @@ export default function Orders() {
             const matchesSearch = t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 t.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-            if (filterStatus !== 'all' && status !== filterStatus) return false;
+            // Filtro estricto (ya no existe 'all')
+            if (status !== filterStatus) return false;
+
             return matchesSearch;
         });
     }, [activeOrders, filterStatus, searchTerm]);
+
+    // Labels para el contador
+    const statusLabels = {
+        pending: 'Pendientes',
+        partial: 'En Proceso',
+        ready: 'Listos'
+    };
 
     return (
         <div className="flex flex-col h-full overflow-hidden pb-16 lg:pb-0 bg-slate-50 -m-4">
@@ -291,14 +285,24 @@ export default function Orders() {
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Package className="text-blue-600" /> Pedidos
                     </h2>
+                    {/* 3. CAMBIO: Contador dinámico según pestaña */}
                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold">
-                        {filteredOrders.length} Pendientes
+                        {filteredOrders.length} {statusLabels[filterStatus]}
                     </span>
                 </div>
 
+                {/* 2. CAMBIO: Pestañas simplificadas (Sin 'Todos') */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                    {[{ id: 'all', l: 'Todos' }, { id: 'pending', l: 'Nuevos' }, { id: 'partial', l: 'En Proceso' }, { id: 'ready', l: 'Listos' }].map(t => (
-                        <button key={t.id} onClick={() => setFilterStatus(t.id)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                    {[
+                        { id: 'pending', l: 'Pendientes' },
+                        { id: 'partial', l: 'En Proceso' },
+                        { id: 'ready', l: 'Listos' }
+                    ].map(t => (
+                        <button
+                            key={t.id}
+                            onClick={() => setFilterStatus(t.id)}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                        >
                             {t.l}
                         </button>
                     ))}
@@ -319,7 +323,7 @@ export default function Orders() {
                 {filteredOrders.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center opacity-60">
                         <Package size={48} className="mb-2" />
-                        <p>No hay pedidos aquí.</p>
+                        <p>No hay pedidos en "{statusLabels[filterStatus]}".</p>
                     </div>
                 )}
 
@@ -331,7 +335,6 @@ export default function Orders() {
                     return (
                         <button
                             key={order.id}
-                            // 🔥 Al clickear, guardamos el ID para que se refresque siempre
                             onClick={() => setSelectedOrderId(order.id)}
                             className={`w-full text-left bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex justify-between items-center group relative overflow-hidden ${status === 'ready' ? 'border-green-300' : 'border-slate-200'}`}
                         >
@@ -349,7 +352,7 @@ export default function Orders() {
 
                             <div className="flex flex-col items-end gap-1">
                                 <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${status === 'ready' ? 'bg-green-100 text-green-700 border-green-200' : status === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                                    {status === 'ready' ? 'LISTO' : status === 'partial' ? 'ARMANDO' : 'PENDIENTE'}
+                                    {status === 'ready' ? 'LISTO' : status === 'partial' ? 'ARMANDO' : 'NUEVO'}
                                 </div>
                                 <div className="text-xs font-bold text-slate-400 flex items-center gap-1">
                                     {itemCount} items <ChevronRight size={14} />
@@ -360,7 +363,6 @@ export default function Orders() {
                 })}
             </div>
 
-            {/* MODAL QUE SE ALIMENTA DEL PEDIDO "VIVO" */}
             {selectedOrderId && selectedOrder && (
                 <OrderWorkModal
                     order={selectedOrder}
