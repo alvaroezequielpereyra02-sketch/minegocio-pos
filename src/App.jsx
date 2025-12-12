@@ -119,9 +119,12 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
+  // Escuchar el botón "Atrás" del navegador
   useEffect(() => {
-    const handlePopState = () => {
-      if (selectedTransaction) setSelectedTransaction(null);
+    const handlePopState = (event) => {
+      if (selectedTransaction) {
+        setSelectedTransaction(null);
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -148,9 +151,10 @@ export default function App() {
     setIsProcessing(true);
     try {
       // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
+      // Si es 0, no entra (porque no "debo" nada, solo no tengo).
       const negativeStockProducts = products
         .filter(p => p.stock < 0)
-        .sort((a, b) => a.stock - b.stock);
+        .sort((a, b) => a.stock - b.stock); // Los más negativos primero
 
       if (negativeStockProducts.length === 0) {
         alert("✅ ¡Excelente! No tienes productos con stock negativo.");
@@ -167,7 +171,7 @@ export default function App() {
         logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
         storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
         invoiceInfo: "text-align: right; flex: 1;",
-        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
+        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;", // Rojo alerta
         meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
         table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
         th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
