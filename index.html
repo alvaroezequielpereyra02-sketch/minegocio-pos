@@ -25,30 +25,6 @@
 <body>
   <div id="root"></div>
   <!-- Carga del script principal -->
-  <script>
-    window.onerror = function (message, source, lineno, colno, error) {
-      // Si el error es de carga de archivos (Script error) o React no arranca en 3 segundos
-      if (message.includes('Script error') || message.includes('dynamically imported module')) {
-        // Mostramos un aviso nativo del navegador
-        const root = document.getElementById('root');
-        root.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;">
-            <h2 style="color:#333;">Actualización Detectada</h2>
-            <p style="color:#666;">Hay una nueva versión de la app.</p>
-            <button onclick="window.location.reload(true)" style="background:#2563eb;color:white;border:none;padding:15px 30px;border-radius:10px;font-size:16px;font-weight:bold;margin-top:20px;cursor:pointer;">
-              Actualizar Ahora
-            </button>
-          </div>
-        `;
-        // Forzamos al Service Worker a actualizarse si es posible
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function (registrations) {
-            for (let registration of registrations) { registration.unregister(); }
-          });
-        }
-      }
-    };
-  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
