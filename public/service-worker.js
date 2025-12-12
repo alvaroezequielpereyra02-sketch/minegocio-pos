@@ -1,4 +1,7 @@
-const CACHE_NAME = 'minegocio-pos-v14.9-FINAL'; // Versión nueva
+// src/service-worker.js
+
+// CAMBIA ESTO (Sube el número para que el navegador sepa que es nuevo)
+const CACHE_NAME = 'minegocio-pos-v11-LAYOUT_FIX';
 
 const STATIC_ASSETS = [
   '/',
@@ -53,7 +56,6 @@ self.addEventListener('fetch', (event) => {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             if (!event.request.url.includes('firestore.googleapis.com')) {
-              // Try-catch para evitar que un error de caché rompa la app
               try {
                 cache.put(event.request, responseToCache);
               } catch (err) {
@@ -63,7 +65,7 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => { }); // Fallback silencioso
+      }).catch(() => { });
 
       return cachedResponse || fetchPromise;
     })

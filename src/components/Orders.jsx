@@ -1,16 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // 👈 1. IMPORTAMOS ESTO
+import { createPortal } from 'react-dom';
 import {
     Package, Search, Clock, CheckCircle, AlertTriangle,
     X, Plus, Minus, CheckSquare, Trash2, ArrowLeft,
     Save, Filter, ChevronRight
 } from 'lucide-react';
 
-// CONTEXTOS
 import { useTransactionsContext } from '../context/TransactionsContext';
 import { useInventoryContext } from '../context/InventoryContext';
 
-// --- MODAL DE ARMADO (BOLETA DE TRABAJO) ---
 function OrderWorkModal({ order, onClose }) {
     const { updateTransaction } = useTransactionsContext();
     const { products } = useInventoryContext();
@@ -82,7 +80,10 @@ function OrderWorkModal({ order, onClose }) {
         const newItems = [...localItems];
         const item = newItems[idx];
         const currentPacked = item.packedQty || 0;
+
+        // Toggle: Si tiene algo, a 0. Si está en 0, llenar todo.
         const nextQty = currentPacked > 0 ? 0 : item.qty;
+
         newItems[idx] = { ...item, packedQty: nextQty, packed: nextQty === item.qty };
         syncChanges(newItems);
     };
@@ -91,6 +92,7 @@ function OrderWorkModal({ order, onClose }) {
         const newItems = [...localItems];
         const item = newItems[idx];
         const finalQty = Math.max(0, manualQty);
+
         newItems[idx] = { ...item, packedQty: finalQty, packed: finalQty === item.qty };
         syncChanges(newItems);
         setEditingItemIndex(null);
@@ -112,9 +114,10 @@ function OrderWorkModal({ order, onClose }) {
     };
 
     const handleConfirmOrder = async () => {
+        // Filtrar y limpiar para entrega final
         const finalItems = localItems.map(i => ({
             ...i,
-            qty: i.packedQty || 0,
+            qty: i.packedQty || 0, // La cantidad oficial pasa a ser lo que se armó
             packed: true
         })).filter(i => i.qty > 0);
 
@@ -123,6 +126,7 @@ function OrderWorkModal({ order, onClose }) {
         await updateTransaction(order.id, {
             items: finalItems,
             total: finalTotal,
+            // Si estaba pagado, actualizamos el monto pagado al nuevo total real
             amountPaid: order.paymentStatus === 'paid' ? finalTotal : order.amountPaid,
             fulfillmentStatus: 'ready'
         });
@@ -136,7 +140,8 @@ function OrderWorkModal({ order, onClose }) {
         return "bg-white border-slate-200";
     };
 
-    // 👇 2. USAMOS createPortal PARA SACAR EL MODAL AL BODY
+    if (typeof document === 'undefined') return null;
+
     return createPortal(
         <div className="fixed inset-0 z-[20000] bg-slate-900/50 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
             <div className="w-full h-full sm:h-[90vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
@@ -182,6 +187,7 @@ function OrderWorkModal({ order, onClose }) {
 
                         return (
                             <div key={idx} className={`p-3 rounded-xl border-2 transition-all ${getItemStyle(item)} flex items-center gap-3 shadow-sm`}>
+                                {/* CHECK BUTTON */}
                                 <button
                                     onClick={() => handleQuickToggle(idx)}
                                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform active:scale-90 ${packed === item.qty ? 'bg-green-500 text-white shadow-green-200 shadow-lg' : packed > 0 ? 'bg-orange-500 text-white' : 'bg-white border-2 border-slate-200 text-slate-300'}`}
@@ -236,7 +242,7 @@ function OrderWorkModal({ order, onClose }) {
                 </div>
             </div>
         </div>,
-        document.body // 👈 3. RENDERIZAMOS DIRECTO EN EL BODY
+        document.body
     );
 }
 
@@ -280,8 +286,9 @@ export default function Orders() {
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden pb-4 lg:pb-0 bg-slate-50 -m-4">
-            <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3">
+        // 👇 PADDING INDEPENDIENTE PARA ESTA VISTA (pb-28 para móvil)
+        <div className="flex flex-col h-full overflow-hidden bg-slate-50 p-4 pb-28 lg:pb-4">
+            <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3 rounded-xl mb-4">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Package className="text-blue-600" /> Pedidos
@@ -318,7 +325,7 @@ export default function Orders() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto space-y-3 pb-4">
                 {filteredOrders.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-center opacity-60">
                         <Package size={48} className="mb-2" />

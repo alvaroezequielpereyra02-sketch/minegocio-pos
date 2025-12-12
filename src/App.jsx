@@ -1,26 +1,25 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags } from 'lucide-react';
-// ✅ FIX: Importación necesaria para handleCheckout
 import { serverTimestamp } from 'firebase/firestore';
 
-// --- IMPORTS DE CONTEXTOS ---
+// IMPORTS DE CONTEXTOS
 import { useAuthContext } from './context/AuthContext';
 import { useInventoryContext } from './context/InventoryContext';
 import { useTransactionsContext } from './context/TransactionsContext';
 import { useCartContext } from './context/CartContext';
 
-// --- HOOKS DE UI Y UTILIDADES ---
+// HOOKS Y UTILIDADES
 import { usePrinter } from './hooks/usePrinter';
 import { usePWA } from './hooks/usePWA';
 import { uploadProductImage } from './utils/uploadImage';
 
-// --- COMPONENTES ---
+// COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
-// --- LAZY LOADING ---
+// LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -69,7 +68,6 @@ export default function App() {
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
   const { supportsPWA, installApp } = usePWA();
-
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
   const [modals, setModals] = useState({
@@ -78,7 +76,7 @@ export default function App() {
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  // --- CONSUMIR CONTEXTOS ---
+  // CONTEXTOS
   const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
 
   const {
@@ -101,7 +99,7 @@ export default function App() {
 
   const printer = usePrinter();
 
-  // Estados locales de UI
+  // ESTADOS LOCALES
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -121,12 +119,10 @@ export default function App() {
 
   const quantityInputRef = useRef(null);
 
-  // Escuchar el botón "Atrás" del navegador
+  // Escuchar botón "Atrás"
   useEffect(() => {
-    const handlePopState = (event) => {
-      if (selectedTransaction) {
-        setSelectedTransaction(null);
-      }
+    const handlePopState = () => {
+      if (selectedTransaction) setSelectedTransaction(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -199,6 +195,7 @@ export default function App() {
   const handleCheckout = async () => {
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
+
     let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
     if (userData?.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
     else if (userData?.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
@@ -224,7 +221,11 @@ export default function App() {
       setIsProcessing(false);
       setShowCheckoutSuccess(true);
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
-    } catch (e) { console.error(e); alert("Error al procesar venta"); setIsProcessing(false); }
+    } catch (e) {
+      console.error(e);
+      alert("Error al procesar venta");
+      setIsProcessing(false);
+    }
   };
 
   const handleAuthSubmit = async (e) => {
@@ -248,21 +249,16 @@ export default function App() {
     e.preventDefault();
     const f = e.target;
     const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
-
     setIsProcessing(true);
-
     try {
       const finalImageUrl = await uploadProductImage(rawImage, f.name.value);
-
       const data = {
         name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
         cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),
         categoryId: f.category.value, subCategoryId: f.subcategory.value, imageUrl: finalImageUrl || ''
       };
-
       if (editingProduct) await updateProduct(editingProduct.id, data);
       else await addProduct(data);
-
       toggleModal('product', false);
       showNotification("✅ Producto guardado");
     } catch (e) {
@@ -330,7 +326,6 @@ export default function App() {
         supportsPWA={supportsPWA} installApp={installApp}
       />
 
-      {/* 👇 CAMBIO CLAVE: bottom-24 (96px) para que flote por encima de la barra de 80px */}
       {!isOnline && <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
 
       {confirmConfig && <ConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} isDanger={confirmConfig.isDanger} />}
@@ -345,14 +340,15 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        <main className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4 relative z-0 flex flex-col">
+        {/* --- MAIN LIMPIO SIN PADDING GLOBAL (Solución Visual) --- */}
+        <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
+
           {activeTab === 'pos' && (
-            <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative">
+            <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-0 lg:pb-4">
               <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} />
               <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>
               {showMobileCart && <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>}
 
-              {/* 👇 CAMBIO CLAVE: bottom-24 (96px) para que flote por encima de la barra de 80px */}
               {cart.length > 0 && !showMobileCart && <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal.toLocaleString()}</div></button>}
             </div>
           )}
@@ -370,13 +366,15 @@ export default function App() {
           )}
 
           {activeTab === 'delivery' && userData.role === 'admin' && (
-            <Suspense fallback={<TabLoader />}>
-              <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} onRequestConfirm={requestConfirm} />
-            </Suspense>
+            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+              <Suspense fallback={<TabLoader />}>
+                <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} onRequestConfirm={requestConfirm} />
+              </Suspense>
+            </div>
           )}
 
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
@@ -389,7 +387,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden lg:pb-0">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
@@ -412,27 +410,20 @@ export default function App() {
           )}
 
           {activeTab === 'transactions' && (
-            <Suspense fallback={<TabLoader />}>
-              <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
-            </Suspense>
+            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+              <Suspense fallback={<TabLoader />}>
+                <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
+              </Suspense>
+            </div>
           )}
         </main>
 
         {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} />}
 
+        {/* MODALES */}
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
-            <TransactionDetail
-              transaction={selectedTransaction}
-              onClose={() => {
-                setSelectedTransaction(null);
-                if (window.history.state) window.history.back();
-              }}
-              printer={printer}
-              storeProfile={storeProfile}
-              customers={customers}
-              onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
-            />
+            <TransactionDetail transaction={selectedTransaction} onClose={() => { setSelectedTransaction(null); if (window.history.state) window.history.back(); }} printer={printer} storeProfile={storeProfile} customers={customers} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} />
           </Suspense>
         )}
 
@@ -445,7 +436,6 @@ export default function App() {
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
-
         {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><div className="flex gap-2"><button onClick={() => { if (lastTransactionId) { printer.printRawBT(lastTransactionId, storeProfile); } setShowCheckoutSuccess(false); }} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Ticket</button></div></div>}
       </div>
     </div>

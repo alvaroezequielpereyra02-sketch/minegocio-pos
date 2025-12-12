@@ -61,6 +61,7 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
       </nav>
 
       <div className="p-4 border-t space-y-2">
+        {/* BOTÓN INSTALAR PWA (Solo aparece si es instalable) */}
         {supportsPWA && (
           <button
             onClick={installApp}
@@ -90,19 +91,18 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 // NAV MÓVIL
 export function MobileNav({ activeTab, setActiveTab, userData, onLogout, supportsPWA, installApp }) {
   return (
-    // 👇 CAMBIO CLAVE: h-20 (80px) para que sea más alto y cómodo
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-lg flex justify-between pr-2 pb-2 items-center">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-between pr-2 pb-1">
       <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={24} />} label="Vender" />
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={26} />} label="Vender" />
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={24} />} label="Pedidos" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={24} />} label="Reparto" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={26} />} label="Pedidos" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={26} />} label="Reparto" />}
 
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={24} />} label="Historial" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={26} />} label="Historial" />
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={24} />} label="Stock" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={24} />} label="Clientes" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={24} />} label="Balance" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={26} />} label="Stock" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={26} />} label="Clientes" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={26} />} label="Balance" />}
       </div>
 
       {supportsPWA && (
@@ -110,7 +110,7 @@ export function MobileNav({ activeTab, setActiveTab, userData, onLogout, support
           onClick={installApp}
           className="h-full px-4 bg-blue-50 text-blue-600 flex flex-col items-center justify-center border-l border-slate-100"
         >
-          <Download size={20} />
+          <Download size={22} />
           <span className="text-[9px] font-bold uppercase mt-1">App</span>
         </button>
       )}
