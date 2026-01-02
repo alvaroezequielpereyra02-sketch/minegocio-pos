@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
-import { serverTimestamp } from 'firebase/firestore';
+import { serverTimestamp, disableNetwork, enableNetwork } from 'firebase/firestore'; // 🛡️ Importado para estabilidad
+import { db } from './firebase'; // 🛡️ Importado para control de red
 
 // IMPORTS DE CONTEXTOS
 import { useAuthContext } from './context/AuthContext';
@@ -17,7 +18,19 @@ import { uploadProductImage } from './utils/uploadImage';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
+import {
+  ExpenseModal,
+  ProductModal,
+  CategoryModal,
+  CustomerModal,
+  StoreModal,
+  AddStockModal,
+  TransactionModal,
+  LogoutConfirmModal,
+  InvitationModal,
+  ProcessingModal,
+  ConfirmModal
+} from './components/Modals';
 
 // LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -128,15 +141,31 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [selectedTransaction]);
 
+  // 🌐 GESTIÓN DE RED Y VELOCIDAD OFFLINE (Modificado para detección inmediata)
   useEffect(() => {
     const handleStatus = () => {
-      setIsOnline(navigator.onLine);
-      if (navigator.onLine) showNotification("🟢 Conexión restaurada");
-      else showNotification("🔴 Sin conexión (Modo Offline)");
+      const online = navigator.onLine;
+      setIsOnline(online);
+
+      if (online) {
+        enableNetwork(db).catch(console.error); // Reconectar a la nube
+        showNotification("🟢 Conexión restaurada");
+      } else {
+        disableNetwork(db).catch(console.error); // Forzar modo local instantáneo (Sin esperas)
+        showNotification("🔴 Sin conexión (Modo Offline)");
+      }
     };
+
     window.addEventListener('online', handleStatus);
     window.addEventListener('offline', handleStatus);
-    return () => { window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
+
+    // 👇 LLAMADA INMEDIATA: Detecta el estado apenas se abre la app
+    handleStatus();
+
+    return () => {
+      window.removeEventListener('online', handleStatus);
+      window.removeEventListener('offline', handleStatus);
+    };
   }, []);
 
   const showNotification = (msg) => {
@@ -144,13 +173,12 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- 1. FUNCIÓN DE FALTANTES (Restaurada y corregida) ---
+  // --- 1. FUNCIÓN DE LISTA DE FALTANTES (SOLO NEGATIVOS) ---
   const handlePrintShoppingList = async () => {
     setIsProcessing(true);
     try {
-      // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
       const negativeStockProducts = products
-        .filter(p => p.stock < 0)
+        .filter(p => (p.stock || 0) < 0)
         .sort((a, b) => a.stock - b.stock);
 
       if (negativeStockProducts.length === 0) {
@@ -254,7 +282,7 @@ export default function App() {
     }
   };
 
-  // --- 2. FUNCIÓN DE EXPORTAR CSV (¡LA QUE FALTABA!) ---
+  // --- 2. FUNCIÓN DE EXPORTAR CSV ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
     try {
@@ -451,7 +479,7 @@ export default function App() {
           <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
         </header>
 
-        {/* --- MAIN SIN PADDING GLOBAL --- */}
+        {/* --- MAIN --- */}
         <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
 
           {activeTab === 'pos' && (
@@ -484,14 +512,13 @@ export default function App() {
             </div>
           )}
 
-          {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
+          {/* STOCK / INVENTARIO */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
-                  {/* BOTÓN NUEVO: Faltantes */}
                   <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
@@ -501,7 +528,7 @@ export default function App() {
           )}
 
           {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+            <div className="flex flex-col h-full overflow-hidden p-4 pb-32 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold">Clientes</h2>
                 <div className="flex gap-2">
@@ -540,11 +567,12 @@ export default function App() {
           </Suspense>
         )}
 
+        {/* MODALES */}
         {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
         {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} />}
         {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} onUpdate={updateCategory} />}
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { console.error(error); alert("❌ Error al guardar: " + error.message + "\n\nVerifica que tu usuario tenga rol 'admin' en la base de datos."); } }} />}
+        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { console.error(error); alert("❌ Error al guardar: " + error.message); } }} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
