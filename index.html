@@ -6,6 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/logo192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#2563eb" />
+  <meta name="description" content="Sistema de Punto de Venta (POS)" />
   <title>MiNegocio POS</title>
   <link rel="manifest" href="/manifest.json" />
 </head>
@@ -14,52 +15,61 @@
   <div id="root"></div>
 
   <script>
-    // 1. Detector de Errores de Carga (Chunk Load Error / 404)
+    // 1. DETECTOR DE ERRORES DE CARGA (Cuando Vercel borra archivos viejos)
     window.addEventListener('error', function (e) {
-      // Si el error es sobre archivos JS que faltan (lo que causa el 404)
+      // Filtramos errores típicos de cuando una versión deja de existir
       if (e.message && (
         e.message.includes('Loading chunk') ||
         e.message.includes('import') ||
         e.message.includes('not found') ||
-        e.message.includes('Unexpected token')
+        e.message.includes('Unexpected token') ||
+        e.message.includes('Failed to fetch')
       )) {
-        console.error('⚠️ Error de versión detectado. Limpiando caché...');
+        console.error('⚠️ Error crítico de versión detectado. Iniciando limpieza de emergencia...');
         nukeCacheAndReload();
       }
     }, true);
 
-    // 2. Función Nuclear: Borra todo el caché y el Service Worker
+    // 2. FUNCIÓN NUCLEAR: Borra Service Worker y Caché
     async function nukeCacheAndReload() {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (let registration of registrations) {
-          await registration.unregister(); // Desregistra el SW viejo
+      try {
+        // A. Desregistrar Service Worker
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (let registration of registrations) {
+            await registration.unregister();
+          }
         }
-      }
 
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        for (let key of keys) {
-          await caches.delete(key); // Borra todos los archivos viejos
+        // B. Borrar Almacenamiento Caché
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (let key of keys) {
+            await caches.delete(key);
+          }
         }
+      } catch (err) {
+        console.error("Error al limpiar caché:", err);
+      } finally {
+        // C. Recarga forzada desde el servidor
+        window.location.reload(true);
       }
-
-      // Forzar recarga desde el servidor (no desde caché)
-      window.location.reload(true);
     }
 
-    // 3. Verificación de "Resurección"
-    // Si la app tarda más de 3 segundos en iniciar React (root vacío), asume que se rompió y recarga.
+    // 3. CENTINELA DE TIEMPO (Pantalla Blanca)
+    // Si React no ha logrado poner nada en el div "root" después de 4 segundos...
     setTimeout(() => {
       const root = document.getElementById('root');
+      // Verificamos si está vacío
       if (root && root.innerHTML.trim() === '') {
-        console.warn('⚠️ La app no arrancó en 3s. Intentando recuperación...');
-        // Solo hacemos esto si no estamos en localhost para no molestar el desarrollo
+        console.warn('⚠️ La app tardó demasiado en arrancar. Posible error de caché.');
+
+        // Evitamos que esto pase en tu computadora mientras programas (localhost)
         if (!window.location.hostname.includes('localhost')) {
           nukeCacheAndReload();
         }
       }
-    }, 4000);
+    }, 4000); // 4 segundos de tolerancia
   </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
