@@ -3,51 +3,63 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/logo192.png" />
-
-  <!-- Viewport optimizado: Agregado viewport-fit=cover -->
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-
-  <!-- Meta tags para PWA (Corrige la advertencia de consola) -->
+  <link rel="icon" type="image/svg+xml" href="/logo192.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#2563eb" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="application-name" content="MiNegocio" />
-
   <title>MiNegocio POS</title>
-
-  <!-- Enlace al manifiesto -->
   <link rel="manifest" href="/manifest.json" />
 </head>
 
 <body>
   <div id="root"></div>
-  <!-- Carga del script principal -->
+
   <script>
-    window.onerror = function (message, source, lineno, colno, error) {
-      // Si el error es de carga de archivos (Script error) o React no arranca en 3 segundos
-      if (message.includes('Script error') || message.includes('dynamically imported module')) {
-        // Mostramos un aviso nativo del navegador
-        const root = document.getElementById('root');
-        root.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;">
-            <h2 style="color:#333;">Actualización Detectada</h2>
-            <p style="color:#666;">Hay una nueva versión de la app.</p>
-            <button onclick="window.location.reload(true)" style="background:#2563eb;color:white;border:none;padding:15px 30px;border-radius:10px;font-size:16px;font-weight:bold;margin-top:20px;cursor:pointer;">
-              Actualizar Ahora
-            </button>
-          </div>
-        `;
-        // Forzamos al Service Worker a actualizarse si es posible
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function (registrations) {
-            for (let registration of registrations) { registration.unregister(); }
-          });
+    // 1. Detector de Errores de Carga (Chunk Load Error / 404)
+    window.addEventListener('error', function (e) {
+      // Si el error es sobre archivos JS que faltan (lo que causa el 404)
+      if (e.message && (
+        e.message.includes('Loading chunk') ||
+        e.message.includes('import') ||
+        e.message.includes('not found') ||
+        e.message.includes('Unexpected token')
+      )) {
+        console.error('⚠️ Error de versión detectado. Limpiando caché...');
+        nukeCacheAndReload();
+      }
+    }, true);
+
+    // 2. Función Nuclear: Borra todo el caché y el Service Worker
+    async function nukeCacheAndReload() {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) {
+          await registration.unregister(); // Desregistra el SW viejo
         }
       }
-    };
+
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let key of keys) {
+          await caches.delete(key); // Borra todos los archivos viejos
+        }
+      }
+
+      // Forzar recarga desde el servidor (no desde caché)
+      window.location.reload(true);
+    }
+
+    // 3. Verificación de "Resurección"
+    // Si la app tarda más de 3 segundos en iniciar React (root vacío), asume que se rompió y recarga.
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.innerHTML.trim() === '') {
+        console.warn('⚠️ La app no arrancó en 3s. Intentando recuperación...');
+        // Solo hacemos esto si no estamos en localhost para no molestar el desarrollo
+        if (!window.location.hostname.includes('localhost')) {
+          nukeCacheAndReload();
+        }
+      }
+    }, 4000);
   </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
