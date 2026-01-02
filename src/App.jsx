@@ -1,7 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
-import { serverTimestamp, disableNetwork, enableNetwork } from 'firebase/firestore'; // 🛡️ Actualizado
-import { db } from './firebase'; // 🛡️ Importado para velocidad offline
+import { serverTimestamp } from 'firebase/firestore';
 
 // IMPORTS DE CONTEXTOS
 import { useAuthContext } from './context/AuthContext';
@@ -129,31 +128,15 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [selectedTransaction]);
 
-  // 🌐 GESTIÓN DE RED Y VELOCIDAD OFFLINE
   useEffect(() => {
     const handleStatus = () => {
-      const online = navigator.onLine;
-      setIsOnline(online);
-
-      if (online) {
-        enableNetwork(db).catch(console.error); // Reconectar a la nube
-        showNotification("🟢 Conexión restaurada");
-      } else {
-        disableNetwork(db).catch(console.error); // ⚡ Forza modo local instantáneo
-        showNotification("🔴 Sin conexión (Modo Offline)");
-      }
+      setIsOnline(navigator.onLine);
+      if (navigator.onLine) showNotification("🟢 Conexión restaurada");
+      else showNotification("🔴 Sin conexión (Modo Offline)");
     };
-
     window.addEventListener('online', handleStatus);
     window.addEventListener('offline', handleStatus);
-
-    // Ejecución inmediata al cargar la app
-    handleStatus();
-
-    return () => {
-      window.removeEventListener('online', handleStatus);
-      window.removeEventListener('offline', handleStatus);
-    };
+    return () => { window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
   }, []);
 
   const showNotification = (msg) => {
@@ -271,7 +254,7 @@ export default function App() {
     }
   };
 
-  // --- 2. FUNCIÓN DE EXPORTAR CSV ---
+  // --- 2. FUNCIÓN DE EXPORTAR CSV (¡LA QUE FALTABA!) ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
     try {
@@ -501,13 +484,14 @@ export default function App() {
             </div>
           )}
 
-          {/* STOCK / INVENTARIO */}
+          {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
+                  {/* BOTÓN NUEVO: Faltantes */}
                   <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
