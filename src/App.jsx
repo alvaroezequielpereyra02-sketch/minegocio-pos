@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
-import { serverTimestamp } from 'firebase/firestore';
+import { serverTimestamp, disableNetwork, enableNetwork } from 'firebase/firestore'; // 🛡️ Modificado para velocidad offline
+import { db } from './firebase'; // 🛡️ Importado para control de estabilidad
 
 // IMPORTS DE CONTEXTOS
 import { useAuthContext } from './context/AuthContext';
@@ -17,7 +18,19 @@ import { uploadProductImage } from './utils/uploadImage';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
+import {
+  ExpenseModal,
+  ProductModal,
+  CategoryModal,
+  CustomerModal,
+  StoreModal,
+  AddStockModal,
+  TransactionModal,
+  LogoutConfirmModal,
+  InvitationModal,
+  ProcessingModal,
+  ConfirmModal
+} from './components/Modals';
 
 // LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -128,15 +141,29 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [selectedTransaction]);
 
+  // 🌐 GESTIÓN DE RED Y VELOCIDAD OFFLINE (Lógica restaurada y optimizada)
   useEffect(() => {
     const handleStatus = () => {
-      setIsOnline(navigator.onLine);
-      if (navigator.onLine) showNotification("🟢 Conexión restaurada");
-      else showNotification("🔴 Sin conexión (Modo Offline)");
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (online) {
+        enableNetwork(db).catch(console.error); // Reconecta Firebase al servidor
+        showNotification("🟢 Conexión restaurada");
+      } else {
+        disableNetwork(db).catch(console.error); // ⚡ Forza modo local: ventas instantáneas
+        showNotification("🔴 Sin conexión (Modo Offline)");
+      }
     };
     window.addEventListener('online', handleStatus);
     window.addEventListener('offline', handleStatus);
-    return () => { window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
+
+    // Llamada inmediata para detectar estado inicial al cargar
+    handleStatus();
+
+    return () => {
+      window.removeEventListener('online', handleStatus);
+      window.removeEventListener('offline', handleStatus);
+    };
   }, []);
 
   const showNotification = (msg) => {
@@ -144,13 +171,13 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- 1. FUNCIÓN DE FALTANTES (Restaurada y corregida) ---
+  // --- 1. FUNCIÓN DE LISTA DE FALTANTES (SOLO NEGATIVOS) ---
   const handlePrintShoppingList = async () => {
     setIsProcessing(true);
     try {
       // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
       const negativeStockProducts = products
-        .filter(p => p.stock < 0)
+        .filter(p => (p.stock || 0) < 0)
         .sort((a, b) => a.stock - b.stock);
 
       if (negativeStockProducts.length === 0) {
@@ -254,7 +281,7 @@ export default function App() {
     }
   };
 
-  // --- 2. FUNCIÓN DE EXPORTAR CSV (¡LA QUE FALTABA!) ---
+  // --- 2. FUNCIÓN DE EXPORTAR CSV ---
   const handleExportData = () => {
     if (transactions.length === 0) return alert("No hay datos para exportar.");
     try {
@@ -423,9 +450,9 @@ export default function App() {
             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button>
           </form>
           <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button>
-          {!isRegistering && <button onClick={() => { const e = document.querySelector('input[name="email"]').value; resetPassword(e).then(() => alert("Correo enviado")).catch(e => setLoginError(e.message)); }} className="w-full mt-2 text-slate-400 text-xs hover:text-slate-600">Olvidé contraseña</button>}
-        </div>
+          {!isRegistering && <button onClick={() => { const e = document.querySelector('input[name=\"email\"]').value; resetPassword(e).then(() => alert(\"Correo enviado\")).catch(e => setLoginError(e.message)); }} className="w-full mt-2 text-slate-400 text-xs hover:text-slate-600">Olvidé contraseña</button>}
       </div>
+      </div >
     );
   }
 
@@ -484,14 +511,13 @@ export default function App() {
             </div>
           )}
 
-          {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
+          {/* STOCK / INVENTARIO */}
           {activeTab === 'inventory' && userData.role === 'admin' && (
             <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                 <div className="flex gap-2">
                   <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
-                  {/* BOTÓN NUEVO: Faltantes */}
                   <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                   <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
                 </div>
