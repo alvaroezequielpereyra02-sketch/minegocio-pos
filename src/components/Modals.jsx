@@ -7,7 +7,6 @@ import {
     Minus,
     CreditCard,
     Banknote,
-    Smartphone,
     User,
     MapPin,
     Phone,
