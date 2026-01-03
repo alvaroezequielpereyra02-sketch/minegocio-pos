@@ -404,7 +404,7 @@ export default function App() {
   if (!user || !userData) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="bg-white p-2 md:p-8 rounded-2xl shadow-xl w-full max-w-md">
           <div className="text-center mb-6">
             {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" /> : <Store className="mx-auto text-blue-600 mb-2" size={48} />}
             <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1>

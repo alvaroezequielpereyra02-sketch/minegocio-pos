@@ -1,129 +1,228 @@
-import React, { useState, useEffect } from 'react';
-import { Truck, MapPin, MessageCircle, CheckCircle, Plus, X, ArrowUp, ArrowDown, Navigation, Package, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { useTransactions } from '../hooks/useTransactions';
+import {
+    Clock,
+    MapPin,
+    Phone,
+    CheckCircle,
+    Truck,
+    XCircle,
+    RefreshCw,
+    ShoppingBag
+} from 'lucide-react';
 
-export default function Delivery({ transactions, customers, onUpdateTransaction, onSelectTransaction, onRequestConfirm }) {
+const Delivery = () => {
+    const { transactions, updateTransactionStatus, refreshTransactions, loading } = useTransactions();
+    const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'completed', 'all'
 
-    const [routeIds, setRouteIds] = useState(() => {
-        const saved = localStorage.getItem('deliveryRoute');
-        return saved ? JSON.parse(saved) : [];
+    // Filtrar solo transacciones que sean para "delivery" (asumiendo que tienes un campo deliveryType o similar)
+    // Si tu app guarda todo junto, ajusta este filtro.
+    const deliveryOrders = transactions
+        .filter(t => t.deliveryType === 'delivery')
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const filteredOrders = deliveryOrders.filter(order => {
+        if (statusFilter === 'active') return ['pending', 'preparing', 'delivering'].includes(order.status);
+        if (statusFilter === 'completed') return ['completed', 'cancelled'].includes(order.status);
+        return true;
     });
 
-    const [activeTab, setActiveTab] = useState('route');
-
-    useEffect(() => {
-        localStorage.setItem('deliveryRoute', JSON.stringify(routeIds));
-    }, [routeIds]);
-
-    const readyOrders = transactions.filter(t =>
-        t.fulfillmentStatus === 'ready' && !routeIds.includes(t.id)
-    );
-
-    const routeOrders = routeIds
-        .map(id => transactions.find(t => t.id === id))
-        .filter(t => t && t.fulfillmentStatus !== 'delivered');
-
-    const addToRoute = (id) => setRouteIds([...routeIds, id]);
-    const removeFromRoute = (id) => setRouteIds(routeIds.filter(rid => rid !== id));
-
-    const moveOrder = (visualIndex, direction) => {
-        if (visualIndex + direction < 0 || visualIndex + direction >= routeOrders.length) return;
-        const itemToMove = routeOrders[visualIndex];
-        const itemNeighbor = routeOrders[visualIndex + direction];
-        const newRoute = [...routeIds];
-        const realIndex = newRoute.indexOf(itemToMove.id);
-        newRoute.splice(realIndex, 1);
-        const neighborRealIndex = newRoute.indexOf(itemNeighbor.id);
-        const insertIndex = direction === 1 ? neighborRealIndex + 1 : neighborRealIndex;
-        newRoute.splice(insertIndex, 0, itemToMove.id);
-        setRouteIds(newRoute);
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'pending': return 'bg-yellow-100 text-yellow-800';
+            case 'preparing': return 'bg-blue-100 text-blue-800';
+            case 'delivering': return 'bg-purple-100 text-purple-800';
+            case 'completed': return 'bg-green-100 text-green-800';
+            case 'cancelled': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
     };
 
-    const handleMarkDelivered = (order) => {
-        onRequestConfirm("Confirmar Entrega", `¿Marcar el pedido #${order.id.slice(0, 4)} como ENTREGADO?`, async () => {
-            await onUpdateTransaction(order.id, { fulfillmentStatus: 'delivered' });
-            removeFromRoute(order.id);
-        }, false);
+    const getStatusText = (status) => {
+        switch (status) {
+            case 'pending': return 'Pendiente';
+            case 'preparing': return 'Preparando';
+            case 'delivering': return 'En Camino';
+            case 'completed': return 'Entregado';
+            case 'cancelled': return 'Cancelado';
+            default: return status;
+        }
     };
 
-    const getClientData = (t) => {
-        const c = customers.find(cust => cust.id === t.clientId);
-        return { name: t.clientName, phone: c?.phone || '', address: c?.address || '' };
+    const handleStatusUpdate = async (orderId, newStatus) => {
+        if (window.confirm(`¿Cambiar estado a ${getStatusText(newStatus)}?`)) {
+            await updateTransactionStatus(orderId, newStatus);
+        }
     };
 
-    const OrderCard = ({ order, isRoute = false, index }) => {
-        const client = getClientData(order);
+    if (loading) {
         return (
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3 relative animate-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="font-bold text-slate-800 text-lg flex items-center gap-2">{isRoute && <span className="bg-slate-800 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center shrink-0">{index + 1}</span>}{client.name}</div>
-                        <div className="text-xs text-slate-500 font-bold uppercase mt-1">Pedido #{order.id.slice(0, 4)} • ${order.total.toLocaleString()}</div>
-                        <button onClick={() => onSelectTransaction(order)} className="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition-colors"><FileText size={12} /> Ver Boleta / Modificar</button>
-                    </div>
-                    {isRoute ? (<button onClick={() => removeFromRoute(order.id)} className="text-slate-400 hover:text-red-500"><X size={20} /></button>) : (<button onClick={() => addToRoute(order.id)} className="bg-blue-100 text-blue-700 p-2 rounded-full hover:bg-blue-200 transition-colors"><Plus size={20} /></button>)}
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-600 space-y-1">
-                    {client.address ? (<div className="flex items-start gap-2 text-slate-800 font-medium"><MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" /> {client.address}</div>) : (<div className="text-slate-400 italic text-xs flex items-center gap-1"><MapPin size={14} /> Sin dirección registrada</div>)}
-                    <div className="text-xs text-slate-500 border-t border-slate-200 mt-2 pt-2 truncate">{order.items.length} items: {order.items.map(i => i.name).join(', ')}</div>
-                </div>
-                {isRoute && (
-                    <div className="flex flex-col gap-2 mt-1">
-                        <div className="flex gap-2">
-                            {client.phone && (<a href={`https://wa.me/${client.phone}?text=Hola ${client.name}, estamos en camino con tu pedido!`} target="_blank" rel="noreferrer" className="flex-1 bg-green-50 text-green-700 border border-green-200 py-2 rounded-lg flex items-center justify-center gap-2 font-bold text-xs hover:bg-green-100"><MessageCircle size={16} /> Avisar</a>)}
-                            {client.address && (<a href={`https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(client.address)}`} target="_blank" rel="noreferrer" className="flex-1 bg-blue-50 text-blue-700 border border-blue-200 py-2 rounded-lg flex items-center justify-center gap-2 font-bold text-xs hover:bg-blue-100"><Navigation size={16} /> Ir</a>)}
-                        </div>
-                        <div className="flex gap-2 items-center">
-                            <div className="flex bg-slate-100 rounded-lg p-1">
-                                <button disabled={index === 0} onClick={() => moveOrder(index, -1)} className="p-2 hover:bg-white rounded shadow-sm disabled:opacity-30"><ArrowUp size={16} /></button>
-                                <button disabled={index === routeOrders.length - 1} onClick={() => moveOrder(index, 1)} className="p-2 hover:bg-white rounded shadow-sm disabled:opacity-30"><ArrowDown size={16} /></button>
-                            </div>
-                            <button onClick={() => handleMarkDelivered(order)} className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg font-bold text-sm hover:bg-slate-900 flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform"><CheckCircle size={18} /> Entregado</button>
-                        </div>
-                    </div>
-                )}
+            <div className="flex justify-center items-center h-full">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             </div>
         );
-    };
+    }
 
     return (
-        // 👇 CAMBIO: Padding propio (pb-28) para no ser tapado por el sidebar
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50 p-4 pb-28 lg:pb-4 lg:flex-row gap-4">
+        // AJUSTE MÓVIL: p-3 en celular, p-6 en PC. Altura dinámica (dvh) para móviles.
+        <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm h-[calc(100dvh-80px)] md:h-[calc(100vh-100px)] overflow-y-auto">
 
-            {/* COLUMNA 1: DEPÓSITO */}
-            <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeTab === 'route' ? 'hidden lg:flex' : 'flex'}`}>
-                <div className="p-4 bg-white border-b shadow-sm flex-shrink-0 flex justify-between items-center rounded-t-xl lg:rounded-xl">
-                    <h2 className="font-bold text-lg text-slate-700 flex items-center gap-2"><Package className="text-blue-600" /> En Depósito ({readyOrders.length})</h2>
-                    <button onClick={() => setActiveTab('route')} className="lg:hidden text-sm font-bold text-blue-600 flex items-center gap-1">Ver Ruta <ArrowUp className="rotate-90" size={16} /></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100/50 rounded-b-xl lg:rounded-xl border border-t-0 lg:border-t border-slate-200">
-                    {readyOrders.length === 0 && <div className="text-center text-slate-400 py-10">No hay pedidos listos para salir.</div>}
-                    {readyOrders.map(t => <OrderCard key={t.id} order={t} />)}
-                </div>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3">
+                {/* AJUSTE MÓVIL: Texto más pequeño en celular (text-xl) */}
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Truck className="h-6 w-6 text-indigo-600" />
+                    Pedidos y Envíos
+                </h2>
+
+                <button
+                    onClick={refreshTransactions}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors self-end sm:self-auto"
+                    title="Actualizar lista"
+                >
+                    <RefreshCw className="h-5 w-5 text-gray-500" />
+                </button>
             </div>
 
-            {/* COLUMNA 2: RUTA */}
-            <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeTab === 'pool' ? 'hidden lg:flex' : 'flex'}`}>
-                <div className="p-4 bg-slate-800 text-white shadow-md flex-shrink-0 z-10 flex justify-between items-center rounded-t-xl">
-                    <button onClick={() => setActiveTab('pool')} className="lg:hidden text-slate-300"><ArrowUp className="-rotate-90" size={20} /></button>
-                    <h2 className="font-bold text-lg flex items-center gap-2"><Truck className="text-yellow-400" /> Mi Ruta ({routeOrders.length})</h2>
-                    <div className="w-6"></div>
+            {/* Filtros (Tabs) */}
+            <div className="flex space-x-2 mb-6 border-b overflow-x-auto pb-2">
+                <button
+                    onClick={() => setStatusFilter('active')}
+                    className={`px-4 py-2 rounded-t-lg font-medium whitespace-nowrap transition-colors ${statusFilter === 'active'
+                            ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Activos ({deliveryOrders.filter(o => ['pending', 'preparing', 'delivering'].includes(o.status)).length})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('completed')}
+                    className={`px-4 py-2 rounded-t-lg font-medium whitespace-nowrap transition-colors ${statusFilter === 'completed'
+                            ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Historial
+                </button>
+            </div>
+
+            {/* Grid de Tarjetas */}
+            {filteredOrders.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                    <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                    <p>No hay pedidos en esta categoría</p>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white border-x border-slate-200 relative">
-                    {routeOrders.length === 0 && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-60">
-                            <Truck size={64} className="mb-4" strokeWidth={1} />
-                            <p className="text-center px-10">Agrega pedidos desde el depósito con el botón (+)</p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredOrders.map((order) => (
+                        <div key={order.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50">
+
+                            {/* Encabezado de la Tarjeta */}
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800">{order.clientInfo?.name || 'Cliente sin nombre'}</h3>
+                                    <div className="flex items-center text-sm text-gray-500 gap-1 mt-1">
+                                        <Clock className="h-3 w-3" />
+                                        {new Date(order.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
+                                    {getStatusText(order.status)}
+                                </span>
+                            </div>
+
+                            {/* Información de Contacto */}
+                            <div className="space-y-2 mb-4 text-sm">
+                                {order.clientInfo?.address && (
+                                    <div className="flex items-start gap-2">
+                                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                                        <span className="text-gray-600 break-words">{order.clientInfo.address}</span>
+                                    </div>
+                                )}
+                                {order.clientInfo?.phone && (
+                                    <div className="flex items-center gap-2">
+                                        <Phone className="h-4 w-4 text-gray-400 shrink-0" />
+                                        <a href={`tel:${order.clientInfo.phone}`} className="text-indigo-600 hover:underline">
+                                            {order.clientInfo.phone}
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Detalle de Items (Resumido) */}
+                            <div className="bg-white p-3 rounded border mb-4 text-sm">
+                                <div className="flex justify-between font-medium mb-2 border-b pb-1">
+                                    <span>Total</span>
+                                    <span>${order.total?.toFixed(2)}</span>
+                                </div>
+                                <ul className="space-y-1 text-gray-600">
+                                    {order.items?.map((item, idx) => (
+                                        <li key={idx} className="flex justify-between">
+                                            <span className="truncate pr-2">{item.quantity}x {item.name}</span>
+                                            <span className="shrink-0">${(item.price * item.quantity).toFixed(2)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Botones de Acción */}
+                            {statusFilter === 'active' && (
+                                <div className="grid grid-cols-2 gap-2 mt-auto">
+                                    {order.status === 'pending' && (
+                                        <button
+                                            onClick={() => handleStatusUpdate(order.id, 'preparing')}
+                                            className="col-span-2 flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+                                        >
+                                            <ShoppingBag className="h-4 w-4" />
+                                            Preparar
+                                        </button>
+                                    )}
+
+                                    {order.status === 'preparing' && (
+                                        <button
+                                            onClick={() => handleStatusUpdate(order.id, 'delivering')}
+                                            className="col-span-2 flex items-center justify-center gap-2 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors"
+                                        >
+                                            <Truck className="h-4 w-4" />
+                                            Enviar
+                                        </button>
+                                    )}
+
+                                    {order.status === 'delivering' && (
+                                        <>
+                                            <button
+                                                onClick={() => handleStatusUpdate(order.id, 'completed')}
+                                                className="flex items-center justify-center gap-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors text-sm"
+                                            >
+                                                <CheckCircle className="h-4 w-4" />
+                                                Entregado
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                                                className="flex items-center justify-center gap-1 bg-red-100 text-red-600 py-2 rounded hover:bg-red-200 transition-colors text-sm"
+                                            >
+                                                <XCircle className="h-4 w-4" />
+                                                Cancelar
+                                            </button>
+                                        </>
+                                    )}
+
+                                    {order.status === 'pending' && (
+                                        <button
+                                            onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                                            className="col-span-2 mt-2 flex items-center justify-center gap-1 text-red-500 hover:text-red-700 text-sm"
+                                        >
+                                            Cancelar Pedido
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
-                    {routeOrders.map((t, i) => <OrderCard key={t.id} order={t} isRoute={true} index={i} />)}
+                    ))}
                 </div>
-                {routeOrders.length > 0 && (
-                    <div className="p-4 bg-white border border-t-0 border-slate-200 rounded-b-xl text-sm font-bold text-slate-600 flex justify-between">
-                        <span>Total a cobrar en ruta:</span>
-                        <span className="text-slate-900">${routeOrders.reduce((acc, t) => acc + (t.paymentStatus === 'paid' ? 0 : (t.total - (t.amountPaid || 0))), 0).toLocaleString()}</span>
-                    </div>
-                )}
-            </div>
+            )}
         </div>
     );
-}
+};
+
+export default Delivery;
