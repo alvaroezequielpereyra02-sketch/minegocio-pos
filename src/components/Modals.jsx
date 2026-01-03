@@ -17,7 +17,7 @@ import { useInventory } from '../hooks/useInventory';
 import { useCart } from '../hooks/useCart';
 import { useTransactions } from '../hooks/useTransactions';
 import { usePrinter } from '../hooks/usePrinter'; // <--- NUEVO IMPORT
-import { uploadImage } from '../config/uploadImage';
+import { uploadImage } from '../utils/uploadImage';
 import { compressImage } from '../utils/imageHelpers';
 
 const Modals = ({ activeModal, onClose, productToEdit = null }) => {
