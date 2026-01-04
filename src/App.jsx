@@ -362,7 +362,7 @@ export default function App() {
     const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
     setIsProcessing(true);
     try {
-      const finalImageUrl = await uploadProductImage(rawImage, f.name.value);
+      const finalImageUrl = await uploadImage(rawImage, f.name.value);
       const data = {
         name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
         cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),

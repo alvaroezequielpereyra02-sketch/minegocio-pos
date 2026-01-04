@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, Plus, Edit, Trash2, ShoppingCart, Image as ImageIcon } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useCart } from '../hooks/useCart';
-
-// --- CORRECCIÓN AQUÍ ---
-// Actualizamos la ruta para apuntar a config en lugar de utils
 import { uploadImage } from '../config/uploadImage';
-// -----------------------
 
 const ProductGrid = ({ onEditProduct, onOpenModal }) => {
     const { products, loading, deleteProduct, categories } = useInventory();
@@ -57,8 +53,8 @@ const ProductGrid = ({ onEditProduct, onOpenModal }) => {
                     <button
                         onClick={() => setSelectedCategory('Todas')}
                         className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${selectedCategory === 'Todas'
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-gray-600 hover:bg-gray-100'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
                             }`}
                     >
                         Todas
@@ -68,8 +64,8 @@ const ProductGrid = ({ onEditProduct, onOpenModal }) => {
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${selectedCategory === cat
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-100'
                                 }`}
                         >
                             {cat}
@@ -145,10 +141,10 @@ const ProductGrid = ({ onEditProduct, onOpenModal }) => {
 
                                 <div className="mt-3 flex items-center justify-between gap-2">
                                     <div className={`text-xs px-2 py-1 rounded-full font-medium ${product.stock > 5
-                                            ? 'bg-green-100 text-green-800'
-                                            : product.stock > 0
-                                                ? 'bg-yellow-100 text-yellow-800'
-                                                : 'bg-red-100 text-red-800'
+                                        ? 'bg-green-100 text-green-800'
+                                        : product.stock > 0
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-red-100 text-red-800'
                                         }`}>
                                         Stock: {product.stock}
                                     </div>
