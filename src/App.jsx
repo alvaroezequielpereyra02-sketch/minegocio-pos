@@ -555,7 +555,28 @@ export default function App() {
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
-        {showCheckoutSuccess && <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4"><div><p className="font-bold text-sm">¡Venta Exitosa!</p></div><div className="flex gap-2"><button onClick={() => { if (lastTransactionId) { printer.printRawBT(lastTransactionId, storeProfile); } setShowCheckoutSuccess(false); }} className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50">Ticket</button></div></div>}
+        {showCheckoutSuccess && (
+          <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
+            <div>
+              <p className="font-bold text-sm">¡Venta Exitosa!</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (lastTransactionId) {
+                    setSelectedTransaction(lastTransactionId); // Abre el detalle
+                    setActiveTab('transactions'); // Cambia a la pestaña de historial
+                    window.history.pushState({ view: 't' }, ''); // Registra el estado para el botón "atrás"
+                  }
+                  setShowCheckoutSuccess(false);
+                }}
+                className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50"
+              >
+                Ver Ticket
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
