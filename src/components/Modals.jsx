@@ -4,7 +4,6 @@ import {
     Save,
     Trash2,
     Plus,
-    Minus,
     CreditCard,
     Banknote,
     User,
@@ -12,20 +11,20 @@ import {
     Phone,
     FileText,
     AlertCircle
-} from 'lucide-react';
+} from 'lucide-react'; // Eliminé Smartphone para evitar advertencias
 import { useInventory } from '../hooks/useInventory';
 import { useCart } from '../hooks/useCart';
 import { useTransactions } from '../hooks/useTransactions';
-import { usePrinter } from '../hooks/usePrinter'; // <--- NUEVO IMPORT
-import { uploadImage } from '../utils/uploadImage';
-import { compressImage } from '../utils/imageHelpers';
+import { usePrinter } from '../hooks/usePrinter'; // Correcto (Named export)
+import { uploadImage } from '../config/uploadImage'; // Correcto (Ahora apuntamos a config)
+import { compressImage } from '../utils/imageHelpers'; // Asegúrate que imageHelpers esté en utils
 
 const Modals = ({ activeModal, onClose, productToEdit = null }) => {
     // Hooks
     const { addProduct, updateProduct, deleteProduct, categories } = useInventory();
     const { cart, total, clearCart } = useCart();
     const { addTransaction } = useTransactions();
-    const { printTicket } = usePrinter(); // <--- INICIALIZAMOS EL HOOK DE IMPRESIÓN
+    const { printTicket } = usePrinter();
 
     // Estados locales
     const [loading, setLoading] = useState(false);
@@ -172,6 +171,8 @@ const Modals = ({ activeModal, onClose, productToEdit = null }) => {
     // --- MANEJADORES DE CHECKOUT ---
 
     const handleCheckout = async () => {
+        if (cart.length === 0) return;
+
         setLoading(true);
         try {
             const transactionData = {
@@ -183,36 +184,36 @@ const Modals = ({ activeModal, onClose, productToEdit = null }) => {
                     cost: item.cost || 0
                 })),
                 total: total,
-                subtotal: total, // Si tuvieras impuestos, aquí cambiaría
+                subtotal: total,
                 paymentMethod,
-                cashReceived: paymentMethod === 'cash' ? parseFloat(cashAmount) || total : total,
-                clientInfo: clientInfo.name ? clientInfo : null, // Solo guardar si hay datos
+                cashReceived: paymentMethod === 'cash' ? (parseFloat(cashAmount) || total) : total,
+                clientInfo: clientInfo.name ? clientInfo : null,
                 date: new Date().toISOString(),
-                status: 'completed', // O 'pending' si es delivery
+                status: 'completed',
                 type: 'sale'
             };
 
-            // 1. Guardar Transacción en BD
+            // 1. Guardar transacción
             const newId = await addTransaction(transactionData);
 
-            // 2. IMPRIMIR TICKET AUTOMÁTICAMENTE
-            // Pasamos los datos combinados con el ID nuevo y la fecha actual
+            // 2. IMPRIMIR TICKET AUTOMÁTICAMENTE (Lógica agregada)
+            // Usamos los datos actuales + el ID nuevo + fecha objeto Date
+            const ticketData = {
+                ...transactionData,
+                id: newId,
+                date: new Date()
+            };
+
             try {
-                await printTicket({
-                    ...transactionData,
-                    id: newId,
-                    date: new Date() // Objeto Date real para el formateo en el PDF
-                });
+                await printTicket(ticketData);
             } catch (printError) {
-                console.error("Error imprimiendo ticket:", printError);
-                alert("Venta guardada, pero falló la impresión automática.");
+                console.error("Error al abrir ticket automático:", printError);
+                alert("Venta guardada. Activa las ventanas emergentes para ver el ticket.");
             }
 
-            // 3. Limpiar y Cerrar
+            // 3. Limpiar y cerrar
             clearCart();
             onClose();
-
-            // Nota: Ya no dependemos del Toast para abrir el ticket.
 
         } catch (err) {
             console.error(err);
