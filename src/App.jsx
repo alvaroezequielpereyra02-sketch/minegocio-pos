@@ -17,7 +17,10 @@ import { uploadImage } from './config/uploadImage';
 import Sidebar, { MobileNav } from './components/Sidebar';
 import Cart from './components/Cart';
 import ProductGrid from './components/ProductGrid';
-import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
+import {
+  ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal,
+  FaultyProductModal
+} from './components/Modals';
 
 // LAZY LOADING
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -73,7 +76,8 @@ export default function App() {
 
   const [modals, setModals] = useState({
     product: false, category: false, customer: false, transaction: false,
-    store: false, stock: false, expense: false, logout: false, invitation: false
+    store: false, stock: false, expense: false, logout: false, invitation: false,
+    faulty: false
   });
   const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 

@@ -349,6 +349,8 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
     );
 }
 
+// Ubicación: Al final de src/components/Modals.jsx
+
 export function FaultyProductModal({ onClose, onConfirm, product }) {
     const [qty, setQty] = useState(1);
     const [reason, setReason] = useState("");
@@ -358,7 +360,7 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
                 <div className="flex items-center gap-3 mb-4 text-orange-600">
                     <AlertCircle size={32} />
-                    <h3 className="font-bold text-lg">Registrar Producto Fallado</h3>
+                    <h3 className="font-bold text-lg">Registrar Falla</h3>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-lg mb-4">
@@ -368,7 +370,7 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
 
                 <form onSubmit={(e) => { e.preventDefault(); onConfirm(product, qty, reason); }} className="space-y-4">
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase">Unidades Falladas</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase">Unidades con Falla</label>
                         <input
                             type="number" min="1" max={product.stock} required
                             value={qty} onChange={(e) => setQty(Number(e.target.value))}
@@ -376,10 +378,10 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase">Motivo de la pérdida</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase">Motivo / Nota</label>
                         <textarea
                             className="w-full p-2 border rounded-lg text-sm bg-slate-50"
-                            placeholder="Ej: Roto en descarga, vencido..."
+                            placeholder="Ej: Roto de fábrica, vencido..."
                             value={reason} onChange={(e) => setReason(e.target.value)}
                         />
                     </div>
