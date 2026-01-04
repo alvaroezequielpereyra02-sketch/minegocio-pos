@@ -12,7 +12,7 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// 1. EXPORTACIONES INMEDIATAS (Evita el ReferenceError 'k')
+// 1. Inicialización y exportación inmediata
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
@@ -20,14 +20,11 @@ export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appId = 'tienda-principal';
 
-// 2. ACTIVACIÓN OFFLINE EN SEGUNDO PLANO
-// No usamos 'await' ni bloqueamos la ejecución para que React cargue rápido
+// 2. Persistencia offline (Sin bloquear las exportaciones)
 if (typeof window !== "undefined") {
     enableMultiTabIndexedDbPersistence(db).catch((err) => {
         if (err.code === 'failed-precondition') {
-            // Esto pasa si tienes otra pestaña abierta. 
-            // Cierra las demás pestañas para que el offline sea rápido.
-            console.warn("Modo Offline limitado: otra pestaña está activa.");
+            console.warn("Offline: Otra pestaña tiene el control.");
         }
     });
 }

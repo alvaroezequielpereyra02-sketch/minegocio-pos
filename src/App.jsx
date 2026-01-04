@@ -20,7 +20,6 @@ import ProductGrid from './components/ProductGrid';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
 // LAZY LOADING
-const [lastSale, setLastSale] = useState(null);
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -62,6 +61,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.7) => {
 export default function App() {
   const [activeTab, setActiveTab] = useState('pos');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [lastSale, setLastSale] = useState(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [notification, setNotification] = useState(null);
   const [confirmConfig, setConfirmConfig] = useState(null);
