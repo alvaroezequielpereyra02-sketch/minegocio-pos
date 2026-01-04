@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
     CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
-    ChevronDown, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check
+    ChevronDown, Folder, FolderOpen, Edit, CornerDownRight, Eye, EyeOff, Edit3, Check
 } from 'lucide-react';
 
 // IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
