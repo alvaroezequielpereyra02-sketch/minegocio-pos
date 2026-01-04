@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getStorage } from "firebase/storage"; // <--- IMPORTANTE
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,10 +14,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Inicializamos y EXPORTAMOS los servicios
+// Inicializamos los servicios
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-export const storage = getStorage(app); // <--- ESTO ES LO QUE FALTABA
+export const storage = getStorage(app); // Necesario para uploadImage
 export const googleProvider = new GoogleAuthProvider();
+
+// IMPORTANTE: Restauramos el ID de la tienda que borré por error
+export const appId = 'tienda-principal';
 
 export default app;
