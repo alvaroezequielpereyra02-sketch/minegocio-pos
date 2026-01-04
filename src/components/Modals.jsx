@@ -565,3 +565,15 @@ const Modals = ({ activeModal, onClose, productToEdit = null }) => {
 };
 
 export default Modals;
+export const ProductModal = Modals;
+export const CheckoutModal = Modals; // O como lo uses
+export const CategoryModal = () => null; // Si no los usas por separado aún, ponlos así para que no den error
+export const CustomerModal = () => null;
+export const StoreModal = () => null;
+export const AddStockModal = () => null;
+export const TransactionModal = () => null;
+export const LogoutConfirmModal = () => null;
+export const InvitationModal = () => null;
+export const ProcessingModal = () => null;
+export const ConfirmModal = () => null;
+export const ExpenseModal = () => null;
