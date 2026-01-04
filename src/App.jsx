@@ -406,8 +406,15 @@ export default function App() {
     }
   };
 
-  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold">Cargando Sistema...</div>;
-
+  if (authLoading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600 font-bold">
+        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        Cargando Sistema...
+        {!isOnline && <span className="text-xs text-slate-400 mt-2">Iniciando en modo offline</span>}
+      </div>
+    );
+  }
   if (!user || !userData) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
