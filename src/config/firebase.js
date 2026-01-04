@@ -1,14 +1,9 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getStorage } from 'firebase/storage'; // <--- 1. IMPORTAR ESTO
-import {
-    initializeFirestore,
-    persistentLocalCache,
-    persistentMultipleTabManager
-} from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage"; // <--- IMPORTANTE
 
 const firebaseConfig = {
-    // ... (tu configuración sigue igual) ...
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -18,15 +13,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-    })
-});
 
-const storage = getStorage(app); // <--- 2. INICIALIZAR STORAGE
+// Inicializamos y EXPORTAMOS los servicios
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const storage = getStorage(app); // <--- ESTO ES LO QUE FALTABA
+export const googleProvider = new GoogleAuthProvider();
 
-const appId = 'tienda-principal';
-
-export { app, auth, db, storage, appId }; // <--- 3. EXPORTAR storage
+export default app;
