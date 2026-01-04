@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-// COMANDOS ESC/POS (Lenguaje estándar de impresoras térmicas)
+// COMANDOS ESC/POS
 const ESC = '\x1B';
 const GS = '\x1D';
 const INIT = ESC + '@';
@@ -15,7 +15,7 @@ export const usePrinter = () => {
     const [isPrinting, setIsPrinting] = useState(false);
     const [printerDevice, setPrinterDevice] = useState(null);
 
-    // --- 1. CONEXIÓN WEB BLUETOOTH (Experimental) ---
+    // --- 1. CONEXIÓN WEB BLUETOOTH ---
     const connectBluetooth = async () => {
         try {
             const device = await navigator.bluetooth.requestDevice({
@@ -31,73 +31,73 @@ export const usePrinter = () => {
             alert(`Conectado a ${device.name}`);
         } catch (error) {
             console.error(error);
-            alert("No se pudo conectar. Asegúrate de que la impresora esté encendida o prueba el método RawBT.");
+            alert("No se pudo conectar.");
         }
     };
 
     // --- GENERADOR DE TEXTO DEL TICKET ---
     const generateReceiptText = (transaction, storeProfile) => {
-        const date = transaction.date?.seconds
-            ? new Date(transaction.date.seconds * 1000).toLocaleString()
+        const storeName = storeProfile?.name || 'MiNegocio';
+        const date = transaction.date instanceof Date
+            ? transaction.date.toLocaleString()
             : new Date().toLocaleString();
 
-        // Construcción del ticket comando a comando
         let text = INIT;
-        text += ALIGN_CENTER + BOLD_ON + (storeProfile.name || 'MiNegocio') + '\n' + BOLD_OFF;
+        text += ALIGN_CENTER + BOLD_ON + storeName.toUpperCase() + '\n' + BOLD_OFF;
         text += "Ticket de Venta\n";
         text += "--------------------------------\n";
         text += ALIGN_LEFT;
         text += `Fecha: ${date}\n`;
-        text += `Cliente: ${transaction.clientName}\n`;
-        text += `Metodo: ${transaction.paymentMethod === 'cash' ? 'Efectivo' : transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro'}\n`;
+        text += `Ticket: ${transaction.id?.substring(0, 8) || 'N/A'}\n`;
         text += "--------------------------------\n";
 
         transaction.items.forEach(item => {
-            const total = item.price * item.qty;
-            // Formato: Cant x Nombre ... Total
-            text += `${item.qty} x ${item.name.substring(0, 15)}\n`;
-            text += ALIGN_RIGHT + `$${total.toLocaleString()}\n` + ALIGN_LEFT;
+            const itemTotal = item.price * (item.qty || item.quantity);
+            text += `${item.qty || item.quantity} x ${item.name.substring(0, 15)}\n`;
+            text += ALIGN_RIGHT + `$${itemTotal.toLocaleString()}\n` + ALIGN_LEFT;
         });
 
         text += "--------------------------------\n";
         text += ALIGN_RIGHT + BOLD_ON + `TOTAL: $${transaction.total.toLocaleString()}\n` + BOLD_OFF;
         text += ALIGN_CENTER + "\nGracias por su compra!\n\n\n";
-        text += CUT; // Comando de corte de papel
+        text += CUT;
 
         return text;
     };
 
-    // --- 2. IMPRESIÓN VÍA RAWBT (Recomendado para Android) ---
-    // Abre la app RawBT instalada en el celular con los datos del ticket
-    const printRawBT = (transaction, storeProfile) => {
-        const text = generateReceiptText(transaction, storeProfile);
-        const base64 = btoa(text); // Codificar a Base64
-        const url = `rawbt:base64,${base64}`;
-        window.location.href = url;
+    // --- NUEVA FUNCIÓN: printTicket (La que busca Modals.jsx) ---
+    const printTicket = async (transaction, storeProfile) => {
+        setIsPrinting(true);
+        try {
+            // Si hay un dispositivo Bluetooth conectado, usamos ese.
+            // Si no, usamos el método RawBT (ideal para móviles).
+            if (printerDevice) {
+                await printBluetooth(transaction, storeProfile);
+            } else {
+                printRawBT(transaction, storeProfile);
+            }
+        } catch (error) {
+            console.error("Error en impresión:", error);
+        } finally {
+            setIsPrinting(false);
+        }
     };
 
-    // --- 3. IMPRESIÓN VÍA BLUETOOTH API (Directa) ---
+    const printRawBT = (transaction, storeProfile) => {
+        const text = generateReceiptText(transaction, storeProfile);
+        const base64 = btoa(text);
+        window.location.href = `rawbt:base64,${base64}`;
+    };
+
     const printBluetooth = async (transaction, storeProfile) => {
-        if (!printerDevice) {
-            await connectBluetooth();
-            return;
-        }
-
-        try {
-            const text = generateReceiptText(transaction, storeProfile);
-            const encoder = new TextEncoder();
-            const data = encoder.encode(text);
-
-            // Enviar en trozos pequeños para no saturar el buffer
-            const chunkSize = 512;
-            for (let i = 0; i < data.length; i += chunkSize) {
-                const chunk = data.slice(i, i + chunkSize);
-                await printerDevice.characteristic.writeValue(chunk);
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error de conexión. Reconectando...");
-            setPrinterDevice(null);
+        if (!printerDevice) return;
+        const text = generateReceiptText(transaction, storeProfile);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const chunkSize = 512;
+        for (let i = 0; i < data.length; i += chunkSize) {
+            const chunk = data.slice(i, i + chunkSize);
+            await printerDevice.characteristic.writeValue(chunk);
         }
     };
 
@@ -105,6 +105,7 @@ export const usePrinter = () => {
         connectBluetooth,
         printBluetooth,
         printRawBT,
+        printTicket, // <--- EXPORTADA CORRECTAMENTE
         isPrinting,
         isConnected: !!printerDevice
     };
