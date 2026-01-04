@@ -103,6 +103,7 @@ export default function App() {
   // ESTADOS LOCALES
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [faultyProduct, setFaultyProduct] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -563,6 +564,19 @@ export default function App() {
         {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
+        {modals.faulty && faultyProduct && (
+          <FaultyProductModal
+            product={faultyProduct}
+            onClose={() => toggleModal('faulty', false)}
+            onConfirm={async (p, q, r) => {
+              setIsProcessing(true);
+              await registerFaultyProduct(p, q, r);
+              toggleModal('faulty', false);
+              setIsProcessing(false);
+              showNotification("✅ Falla registrada como gasto");
+            }}
+          />
+        )}
         {showCheckoutSuccess && (
           <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
             <div className="flex flex-col">
