@@ -260,6 +260,12 @@ export default function App() {
     try {
       let csvContent = "\uFEFF";
       csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
+      csvContent += "INVENTARIO ACTUAL DE PRODUCTOS\n";
+      csvContent += "Nombre,Código,Precio,Costo,Stock,Categoría\n";
+      products.forEach(p => {
+        csvContent += `"${p.name}","${p.barcode || ''}",${p.price},${p.cost || 0},${p.stock},"${p.categoryId || ''}"\n`;
+      });
+      csvContent += "\n";
       csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
       csvContent += "METRICAS DEL PERIODO\n";
       csvContent += `Ventas Totales,$${balance.periodSales}\n`;
