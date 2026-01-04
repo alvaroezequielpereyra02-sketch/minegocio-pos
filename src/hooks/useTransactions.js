@@ -53,8 +53,14 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
         await batch.commit();
 
-        setLastTransactionId({ ...saleData, id: transactionRef.id, date: { seconds: Date.now() / 1000 } });
-        return transactionRef.id;
+        const fullTransaction = {
+            ...saleData,
+            id: transactionRef.id,
+            date: { seconds: Date.now() / 1000 }
+        };
+
+        setLastTransactionId(fullTransaction);
+        return fullTransaction; // Ahora devolvemos el objeto completo
     };
 
     // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)

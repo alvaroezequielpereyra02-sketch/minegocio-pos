@@ -20,6 +20,7 @@ import ProductGrid from './components/ProductGrid';
 import { ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal } from './components/Modals';
 
 // LAZY LOADING
+const [lastSale, setLastSale] = useState(null);
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
@@ -557,22 +558,23 @@ export default function App() {
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
         {showCheckoutSuccess && (
           <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
-            <div>
-              <p className="font-bold text-sm">¡Venta Exitosa!</p>
+            <div className="flex flex-col">
+              <p className="font-bold text-sm">¡Venta Guardada!</p>
+              <p className="text-[10px] opacity-80">Modo offline activo</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  if (lastTransactionId) {
-                    setSelectedTransaction(lastTransactionId); // Abre el detalle
-                    setActiveTab('transactions'); // Cambia a la pestaña de historial
-                    window.history.pushState({ view: 't' }, ''); // Registra el estado para el botón "atrás"
+                  if (lastSale) {
+                    setSelectedTransaction(lastSale); // Abrimos el detalle
+                    setActiveTab('transactions'); // Vamos al historial
+                    window.history.pushState({ view: 't' }, ''); // Estado para botón atrás
                   }
                   setShowCheckoutSuccess(false);
                 }}
                 className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50"
               >
-                Ver Ticket
+                Ver Boleta
               </button>
             </div>
           </div>
