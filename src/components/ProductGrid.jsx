@@ -84,8 +84,24 @@ const ProductGrid = ({
                                 )}
 
                                 {userData?.role === 'admin' && (
-                                    <div className="absolute top-2 right-2 p-2 bg-white/90 rounded-full text-blue-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Edit size={16} />
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-lg">
+
+                                        {/* 👈 AGREGAR ESTE BOTÓN PARA FALLAS */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFaultyProduct(product); // Necesitarás pasar setFaultyProduct como prop al Grid
+                                                toggleModal('faulty', true);
+                                            }}
+                                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded"
+                                            title="Registrar Falla"
+                                        >
+                                            <AlertCircle size={16} />
+                                        </button>
+
+                                        <button onClick={(e) => { e.stopPropagation(); onEditProduct(product); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded">
+                                            <Edit size={16} />
+                                        </button>
                                     </div>
                                 )}
                             </div>

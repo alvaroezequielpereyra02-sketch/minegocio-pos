@@ -98,7 +98,7 @@ export function ExpenseModal({ onClose, onSave }) {
     );
 }
 
-export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories, subcategories }) {
+export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories, subcategories, onRegisterFaulty }) {
     const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
 
     return (
@@ -388,6 +388,7 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                     <div className="flex gap-2">
                         <button type="button" onClick={onClose} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancelar</button>
                         <button type="submit" className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold">Confirmar</button>
+                        <button type="button" onClick={() => onRegisterFaulty(product)} className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold">Confirmar</button>
                     </div>
                 </form>
             </div>
