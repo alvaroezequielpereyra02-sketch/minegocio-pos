@@ -1,579 +1,349 @@
 import React, { useState, useEffect } from 'react';
 import {
-    X,
-    Save,
-    Trash2,
-    Plus,
-    CreditCard,
-    Banknote,
-    User,
-    MapPin,
-    Phone,
-    FileText,
-    AlertCircle
-} from 'lucide-react'; // Eliminé Smartphone para evitar advertencias
-import { useInventory } from '../hooks/useInventory';
-import { useCart } from '../hooks/useCart';
-import { useTransactions } from '../hooks/useTransactions';
-import { usePrinter } from '../hooks/usePrinter'; // Correcto (Named export)
-import { uploadImage } from '../config/uploadImage'; // Correcto (Ahora apuntamos a config)
-import { compressImage } from '../utils/imageHelpers'; // Asegúrate que imageHelpers esté en utils
+    X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
+    CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
+    ChevronDown, Folder, FolderOpen, CornerDownRight, Eye, EyeOff, Edit3, Check
+} from 'lucide-react';
 
-const Modals = ({ activeModal, onClose, productToEdit = null }) => {
-    // Hooks
-    const { addProduct, updateProduct, deleteProduct, categories } = useInventory();
-    const { cart, total, clearCart } = useCart();
-    const { addTransaction } = useTransactions();
-    const { printTicket } = usePrinter();
+// IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
+import { usePrinter } from '../hooks/usePrinter';
+import { uploadImage } from '../config/uploadImage';
+import { compressImage } from '../utils/imageHelpers';
 
-    // Estados locales
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
-    // Estado para Producto (Nuevo/Editar)
-    const [productForm, setProductForm] = useState({
-        name: '',
-        price: '',
-        cost: '',
-        stock: '',
-        category: '',
-        barcode: '',
-        description: '',
-        image: null
-    });
-    const [imageFile, setImageFile] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
+// --- MODALES INDIVIDUALES EXPORTADOS (Soluciona el error traceVariable) ---
 
-    // Estado para Checkout
-    const [checkoutStep, setCheckoutStep] = useState(1); // 1: Resumen/Pago, 2: Cliente
-    const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [cashAmount, setCashAmount] = useState('');
-    const [clientInfo, setClientInfo] = useState({
-        name: '',
-        phone: '',
-        address: '',
-        notes: ''
-    });
-
-    // Efecto para cargar datos si es edición
-    useEffect(() => {
-        if (activeModal === 'edit-product' && productToEdit) {
-            setProductForm({
-                name: productToEdit.name || '',
-                price: productToEdit.price || '',
-                cost: productToEdit.cost || '',
-                stock: productToEdit.stock || '',
-                category: productToEdit.category || '',
-                barcode: productToEdit.barcode || '',
-                description: productToEdit.description || '',
-                image: productToEdit.image || null
-            });
-            setImagePreview(productToEdit.image);
-        } else {
-            resetProductForm();
-        }
-
-        // Resetear checkout al abrir
-        if (activeModal === 'checkout') {
-            setCheckoutStep(1);
-            setPaymentMethod('cash');
-            setCashAmount('');
-            setClientInfo({ name: '', phone: '', address: '', notes: '' });
-        }
-    }, [activeModal, productToEdit]);
-
-    const resetProductForm = () => {
-        setProductForm({
-            name: '',
-            price: '',
-            cost: '',
-            stock: '',
-            category: '',
-            barcode: '',
-            description: '',
-            image: null
-        });
-        setImageFile(null);
-        setImagePreview(null);
-        setError('');
-    };
-
-    // --- MANEJADORES DE PRODUCTOS ---
-
-    const handleImageChange = async (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            try {
-                const compressed = await compressImage(file);
-                setImageFile(compressed);
-                const reader = new FileReader();
-                reader.onloadend = () => setImagePreview(reader.result);
-                reader.readAsDataURL(compressed);
-            } catch (err) {
-                setError('Error al procesar la imagen');
-            }
-        }
-    };
-
-    const handleProductSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        try {
-            let imageUrl = productForm.image;
-
-            if (imageFile) {
-                imageUrl = await uploadImage(imageFile);
-            }
-
-            const productData = {
-                ...productForm,
-                price: parseFloat(productForm.price),
-                cost: parseFloat(productForm.cost) || 0,
-                stock: parseInt(productForm.stock),
-                image: imageUrl,
-                updatedAt: new Date().toISOString()
-            };
-
-            if (activeModal === 'add-product') {
-                await addProduct({
-                    ...productData,
-                    createdAt: new Date().toISOString()
-                });
-            } else {
-                await updateProduct(productToEdit.id, productData);
-            }
-
-            onClose();
-        } catch (err) {
-            console.error(err);
-            setError('Error al guardar el producto');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDeleteProduct = async () => {
-        if (window.confirm('¿Estás seguro de eliminar este producto?')) {
-            setLoading(true);
-            try {
-                await deleteProduct(productToEdit.id);
-                onClose();
-            } catch (err) {
-                setError('Error al eliminar');
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-
-    // --- MANEJADORES DE CHECKOUT ---
-
-    const handleCheckout = async () => {
-        if (cart.length === 0) return;
-
-        setLoading(true);
-        try {
-            const transactionData = {
-                items: cart.map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    price: item.price,
-                    quantity: item.quantity,
-                    cost: item.cost || 0
-                })),
-                total: total,
-                subtotal: total,
-                paymentMethod,
-                cashReceived: paymentMethod === 'cash' ? (parseFloat(cashAmount) || total) : total,
-                clientInfo: clientInfo.name ? clientInfo : null,
-                date: new Date().toISOString(),
-                status: 'completed',
-                type: 'sale'
-            };
-
-            // 1. Guardar transacción
-            const newId = await addTransaction(transactionData);
-
-            // 2. IMPRIMIR TICKET AUTOMÁTICAMENTE (Lógica agregada)
-            // Usamos los datos actuales + el ID nuevo + fecha objeto Date
-            const ticketData = {
-                ...transactionData,
-                id: newId,
-                date: new Date()
-            };
-
-            try {
-                await printTicket(ticketData);
-            } catch (printError) {
-                console.error("Error al abrir ticket automático:", printError);
-                alert("Venta guardada. Activa las ventanas emergentes para ver el ticket.");
-            }
-
-            // 3. Limpiar y cerrar
-            clearCart();
-            onClose();
-
-        } catch (err) {
-            console.error(err);
-            setError('Error al procesar la venta');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // --- RENDERIZADO DE MODALES ---
-
-    if (!activeModal) return null;
-
+export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-
-                {/* --- MODAL DE PRODUCTO (Agregar/Editar) --- */}
-                {(activeModal === 'add-product' || activeModal === 'edit-product') && (
-                    <form onSubmit={handleProductSubmit} className="p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-gray-800">
-                                {activeModal === 'add-product' ? 'Nuevo Producto' : 'Editar Producto'}
-                            </h2>
-                            <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 flex items-center gap-2">
-                                <AlertCircle size={20} />
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Imagen */}
-                            <div className="md:col-span-2 flex justify-center">
-                                <div className="relative group cursor-pointer w-full max-w-xs h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageChange}
-                                        className="absolute inset-0 opacity-0 cursor-pointer"
-                                    />
-                                    {imagePreview ? (
-                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="text-center text-gray-500">
-                                            <Plus className="mx-auto mb-2" />
-                                            <span>Subir Imagen</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Campos Básicos */}
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={productForm.name}
-                                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                                    <select
-                                        value={productForm.category}
-                                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="">Seleccionar...</option>
-                                        {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                        ))}
-                                        <option value="new">+ Nueva Categoría</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Código de Barras</label>
-                                    <input
-                                        type="text"
-                                        value={productForm.barcode}
-                                        onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value })}
-                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Campos Numéricos */}
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Precio ($)</label>
-                                        <input
-                                            type="number"
-                                            required
-                                            min="0"
-                                            step="0.01"
-                                            value={productForm.price}
-                                            onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Costo ($)</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            value={productForm.cost}
-                                            onChange={(e) => setProductForm({ ...productForm, cost: e.target.value })}
-                                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Stock Actual</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        value={productForm.stock}
-                                        onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
-                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 flex justify-end gap-3">
-                            {activeModal === 'edit-product' && (
-                                <button
-                                    type="button"
-                                    onClick={handleDeleteProduct}
-                                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 mr-auto"
-                                >
-                                    <Trash2 size={20} /> Eliminar
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {loading ? 'Guardando...' : (
-                                    <>
-                                        <Save size={20} />
-                                        Guardar
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-                {/* --- MODAL DE CHECKOUT --- */}
-                {activeModal === 'checkout' && (
-                    <div className="p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-gray-800">
-                                {checkoutStep === 1 ? 'Resumen de Venta' : 'Datos del Cliente (Opcional)'}
-                            </h2>
-                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        {/* Pasos de Navegación */}
-                        <div className="flex mb-6 border-b">
-                            <button
-                                onClick={() => setCheckoutStep(1)}
-                                className={`pb-2 px-4 font-medium ${checkoutStep === 1 ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500'}`}
-                            >
-                                1. Pago
-                            </button>
-                            <button
-                                onClick={() => setCheckoutStep(2)}
-                                className={`pb-2 px-4 font-medium ${checkoutStep === 2 ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500'}`}
-                            >
-                                2. Cliente / Delivery
-                            </button>
-                        </div>
-
-                        {/* CONTENIDO PASO 1: PAGO */}
-                        {checkoutStep === 1 && (
-                            <div className="space-y-6">
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <div className="flex justify-between text-lg font-bold text-gray-800 mb-2">
-                                        <span>Total a Pagar:</span>
-                                        <span>${total.toFixed(2)}</span>
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                        {cart.reduce((acc, item) => acc + item.quantity, 0)} artículos
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-3">Método de Pago</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setPaymentMethod('cash')}
-                                            className={`p-3 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <Banknote size={24} />
-                                            <span>Efectivo</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setPaymentMethod('card')}
-                                            className={`p-3 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'card' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <CreditCard size={24} />
-                                            <span>Tarjeta / Transferencia</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {paymentMethod === 'cash' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Monto Recibido</label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                                            <input
-                                                type="number"
-                                                value={cashAmount}
-                                                onChange={(e) => setCashAmount(e.target.value)}
-                                                placeholder={total.toFixed(2)}
-                                                className="w-full pl-7 p-2 border rounded-lg text-lg"
-                                            />
-                                        </div>
-                                        {parseFloat(cashAmount) > total && (
-                                            <div className="mt-2 text-green-600 font-medium flex justify-between p-2 bg-green-50 rounded">
-                                                <span>Vuelto:</span>
-                                                <span>${(parseFloat(cashAmount) - total).toFixed(2)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* CONTENIDO PASO 2: CLIENTE */}
-                        {checkoutStep === 2 && (
-                            <div className="space-y-4">
-                                <div className="bg-blue-50 p-3 rounded text-sm text-blue-800 flex gap-2">
-                                    <AlertCircle size={16} className="mt-0.5" />
-                                    <p>Si es una venta rápida de mostrador, puedes dejar estos campos vacíos.</p>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Cliente</label>
-                                    <div className="relative">
-                                        <User className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
-                                        <input
-                                            type="text"
-                                            value={clientInfo.name}
-                                            onChange={(e) => setClientInfo({ ...clientInfo, name: e.target.value })}
-                                            className="w-full pl-10 p-2 border rounded-lg"
-                                            placeholder="Consumidor Final"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
-                                        <input
-                                            type="tel"
-                                            value={clientInfo.phone}
-                                            onChange={(e) => setClientInfo({ ...clientInfo, phone: e.target.value })}
-                                            className="w-full pl-10 p-2 border rounded-lg"
-                                            placeholder="Ej: 351..."
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Dirección / Notas</label>
-                                    <div className="relative">
-                                        <MapPin className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
-                                        <textarea
-                                            value={clientInfo.address}
-                                            onChange={(e) => setClientInfo({ ...clientInfo, address: e.target.value })}
-                                            className="w-full pl-10 p-2 border rounded-lg"
-                                            rows="3"
-                                            placeholder="Dirección de envío o notas..."
-                                        ></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="mt-8 flex justify-between items-center">
-                            {checkoutStep === 2 ? (
-                                <button
-                                    onClick={() => setCheckoutStep(1)}
-                                    className="text-indigo-600 font-medium hover:underline"
-                                >
-                                    &larr; Volver al pago
-                                </button>
-                            ) : (
-                                <span className="text-gray-500 text-sm">Paso 1 de 2</span>
-                            )}
-
-                            <div className="flex gap-3">
-                                {checkoutStep === 1 ? (
-                                    <button
-                                        onClick={() => setCheckoutStep(2)}
-                                        className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                                    >
-                                        Datos Cliente &rarr;
-                                    </button>
-                                ) : null}
-
-                                <button
-                                    onClick={handleCheckout}
-                                    disabled={loading}
-                                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 shadow-sm"
-                                >
-                                    {loading ? 'Procesando...' : (
-                                        <>
-                                            <FileText size={20} />
-                                            Confirmar Venta
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
+        <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200 border border-slate-100">
+                <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                    {isDanger ? <AlertTriangle size={24} /> : <AlertCircle size={24} />}
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">{message}</p>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 text-slate-700 font-bold bg-slate-100 rounded-xl hover:bg-slate-200">
+                        {cancelText}
+                    </button>
+                    <button onClick={onConfirm} className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md ${isDanger ? 'bg-red-600' : 'bg-blue-600'}`}>
+                        {confirmText}
+                    </button>
+                </div>
             </div>
         </div>
     );
-};
+}
 
-export default Modals;
-export const ProductModal = Modals;
-export const CheckoutModal = Modals; // O como lo uses
-export const CategoryModal = () => null; // Si no los usas por separado aún, ponlos así para que no den error
-export const CustomerModal = () => null;
-export const StoreModal = () => null;
-export const AddStockModal = () => null;
-export const TransactionModal = () => null;
-export const LogoutConfirmModal = () => null;
-export const InvitationModal = () => null;
-export const ProcessingModal = () => null;
-export const ConfirmModal = () => null;
-export const ExpenseModal = () => null;
+export function ProcessingModal() {
+    return (
+        <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000]">
+            <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center">
+                <div className="relative mb-6">
+                    <div className="w-20 h-20 border-4 border-slate-100 rounded-full"></div>
+                    <div className="absolute top-0 left-0 w-20 h-20 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                    <Loader2 className="absolute top-7 left-7 text-blue-600 animate-pulse" size={24} />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-800">Procesando</h3>
+                <p className="text-sm text-slate-400">Por favor espere...</p>
+            </div>
+        </div>
+    );
+}
+
+export function InvitationModal({ onClose, onGenerate }) {
+    const [generatedCode, setGeneratedCode] = useState(null);
+    const handleGenerate = () => {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        onGenerate(code);
+        setGeneratedCode(code);
+    };
+    const copyToClipboard = () => { navigator.clipboard.writeText(generatedCode).then(() => alert("Copiado")); };
+
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2"><Key size={20} /> Nueva Invitación</h3>
+                    <button onClick={onClose}><X size={20} /></button>
+                </div>
+                {!generatedCode ? (
+                    <button onClick={handleGenerate} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl">Generar Código</button>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="p-4 bg-slate-100 rounded-xl font-black text-3xl">{generatedCode}</div>
+                        <button onClick={copyToClipboard} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+                            <Copy size={18} /> Copiar
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export function ExpenseModal({ onClose, onSave }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-red-600">Registrar Gasto</h3><button onClick={onClose}><X size={20} /></button></div>
+                <form onSubmit={onSave} className="space-y-3">
+                    <input name="description" required className="w-full p-2 border rounded" placeholder="Descripción..." />
+                    <input name="amount" type="number" required className="w-full p-2 border rounded font-bold" placeholder="Monto $0.00" />
+                    <button type="submit" className="w-full bg-red-600 text-white font-bold py-2 rounded">Guardar Gasto</button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange, categories, subcategories }) {
+    const [selectedCat, setSelectedCat] = useState(editingProduct?.categoryId || "");
+
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>
+                    {editingProduct && <button onClick={() => onDelete(editingProduct.id)} className="text-red-500 text-xs underline">Eliminar</button>}
+                </div>
+                <form onSubmit={onSave} className="space-y-3">
+                    <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
+                    <div className="flex gap-2 items-center border p-2 rounded bg-slate-50">
+                        <ScanBarcode size={16} className="text-slate-400" />
+                        <input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <input required name="price" type="number" step="any" defaultValue={editingProduct?.price} className="p-2 border rounded" placeholder="Precio Venta" />
+                        <input name="cost" type="number" step="any" defaultValue={editingProduct?.cost} className="p-2 border rounded" placeholder="Costo" />
+                    </div>
+                    <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" placeholder="Stock Inicial" />
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <select name="category" value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="p-2 border rounded text-sm">
+                            <option value="">Categoría...</option>
+                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select name="subcategory" defaultValue={editingProduct?.subCategoryId || ""} className="p-2 border rounded text-sm" disabled={!selectedCat}>
+                            <option value="">Subcategoría...</option>
+                            {subcategories?.filter(s => s.parentId === selectedCat).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded">
+                        <button type="button" onClick={() => setImageMode('file')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button>
+                        <button type="button" onClick={() => setImageMode('link')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button>
+                    </div>
+
+                    {imageMode === 'file' ? (
+                        <input type="file" accept="image/*" onChange={handleFileChange} className="text-xs" />
+                    ) : (
+                        <input name="imageUrlLink" defaultValue={!editingProduct?.imageUrl?.startsWith('data:') ? editingProduct?.imageUrl : ''} className="w-full p-2 border rounded text-sm" placeholder="URL imagen..." onChange={(e) => setPreviewImage(e.target.value)} />
+                    )}
+
+                    {(previewImage || editingProduct?.imageUrl) && (
+                        <img src={previewImage || editingProduct.imageUrl} className="h-20 w-full object-contain border rounded" />
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                        <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
+                        <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub, onDeleteSub, subcategories = [], onUpdate }) {
+    const [expandedCat, setExpandedCat] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState("");
+
+    const startEdit = (cat, e) => { e.stopPropagation(); setEditingId(cat.id); setEditName(cat.name); };
+    const saveEdit = (e) => { e.preventDefault(); if (editName.trim()) { onUpdate(editingId, { name: editName }); setEditingId(null); } };
+
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><FolderTree size={20} /> Categorías</h3>
+                    <button onClick={onClose}><X size={24} /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                    {categories.map(cat => (
+                        <div key={cat.id} className="bg-white rounded-xl border border-slate-200">
+                            <div className="flex justify-between items-center p-3">
+                                {editingId === cat.id ? (
+                                    <form onSubmit={saveEdit} className="flex gap-2 flex-1">
+                                        <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 p-1 border rounded" />
+                                        <button type="submit" className="text-green-600"><Check size={20} /></button>
+                                        <button type="button" onClick={() => setEditingId(null)} className="text-red-600"><X size={20} /></button>
+                                    </form>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}>
+                                            <Folder size={20} className="text-slate-400" />
+                                            <span className="font-bold text-slate-800">{cat.name}</span>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={(e) => startEdit(cat, e)} className="p-1 text-slate-400 hover:text-blue-600"><Edit3 size={16} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); onUpdate(cat.id, { isActive: !cat.isActive }); }} className="p-1">
+                                                {cat.isActive !== false ? <Eye size={18} className="text-green-600" /> : <EyeOff size={18} className="text-slate-400" />}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            {expandedCat === cat.id && (
+                                <div className="p-3 border-t bg-slate-50">
+                                    <div className="space-y-1 mb-3">
+                                        {subcategories.filter(s => s.parentId === cat.id).map(sub => (
+                                            <div key={sub.id} className="flex justify-between text-sm py-1 pl-4">
+                                                <span className="text-slate-600">{sub.name}</span>
+                                                <button onClick={() => onDeleteSub(sub.id)} className="text-red-300 hover:text-red-500"><Trash2 size={14} /></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <form onSubmit={(e) => { e.preventDefault(); onSaveSub(cat.id, e.target.sub.value); e.target.reset(); }} className="flex gap-2">
+                                        <input name="sub" placeholder="Nueva subcategoría..." className="flex-1 text-xs p-1 border rounded" />
+                                        <button type="submit" className="bg-blue-600 text-white p-1 rounded"><Plus size={14} /></button>
+                                    </form>
+                                    <button onClick={() => onDelete(cat.id)} className="w-full mt-3 text-[10px] text-red-400 hover:text-red-600 font-bold">Eliminar Categoría Principal</button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+                <form onSubmit={onSave} className="p-4 bg-white border-t flex gap-2">
+                    <input name="catName" required className="flex-1 p-2 border rounded-xl text-sm" placeholder="Nueva Categoría Principal..." />
+                    <button type="submit" className="bg-slate-800 text-white px-4 rounded-xl"><Plus size={20} /></button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function CustomerModal({ onClose, onSave, editingCustomer }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+                <h3 className="font-bold text-lg">{editingCustomer ? 'Editar' : 'Nuevo'} Cliente</h3>
+                <form onSubmit={onSave} className="space-y-3">
+                    <input required name="name" defaultValue={editingCustomer?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
+                    <input required name="phone" defaultValue={editingCustomer?.phone} className="w-full p-2 border rounded" placeholder="Teléfono" />
+                    <input name="address" defaultValue={editingCustomer?.address} className="w-full p-2 border rounded" placeholder="Dirección" />
+                    <input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email" />
+                    <div className="flex gap-2">
+                        <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
+                        <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={onClose}><X size={20} /></button></div>
+                <form onSubmit={onSave} className="space-y-4">
+                    <input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" placeholder="Nombre del Negocio" />
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                        <button type="button" onClick={() => setImageMode('file')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow font-bold' : ''}`}>Subir</button>
+                        <button type="button" onClick={() => setImageMode('link')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow font-bold' : ''}`}>Link</button>
+                    </div>
+                    {imageMode === 'file' ? <input type="file" onChange={handleFileChange} className="text-xs" /> : <input name="logoUrlLink" className="w-full p-2 border rounded text-xs" placeholder="URL del logo..." onChange={(e) => setPreviewImage(e.target.value)} />}
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded">Guardar Cambios</button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+                <h3 className="font-bold text-lg">Entrada Stock</h3>
+                <div className="bg-slate-100 p-3 rounded-lg font-bold">{scannedProduct?.name}</div>
+                <form onSubmit={onConfirm}>
+                    <input ref={quantityInputRef} name="qty" type="number" defaultValue="1" min="1" className="w-32 p-3 border-2 border-blue-500 rounded-lg text-center text-2xl font-bold mb-4" />
+                    <div className="flex gap-2">
+                        <button type="button" onClick={onClose} className="flex-1 py-3 bg-slate-100 rounded-lg">Cancelar</button>
+                        <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg">Confirmar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+export function LogoutConfirmModal({ onClose, onConfirm }) {
+    return (
+        <div className={modalOverlayClass}>
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl">
+                <AlertTriangle size={32} className="text-orange-500 mx-auto" />
+                <h3 className="font-bold text-lg">Cerrar Sesión</h3>
+                <p className="text-sm text-slate-600">¿Estás seguro de que quieres salir?</p>
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-3 bg-slate-100 rounded-lg font-bold">Cancelar</button>
+                    <button onClick={onConfirm} className="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold">Sí, Salir</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function TransactionModal({ onClose, onSave, editingTransaction }) {
+    const [localItems, setLocalItems] = useState(editingTransaction.items || []);
+
+    const updateQty = (index, delta) => {
+        const newItems = [...localItems];
+        const newQty = (newItems[index].qty || 0) + delta;
+        if (newQty < 1) return;
+        newItems[index].qty = newQty;
+        setLocalItems(newItems);
+    };
+
+    const handleSave = () => {
+        const newTotal = localItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+        onSave({ items: localItems, total: newTotal });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[20000] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center">
+            <div className="w-full max-w-2xl h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl flex flex-col">
+                <div className="p-4 border-b flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
+                        <h3 className="font-bold text-lg">Editar Pedido</h3>
+                    </div>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Guardar</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                    {localItems.map((item, index) => (
+                        <div key={index} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+                            <div className="flex-1">
+                                <div className="font-bold text-slate-800">{item.name}</div>
+                                <div className="text-xs text-blue-600 font-bold">${item.price} x {item.qty}</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => updateQty(index, -1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Minus size={16} /></button>
+                                <span className="font-bold">{item.qty}</span>
+                                <button onClick={() => updateQty(index, 1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Plus size={16} /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="p-4 bg-white border-t flex justify-between items-center">
+                    <span className="font-bold text-slate-600">Total:</span>
+                    <span className="font-extrabold text-2xl">${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
