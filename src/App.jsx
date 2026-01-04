@@ -11,7 +11,7 @@ import { useCartContext } from './context/CartContext';
 // HOOKS Y UTILIDADES
 import { usePrinter } from './hooks/usePrinter';
 import { usePWA } from './hooks/usePWA';
-import { uploadProductImage } from './config/uploadImage';
+import { uploadImage } from './config/uploadImage';
 
 // COMPONENTES
 import Sidebar, { MobileNav } from './components/Sidebar';
