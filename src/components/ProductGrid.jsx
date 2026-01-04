@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, ShoppingCart, Image as ImageIcon, ScanBarcode, Edit } from 'lucide-react';
+import { Search, ShoppingCart, Image as ImageIcon, ScanBarcode, Edit, AlertCircle } from 'lucide-react';
 import { getThumbnailUrl } from '../config/uploadImage';
 
 const ProductGrid = ({
