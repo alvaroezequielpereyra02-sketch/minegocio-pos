@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, memo } from 'react';
 import { Search, ScanBarcode, Image as ImageIcon, Filter, X } from 'lucide-react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
-import { getThumbnailUrl } from '../utils/uploadImage';
+import { getThumbnailUrl } from '../config/uploadImage';
 
 const getColumnCount = (width) => {
     if (width < 640) return 2;
