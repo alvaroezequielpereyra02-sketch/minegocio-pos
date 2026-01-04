@@ -10,7 +10,10 @@ import {
     Download,
     Share2,
     Loader2,
-    StickyNote
+    StickyNote,
+    Truck,
+    CheckCircle,
+    Box
 } from 'lucide-react';
 
 // --- IMPORTS DE CONTEXTO (CORREGIDOS) ---
@@ -50,6 +53,7 @@ export default function TransactionDetail({
 
     // Estados para el modal de pago (Edición)
     const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
+    const [tempFulfillment, setTempFulfillment] = useState(transaction.fulfillmentStatus || 'pending');
     const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
     const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
     const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction.paymentMethod || 'unspecified');
@@ -60,6 +64,7 @@ export default function TransactionDetail({
         setTempAmountPaid(transaction.amountPaid || 0);
         setTempNote(transaction.paymentNote || '');
         setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
+        setTempFulfillment(transaction.fulfillmentStatus || 'pending');
     }, [transaction]);
 
     // --- CÁLCULOS ---
@@ -88,19 +93,16 @@ export default function TransactionDetail({
         setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
         setShowPaymentModal(true);
     };
-
     const handleSavePayment = async () => {
         if (!isAdmin) return;
 
         let finalAmountPaid = tempAmountPaid;
-
-        // Lógica automática: Si es pagado, el monto es el total. Si es pendiente, es 0.
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        // Actualizamos usando la función del contexto (Firebase)
         await updateTransaction(transaction.id, {
             paymentStatus: tempStatus,
+            fulfillmentStatus: tempFulfillment, // <--- ESTA ES LA CLAVE
             amountPaid: finalAmountPaid,
             paymentNote: tempNote,
             paymentMethod: tempPaymentMethod
@@ -446,6 +448,23 @@ export default function TransactionDetail({
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
+                        <div className="mt-4">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Estado de Entrega</label>
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                <button
+                                    onClick={() => setTempFulfillment('pending')}
+                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'pending' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                                >
+                                    <Box size={14} /> PENDIENTE
+                                </button>
+                                <button
+                                    onClick={() => setTempFulfillment('delivered')}
+                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                                >
+                                    <CheckCircle size={14} /> ENTREGADO
+                                </button>
+                            </div>
+                        </div>
 
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
@@ -563,17 +582,15 @@ export default function TransactionDetail({
                     <div className="bg-white p-6 text-center border-b mb-2">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{displayLabel}</div>
                         <div className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${displayColor} mb-4`}>${displayAmount.toLocaleString()}</div>
-                        <div className="flex justify-center">
-                            {isAdmin ? (
-                                <button onClick={openPaymentModal} className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow-sm transition-all border transform active:scale-95 ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : transaction.paymentStatus === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                    {transaction.paymentStatus === 'paid' ? '✅ Pagado' : transaction.paymentStatus === 'partial' ? '⚠️ Pago Parcial' : '❌ Pendiente'}
-                                    <span className="opacity-50 ml-1 text-xs">▼ Cambiar</span>
-                                </button>
-                            ) : (
-                                <div className={`px-5 py-2 rounded-full font-bold text-sm border ${transaction.paymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                    {transaction.paymentStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'}
-                                </div>
-                            )}
+                        <div className="flex justify-center gap-2">
+                            <button onClick={openPaymentModal} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs border ${transaction.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                {transaction.paymentStatus === 'paid' ? '✅ Pago Recibido' : '❌ Pago Pendiente'}
+                            </button>
+
+                            {/* NUEVO BADGE DE ENTREGA */}
+                            <button onClick={openPaymentModal} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs border ${transaction.fulfillmentStatus === 'delivered' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                <Truck size={14} /> {transaction.fulfillmentStatus === 'delivered' ? 'ENTREGADO' : 'POR ENTREGAR'}
+                            </button>
                         </div>
                     </div>
 
