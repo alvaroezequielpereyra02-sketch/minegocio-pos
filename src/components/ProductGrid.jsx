@@ -1,184 +1,174 @@
-import React, { useMemo, useState, useEffect, memo } from 'react';
-import { Search, ScanBarcode, Image as ImageIcon, Filter, X } from 'lucide-react';
-import { FixedSizeGrid as Grid } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
-import { getThumbnailUrl } from '../config/uploadImage';
+import React, { useState } from 'react';
+import { Search, Filter, Plus, Edit, Trash2, ShoppingCart, Image as ImageIcon } from 'lucide-react';
+import { useInventory } from '../hooks/useInventory';
+import { useCart } from '../hooks/useCart';
 
-const getColumnCount = (width) => {
-    if (width < 640) return 2;
-    if (width < 768) return 3;
-    if (width < 1024) return 4;
-    if (width < 1280) return 5;
-    if (width < 1536) return 6;
-    return 7;
-};
+// --- CORRECCIÓN AQUÍ ---
+// Actualizamos la ruta para apuntar a config en lugar de utils
+import { uploadImage } from '../config/uploadImage';
+// -----------------------
 
-const ProductGrid = memo(function ProductGrid({
-    products,
-    addToCart,
-    searchTerm,
-    setSearchTerm,
-    selectedCategory,
-    setSelectedCategory,
-    categories,
-    subcategories = [],
-    userData,
-    barcodeInput,
-    setBarcodeInput,
-    handleBarcodeSubmit
-}) {
-    const [selectedSubCategory, setSelectedSubCategory] = useState('all');
+const ProductGrid = ({ onEditProduct, onOpenModal }) => {
+    const { products, loading, deleteProduct, categories } = useInventory();
+    const { addToCart } = useCart();
 
-    useEffect(() => {
-        setSelectedSubCategory('all');
-    }, [selectedCategory]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('Todas');
 
-    const currentSubcategories = useMemo(() => {
-        if (selectedCategory === 'all') return [];
-        return subcategories.filter(sub => sub.parentId === selectedCategory);
-    }, [selectedCategory, subcategories]);
+    // Filtrado de productos
+    const filteredProducts = products.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.barcode?.includes(searchTerm);
+        const matchesCategory = selectedCategory === 'Todas' || product.category === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
 
-    const filteredProducts = useMemo(() => {
-        const lowerTerm = searchTerm.toLowerCase();
-        const activeCategoryIds = new Set(
-            categories
-                .filter(c => c.isActive !== false)
-                .map(c => c.id)
-        );
-
-        return products.filter(p => {
-            const matchesSearch = p.name.toLowerCase().includes(lowerTerm);
-            const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
-            const matchesSub = selectedSubCategory === 'all' || p.subCategoryId === selectedSubCategory;
-            const isCategoryActive = !p.categoryId || activeCategoryIds.has(p.categoryId);
-
-            return matchesSearch && matchesCategory && matchesSub && isCategoryActive;
-        });
-    }, [products, searchTerm, selectedCategory, selectedSubCategory, categories]);
-
-    const Cell = ({ columnIndex, rowIndex, style, data }) => {
-        const { products, columnCount } = data;
-        const index = rowIndex * columnCount + columnIndex;
-        if (index >= products.length) return null;
-        const product = products[index];
-        const gutter = 10;
-        const itemStyle = {
-            ...style,
-            left: style.left + gutter,
-            top: style.top + gutter,
-            width: style.width - gutter,
-            height: style.height - gutter
-        };
-
-        return (
-            <div style={itemStyle}>
-                <button
-                    onClick={() => addToCart(product)}
-                    className="flex flex-col items-start w-full h-full p-0 rounded-xl border bg-white shadow-sm hover:shadow-md overflow-hidden active:scale-[0.98] transition-all relative group hover:border-blue-400"
-                >
-                    <div className="w-full h-[60%] bg-white relative shrink-0 p-2 flex items-center justify-center">
-                        {product.imageUrl ? (
-                            <img
-                                src={getThumbnailUrl(product.imageUrl)}
-                                className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105 duration-300"
-                                loading="lazy"
-                                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
-                                alt={product.name}
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-200 bg-slate-50"><ImageIcon size={40} /></div>
-                        )}
-                        <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-sm ${product.stock <= 0 ? 'bg-red-500/90 text-white' : 'bg-white/80 text-slate-700 border border-slate-200'}`}>
-                            {product.stock} un.
-                        </div>
-                    </div>
-                    <div className="p-3 w-full text-left flex flex-col justify-between flex-1 min-h-0 bg-slate-50/50 border-t border-slate-100">
-                        <div className="font-semibold text-slate-700 text-sm line-clamp-2 leading-snug" title={product.name}>
-                            {product.name}
-                        </div>
-                        <div className="font-extrabold text-blue-600 text-base mt-1">
-                            ${product.price.toLocaleString()}
-                        </div>
-                    </div>
-                </button>
-            </div>
-        );
+    const handleDelete = async (id, e) => {
+        e.stopPropagation(); // Evitar abrir el modal de edición
+        if (window.confirm('¿Estás seguro de eliminar este producto?')) {
+            await deleteProduct(id);
+        }
     };
 
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex-1 flex flex-col min-h-0 h-full">
-            <div className="mb-3 flex gap-3 shrink-0">
-                <div className="flex-1">
-                    <div className="flex items-center w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 transition-all duration-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 focus-within:shadow-sm">
-                        <Search className="text-slate-400 w-5 h-5 shrink-0 mr-3" />
-                        <input className="w-full bg-transparent outline-none text-base text-slate-700 placeholder:text-slate-400 border-none focus:ring-0 focus:outline-none p-0" placeholder="Buscar productos..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                    </div>
+        <div className="p-4">
+            {/* Barra Superior: Buscador y Filtros */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <div className="relative w-full md:w-96">
+                    <Search className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre o código..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    />
                 </div>
-                {userData.role === 'admin' && (
-                    <form onSubmit={handleBarcodeSubmit} className="hidden sm:block">
-                        <div className="flex items-center w-48 bg-white border border-slate-300 rounded-xl px-4 py-2.5 transition-all duration-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
-                            <ScanBarcode className="text-slate-400 w-5 h-5 shrink-0 mr-3" />
-                            <input className="w-full bg-transparent outline-none text-base text-slate-700 placeholder:text-slate-400 border-none focus:ring-0 focus:outline-none p-0" placeholder="Escanear..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} />
-                        </div>
-                    </form>
-                )}
-            </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-1 scrollbar-hide shrink-0">
-                <button onClick={() => setSelectedCategory('all')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === 'all' ? 'bg-slate-800 text-white shadow-lg scale-105' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>Todas</button>
-                {categories.filter(cat => cat.isActive !== false).map(cat => (
-                    <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'bg-slate-800 text-white shadow-lg scale-105' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-                        {cat.name}
+                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                    <button
+                        onClick={() => setSelectedCategory('Todas')}
+                        className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${selectedCategory === 'Todas'
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                    >
+                        Todas
                     </button>
-                ))}
-            </div>
-
-            {currentSubcategories.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 scrollbar-hide shrink-0 animate-in slide-in-from-left-2 fade-in">
-                    <div className="flex items-center text-xs font-bold text-slate-400 mr-1"><Filter size={12} className="mr-1" /> Sub:</div>
-                    <button onClick={() => setSelectedSubCategory('all')} className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${selectedSubCategory === 'all' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-500 border-slate-200'}`}>Todas</button>
-                    {currentSubcategories.map(sub => (
-                        <button key={sub.id} onClick={() => setSelectedSubCategory(sub.id)} className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${selectedSubCategory === sub.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
-                            {sub.name}
+                    {categories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${selectedCategory === cat
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                                }`}
+                        >
+                            {cat}
                         </button>
                     ))}
                 </div>
-            )}
 
-            <div className="flex-1 min-h-0 relative">
-                {filteredProducts.length === 0 ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                        <Search size={48} className="mb-2 opacity-20" />
-                        <p>No se encontraron productos</p>
-                    </div>
-                ) : (
-                    <AutoSizer>
-                        {({ height, width }) => {
-                            const columnCount = getColumnCount(width);
-                            const columnWidth = width / columnCount;
-                            const rowHeight = Math.max(220, columnWidth * 1.25);
-                            const rowCount = Math.ceil(filteredProducts.length / columnCount);
-
-                            return (
-                                <Grid
-                                    columnCount={columnCount}
-                                    columnWidth={columnWidth}
-                                    height={height}
-                                    rowCount={rowCount}
-                                    rowHeight={rowHeight}
-                                    width={width}
-                                    itemData={{ products: filteredProducts, columnCount }}
-                                    style={{ paddingBottom: '120px' }}
-                                >
-                                    {Cell}
-                                </Grid>
-                            );
-                        }}
-                    </AutoSizer>
-                )}
+                <button
+                    onClick={() => onOpenModal('add-product')}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors shadow-sm shrink-0"
+                >
+                    <Plus size={20} />
+                    <span className="hidden md:inline">Nuevo Producto</span>
+                </button>
             </div>
+
+            {/* Grid de Productos */}
+            {filteredProducts.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-dashed">
+                    <p className="text-lg">No se encontraron productos.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {filteredProducts.map((product) => (
+                        <div
+                            key={product.id}
+                            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border overflow-hidden flex flex-col"
+                        >
+                            {/* Imagen del Producto */}
+                            <div className="h-40 bg-gray-100 relative group overflow-hidden">
+                                {product.image ? (
+                                    <img
+                                        src={product.image}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <ImageIcon size={40} />
+                                    </div>
+                                )}
+
+                                {/* Botones flotantes (Editar/Eliminar) */}
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 p-1 rounded-lg backdrop-blur-sm">
+                                    <button
+                                        onClick={() => onEditProduct(product)}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                        title="Editar"
+                                    >
+                                        <Edit size={16} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleDelete(product.id, e)}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                        title="Eliminar"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Información */}
+                            <div className="p-3 flex-1 flex flex-col">
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-gray-800 truncate" title={product.name}>
+                                        {product.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-1">{product.category}</p>
+                                    <p className="text-lg font-bold text-indigo-600">
+                                        ${product.price?.toFixed(2)}
+                                    </p>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-between gap-2">
+                                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${product.stock > 5
+                                            ? 'bg-green-100 text-green-800'
+                                            : product.stock > 0
+                                                ? 'bg-yellow-100 text-yellow-800'
+                                                : 'bg-red-100 text-red-800'
+                                        }`}>
+                                        Stock: {product.stock}
+                                    </div>
+
+                                    <button
+                                        onClick={() => addToCart(product)}
+                                        disabled={product.stock <= 0}
+                                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        title="Agregar al carrito"
+                                    >
+                                        <ShoppingCart size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
-});
+};
 
 export default ProductGrid;
