@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
     CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
-    ChevronDown, Folder, FolderOpen, Edit, CornerDownRight, Eye, EyeOff, Edit3, Check
+    ChevronDown, Folder, FolderOpen, Edit, CornerDownRight, Eye, EyeOff, Edit3, Check,
 } from 'lucide-react';
 
 // IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
@@ -149,6 +149,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                     <div className="flex gap-2 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
                         <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
+                        <button type="button" onClick={onRegisterFaulty} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Registrar como dañado</button>
                     </div>
                 </form>
             </div>
