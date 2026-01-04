@@ -12,15 +12,17 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// 1. Inicializamos 'app' y la exportamos COMO CONSTANTE (para import { app })
+export const app = initializeApp(firebaseConfig);
 
-// Inicializamos los servicios
+// 2. Inicializamos y exportamos los demás servicios
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-export const storage = getStorage(app); // Necesario para uploadImage
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// IMPORTANTE: Restauramos el ID de la tienda que borré por error
+// 3. Exportamos el ID de la tienda
 export const appId = 'tienda-principal';
 
+// 4. También exportamos 'app' por defecto (por si algún archivo usa import app from...)
 export default app;
