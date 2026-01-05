@@ -387,9 +387,19 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                         />
                     </div>
                     <div className="flex gap-2">
-                        <button type="button" onClick={onClose} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancelar</button>
-                        <button type="submit" className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold">Confirmar</button>
-                        <button type="button" onClick={() => onRegisterFaulty(product)} className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold">Confirmar</button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-orange-200 active:scale-95 transition-all"
+                        >
+                            Confirmar
+                        </button>
                     </div>
                 </form>
             </div>

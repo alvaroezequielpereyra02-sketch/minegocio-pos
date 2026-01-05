@@ -1,5 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
+import {
+    initializeFirestore,
+    persistentLocalCache,
+    persistentMultipleTabManager
+} from "firebase/firestore"; // Importación moderna
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
@@ -12,21 +16,18 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// 1. Inicialización y exportación inmediata
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// CONFIGURACIÓN MODERNA: Reemplaza lo tachado por esto
+export const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    })
+});
+
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appId = 'tienda-principal';
-
-// 2. Persistencia offline (Sin bloquear las exportaciones)
-if (typeof window !== "undefined") {
-    enableMultiTabIndexedDbPersistence(db).catch((err) => {
-        if (err.code === 'failed-precondition') {
-            console.warn("Offline: Otra pestaña tiene el control.");
-        }
-    });
-}
 
 export default app;
