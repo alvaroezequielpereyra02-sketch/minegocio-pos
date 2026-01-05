@@ -366,7 +366,7 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
 
                 <div className="bg-slate-50 p-3 rounded-lg mb-4">
                     <div className="font-bold text-sm text-slate-800">{product.name}</div>
-                    <div className="text-xs text-slate-500">Stock actual: {product.stock}</div>
+                    <div className="text-xs text-slate-500">Stock actual: <span className="font-bold text-slate-800">{product?.stock ?? 0}</span></div>
                 </div>
 
                 <form onSubmit={(e) => { e.preventDefault(); onConfirm(product, qty, reason); }} className="space-y-4">
