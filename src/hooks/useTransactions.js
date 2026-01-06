@@ -66,6 +66,11 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
     const updateTransaction = async (id, data) => {
         // Si no estamos modificando items, hacemos un update simple y rápido
+        if (data.items && data.items.length === 0 && data.total === 0) {
+            console.error("Intento de sobrescritura con datos vacíos abortado.");
+            return;
+        }
+
         if (!data.items) {
             await updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
             return;

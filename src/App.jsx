@@ -99,6 +99,8 @@ export default function App() {
     transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
   } = useTransactionsContext();
 
+
+
   const {
     cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
   } = useCartContext();
@@ -139,13 +141,7 @@ export default function App() {
   // 3. Efecto para detectar nuevos pedidos en tiempo real
   useEffect(() => {
     // Si el número de pedidos pendientes subió y eres admin, notificamos
-    if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
-      showNotification("🔔 ¡Nuevo pedido de cliente recibido!");
 
-      // Opcional: Sonido de alerta
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-      audio.play().catch(() => console.log("Audio bloqueado por el navegador"));
-    }
 
     // Actualizamos la referencia para la siguiente comparación
     prevOrdersCount.current = pendingOrders.length;
@@ -165,16 +161,51 @@ export default function App() {
       setIsOnline(navigator.onLine);
       if (navigator.onLine) showNotification("🟢 Conexión restaurada");
       else showNotification("🔴 Sin conexión (Modo Offline)");
+
     };
     window.addEventListener('online', handleStatus);
     window.addEventListener('offline', handleStatus);
     return () => { window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
   }, []);
+  useEffect(() => {
+    // Solo pedimos permiso si el usuario es administrador
+    if (userData?.role === 'admin' && 'Notification' in window) {
+      Notification.requestPermission();
+    }
+  }, [userData]);
 
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
+  useEffect(() => {
+    // Si el número de pedidos actuales es mayor al que teníamos guardado
+    if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
+
+      // 1. Alerta visual interna de la App
+      showNotification("🔔 ¡Nuevo pedido de cliente!");
+
+      // 2. Alerta en la BANDEJA DEL CELULAR
+      if (Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification('¡Nuevo Pedido!', {
+            body: `Tienes un nuevo pedido pendiente de revisar.`,
+            icon: '/logo192.png',
+            vibrate: [200, 100, 200],
+            tag: 'nuevo-pedido', // Evita duplicados en la bandeja
+            renotify: true
+          });
+        });
+      }
+
+      // 3. Sonido de alerta
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+      audio.play().catch(() => { });
+    }
+
+    // Actualizamos la referencia para la próxima comparación
+    prevOrdersCount.current = pendingOrders.length;
+  }, [pendingOrders.length, userData?.role]);
 
   // --- 1. FUNCIÓN DE FALTANTES (Restaurada y corregida) ---
   const handlePrintShoppingList = async () => {
@@ -342,37 +373,69 @@ export default function App() {
   };
 
   const handleCheckout = async () => {
+    // 1. Validaciones iniciales
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
 
-    let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
-    if (userData?.role === 'admin' && selectedCustomer) finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
-    else if (userData?.role === 'client') finalClient = { id: user.uid, name: userData.name, role: 'client' };
-
-    const itemsWithCost = cart.map(i => {
-      const p = products.find(prod => prod.id === i.id);
-      return { ...i, cost: p ? (p.cost || 0) : 0 };
-    });
-
-    const saleData = {
-      type: 'sale', total: cartTotal, amountPaid: 0, items: itemsWithCost,
-      date: serverTimestamp(),
-      clientId: finalClient.id, clientName: finalClient.name,
-      clientRole: finalClient.role, sellerId: user.uid, paymentStatus: 'pending',
-      paymentNote: '', paymentMethod: paymentMethod, fulfillmentStatus: 'pending'
-    };
-
     try {
-      await createTransaction(saleData, cart);
+      // 2. Determinar el cliente final de forma segura
+      let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
+
+      if (userData?.role === 'admin' && selectedCustomer) {
+        finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
+      } else if (userData?.role === 'client') {
+        finalClient = { id: user.uid, name: userData.name, role: 'client' };
+      }
+
+      // 3. CREAR COPIA DE SEGURIDAD DE LOS ITEMS (Deep Copy)
+      // Esto evita que si el carrito se limpia, los datos enviados a la nube se pierdan.
+      const itemsWithCost = cart.map(i => {
+        const p = products.find(prod => prod.id === i.id);
+        return {
+          id: i.id,
+          name: i.name,
+          qty: Number(i.qty), // Forzamos a número para evitar errores en Firebase
+          price: Number(i.price),
+          cost: p ? Number(p.cost || 0) : 0
+        };
+      });
+
+      // 4. CAPTURAR EL TOTAL EN UNA CONSTANTE
+      const totalFinal = Number(cartTotal);
+
+      // 5. CONSTRUIR EL OBJETO DE VENTA
+      const saleData = {
+        type: 'sale',
+        total: totalFinal,
+        amountPaid: 0,
+        items: itemsWithCost, // Usamos la copia independiente
+        date: serverTimestamp(),
+        clientId: finalClient.id,
+        clientName: finalClient.name,
+        clientRole: finalClient.role,
+        sellerId: user.uid,
+        paymentStatus: 'pending',
+        paymentNote: '',
+        paymentMethod: paymentMethod,
+        fulfillmentStatus: 'pending'
+      };
+
+      // 6. EJECUTAR TRANSACCIÓN
+      // Pasamos la copia de items (itemsWithCost) en lugar del estado 'cart' original
+      await createTransaction(saleData, itemsWithCost);
+
+      // 7. LIMPIEZA POST-VENTA
       clearCart();
       setSelectedCustomer(null);
       setShowMobileCart(false);
       setIsProcessing(false);
       setShowCheckoutSuccess(true);
+
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
+
     } catch (e) {
-      console.error(e);
-      alert("Error al procesar venta");
+      console.error("Error crítico en checkout:", e);
+      alert("Hubo un problema al guardar la venta. Verifica tu conexión y los datos.");
       setIsProcessing(false);
     }
   };
