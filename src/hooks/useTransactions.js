@@ -65,40 +65,43 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
     const updateTransaction = async (id, data) => {
-        // Si no estamos modificando items, hacemos un update simple y rápido
+        // 🛡️ ESCUDO DE SEGURIDAD FINAL: Evita la sobrescritura con ceros
+        // Si la boleta viene sin productos y con total 0, la función se detiene inmediatamente.
         if (data.items && data.items.length === 0 && data.total === 0) {
-            console.error("Intento de sobrescritura con datos vacíos abortado.");
-            return;
+            console.error("Bloqueo preventivo: Se intentó guardar una boleta vacía sobre una existente.");
+            return; // Aborta la operación antes de tocar Firebase
         }
 
+        // Si solo actualizamos campos simples (como el estado de pago) sin tocar productos
         if (!data.items) {
             await updateDoc(doc(db, 'stores', appId, 'transactions', id), data);
             return;
         }
 
-        // SI HAY CAMBIOS EN ITEMS, TENEMOS QUE AJUSTAR EL STOCK
+        // --- LÓGICA DE AJUSTE DE STOCK (Solo se ejecuta si la validación anterior pasó) ---
         const batch = writeBatch(db);
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
 
-        // 1. Obtener la transacción original antes de tocarla
+        // 1. Obtener la transacción original antes de modificarla
         const oldTransactionSnap = await getDoc(transactionRef);
-        if (!oldTransactionSnap.exists()) throw new Error("Transacción no existe");
+        if (!oldTransactionSnap.exists()) throw new Error("La transacción no existe.");
+
         const oldItems = oldTransactionSnap.data().items || [];
         const newItems = data.items;
 
-        // 2. Revertir el stock de los items viejos (Devolver todo a la estantería)
+        // 2. Revertir el stock (devolver lo viejo a la estantería)
         oldItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(item.qty) });
         });
 
-        // 3. Descontar el stock de los items nuevos (Sacar lo nuevo de la estantería)
+        // 3. Aplicar el nuevo stock (restar lo nuevo)
         newItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(-item.qty) });
         });
 
-        // 4. Guardar los cambios en la transacción
+        // 4. Guardar los cambios finales en el documento
         batch.update(transactionRef, data);
 
         await batch.commit();

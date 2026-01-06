@@ -654,7 +654,38 @@ export default function App() {
         {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
         {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { console.error(error); alert("❌ Error al guardar: " + error.message + "\n\nVerifica que tu usuario tenga rol 'admin' en la base de datos."); } }} />}
         {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
-        {modals.transaction && editingTransaction && <TransactionModal onClose={() => toggleModal('transaction', false)} onSave={async (d) => { await updateTransaction(editingTransaction.id, d); toggleModal('transaction', false); if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d })); }} editingTransaction={editingTransaction} />}
+        {modals.transaction && editingTransaction && (
+          <TransactionModal
+            onClose={() => toggleModal('transaction', false)}
+            onSave={async (d) => {
+              // 🛡️ ESCUDO DE PROTECCIÓN: Evita guardar si la boleta está vacía o en cero
+              if (!d.items || d.items.length === 0 || d.total === 0) {
+                alert("⚠️ Error: Los datos de la boleta aún no han cargado o están vacíos. Por favor, espera un momento o intenta abrirla de nuevo.");
+                return; // Detiene la ejecución aquí mismo
+              }
+
+              setIsProcessing(true); // Activa el estado de carga visual
+              try {
+                // Ejecuta la actualización en la base de datos
+                await updateTransaction(editingTransaction.id, d);
+
+                toggleModal('transaction', false);
+                showNotification("✅ Boleta actualizada correctamente");
+
+                // Sincroniza la vista de detalle si estaba abierta
+                if (selectedTransaction?.id === editingTransaction.id) {
+                  setSelectedTransaction(prev => ({ ...prev, ...d }));
+                }
+              } catch (error) {
+                console.error("Error al actualizar la transacción:", error);
+                alert("No se pudieron guardar los cambios. Revisa tu conexión.");
+              } finally {
+                setIsProcessing(false); // Apaga el estado de carga
+              }
+            }}
+            editingTransaction={editingTransaction}
+          />
+        )}
         {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
         {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
         {modals.faulty && faultyProduct && (

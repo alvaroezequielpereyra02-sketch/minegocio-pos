@@ -324,7 +324,25 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
                         <h3 className="font-bold text-lg">Editar Pedido</h3>
                     </div>
-                    <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Guardar</button>
+                    <button
+                        onClick={handleSave}
+                        // 🛡️ ESCUDO FÍSICO: El botón se apaga si no hay productos cargados
+                        disabled={!formData.items || formData.items.length === 0 || formData.total === 0}
+                        className={`px-4 py-2 rounded-lg font-bold transition-all ${(!formData.items || formData.items.length === 0 || formData.total === 0)
+                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed' // Estilo desactivado
+                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95' // Estilo activo
+                            }`}
+                    >
+                        {/* Texto dinámico que indica el estado al administrador */}
+                        {(!formData.items || formData.items.length === 0 || formData.total === 0)
+                            ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Cargando datos...</span>
+                                </div>
+                            )
+                            : 'Guardar Cambios'}
+                    </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
                     {localItems.map((item, index) => (
