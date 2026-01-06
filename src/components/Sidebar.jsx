@@ -1,16 +1,38 @@
 import React from 'react';
-import { Store, LayoutDashboard, Package, Users, History, TrendingUp, LogOut, ClipboardList, Truck, Download } from 'lucide-react';
+import {
+  Store, LayoutDashboard, Package, Users, History,
+  TrendingUp, LogOut, ClipboardList, Truck, Download
+} from 'lucide-react';
 
-function NavButton({ active, onClick, icon, label }) {
+// COMPONENTE AUXILIAR PARA BOTONES MÓVILES
+function NavButton({ active, onClick, icon, label, badge }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}>
-      {icon} <span className="text-[10px] uppercase font-bold mt-1 truncate w-full text-center">{label}</span>
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 transition-all ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+    >
+      <div className="relative">
+        {icon}
+        {/* 🔴 Burbuja de notificación para Móvil */}
+        {badge > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] uppercase font-bold mt-1 truncate w-full text-center">
+        {label}
+      </span>
     </button>
   );
 }
 
-// Recibimos 'supportsPWA' e 'installApp'
-export default function Sidebar({ user, userData, storeProfile, activeTab, setActiveTab, onLogout, onEditStore, supportsPWA, installApp }) {
+// COMPONENTE SIDEBAR (Escritorio)
+export default function Sidebar({
+  user, userData, storeProfile, activeTab, setActiveTab,
+  onLogout, onEditStore, supportsPWA, installApp,
+  pendingCount // 👈 Prop recibida desde App.jsx
+}) {
   if (!userData) return null;
 
   return (
@@ -31,15 +53,31 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
       </button>
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-        <button onClick={() => setActiveTab('pos')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'pos' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+        <button
+          onClick={() => setActiveTab('pos')}
+          className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'pos' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+        >
           <LayoutDashboard size={20} /> Vender
         </button>
 
         {userData.role === 'admin' && (
           <>
-            <button onClick={() => setActiveTab('orders')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <ClipboardList size={20} /> Pedidos
+            {/* BOTÓN PEDIDOS CON NOTIFICACIÓN */}
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`relative w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <ClipboardList size={20} />
+              <span>Pedidos</span>
+
+              {/* 🔴 Burbuja de notificación para Escritorio */}
+              {pendingCount > 0 && (
+                <span className="absolute right-3 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-bounce shadow-sm">
+                  {pendingCount}
+                </span>
+              )}
             </button>
+
             <button onClick={() => setActiveTab('delivery')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'delivery' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Truck size={20} /> Reparto
             </button>
@@ -61,11 +99,10 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
       </nav>
 
       <div className="p-4 border-t space-y-2">
-        {/* BOTÓN INSTALAR PWA (Solo aparece si es instalable) */}
         {supportsPWA && (
           <button
             onClick={installApp}
-            className="w-full p-3 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all animate-in fade-in slide-in-from-bottom-2"
+            className="w-full p-3 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all"
           >
             <Download size={18} /> Instalar App
           </button>
@@ -89,13 +126,26 @@ export default function Sidebar({ user, userData, storeProfile, activeTab, setAc
 }
 
 // NAV MÓVIL
-export function MobileNav({ activeTab, setActiveTab, userData, onLogout, supportsPWA, installApp }) {
+export function MobileNav({
+  activeTab, setActiveTab, userData,
+  onLogout, supportsPWA, installApp,
+  pendingCount // 👈 Prop recibida desde App.jsx
+}) {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-between pr-2 pb-1">
       <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={26} />} label="Vender" />
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={26} />} label="Pedidos" />}
+        {userData.role === 'admin' && (
+          <NavButton
+            active={activeTab === 'orders'}
+            onClick={() => setActiveTab('orders')}
+            icon={<ClipboardList size={26} />}
+            label="Pedidos"
+            badge={pendingCount} // 👈 Pasamos el número a la burbuja
+          />
+        )}
+
         {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={26} />} label="Reparto" />}
 
         <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={26} />} label="Historial" />

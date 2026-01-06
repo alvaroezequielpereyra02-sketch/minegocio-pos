@@ -71,6 +71,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
+
   const { supportsPWA, installApp } = usePWA();
   const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
@@ -124,6 +125,31 @@ export default function App() {
   const [historySection, setHistorySection] = useState('menu');
 
   const quantityInputRef = useRef(null);
+  // --- UBICACIÓN: Debajo de tus contextos (Línea 105 aprox) ---
+
+  // 1. Filtramos pedidos de clientes que estén pendientes
+  const pendingOrders = transactions.filter(t =>
+    t.clientRole === 'client' &&
+    t.fulfillmentStatus === 'pending'
+  );
+
+  // 2. Referencia para comparar el conteo anterior
+  const prevOrdersCount = useRef(pendingOrders.length);
+
+  // 3. Efecto para detectar nuevos pedidos en tiempo real
+  useEffect(() => {
+    // Si el número de pedidos pendientes subió y eres admin, notificamos
+    if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
+      showNotification("🔔 ¡Nuevo pedido de cliente recibido!");
+
+      // Opcional: Sonido de alerta
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+      audio.play().catch(() => console.log("Audio bloqueado por el navegador"));
+    }
+
+    // Actualizamos la referencia para la siguiente comparación
+    prevOrdersCount.current = pendingOrders.length;
+  }, [pendingOrders.length, userData?.role]);
 
   // Escuchar botón "Atrás"
   useEffect(() => {
@@ -453,7 +479,7 @@ export default function App() {
       <Sidebar
         user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab}
         onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)}
-        supportsPWA={supportsPWA} installApp={installApp}
+        supportsPWA={supportsPWA} installApp={installApp} pendingCount={pendingOrders.length}
       />
 
       {!isOnline && <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
@@ -551,7 +577,7 @@ export default function App() {
           )}
         </main>
 
-        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} />}
+        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} pendingCount={pendingOrders.length} />}
 
         {selectedTransaction && (
           <Suspense fallback={<ProcessingModal />}>
