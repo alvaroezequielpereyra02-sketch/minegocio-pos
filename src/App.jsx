@@ -377,11 +377,25 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
+      let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
+
+      // Obtenemos los datos del cliente seleccionado para el reparto
       if (userData?.role === 'admin' && selectedCustomer) {
-        finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
+        finalClient = {
+          id: selectedCustomer.id,
+          name: selectedCustomer.name,
+          role: 'customer',
+          address: selectedCustomer.address || '',
+          phone: selectedCustomer.phone || ''
+        };
       } else if (userData?.role === 'client') {
-        finalClient = { id: user.uid, name: userData.name, role: 'client' };
+        finalClient = {
+          id: user.uid,
+          name: userData.name,
+          role: 'client',
+          address: userData.address || '',
+          phone: userData.phone || ''
+        };
       }
 
       const itemsWithCost = cart.map(i => {
@@ -395,48 +409,47 @@ export default function App() {
         };
       });
 
-      const totalFinal = Number(cartTotal);
-
       const saleData = {
         type: 'sale',
-        total: totalFinal,
-        amountPaid: 0,
+        total: Number(cartTotal),
         items: itemsWithCost,
         date: serverTimestamp(),
+
+        // 🚚 CAMPOS OBLIGATORIOS PARA QUE APAREZCA EN REPARTO
+        deliveryType: 'delivery', // 👈 Sin esto, el filtro lo ignora
+        status: 'pending',        // 👈 Sin esto, no aparece en la pestaña "Activos"
+        clientInfo: {             // 👈 Objeto que espera la tarjeta de Delivery.jsx
+          name: finalClient.name,
+          address: finalClient.address,
+          phone: finalClient.phone
+        },
+
+        // Campos de respaldo para el resto de la App
         clientId: finalClient.id,
         clientName: finalClient.name,
         clientRole: finalClient.role,
-        sellerId: user.uid,
         paymentStatus: 'pending',
-        paymentNote: '',
-        paymentMethod: paymentMethod,
-
-        // 🚚 CAMPOS PARA REPARTO (Añadidos para que aparezca en la pestaña Delivery)
         fulfillmentStatus: 'pending',
-        deliveryStatus: 'pending',
-        isDelivery: true
+        sellerId: user.uid,
+        paymentMethod: paymentMethod
       };
 
-      // 🟢 CAPTURAMOS EL RESULTADO: Para que "Ver Boleta" funcione
       const result = await createTransaction(saleData, itemsWithCost);
       setLastSale(result);
 
-      // LIMPIEZA Y NOTIFICACIÓN
       clearCart();
       setSelectedCustomer(null);
       setShowMobileCart(false);
       setIsProcessing(false);
       setShowCheckoutSuccess(true);
-
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
     } catch (e) {
-      console.error("Error en checkout:", e);
-      alert("Error al guardar la venta.");
+      console.error("Error:", e);
+      alert("Error al procesar pedido.");
       setIsProcessing(false);
     }
   };
-
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
