@@ -410,13 +410,18 @@ export default function App() {
         paymentStatus: 'pending',
         paymentNote: '',
         paymentMethod: paymentMethod,
-        fulfillmentStatus: 'pending'
+
+        // 🚚 CAMPOS PARA REPARTO (Añadidos para que aparezca en la pestaña Delivery)
+        fulfillmentStatus: 'pending',
+        deliveryStatus: 'pending',
+        isDelivery: true
       };
 
-      // --- 🟢 CAMBIO AQUÍ: Capturamos el resultado de la venta ---
+      // 🟢 CAPTURAMOS EL RESULTADO: Para que "Ver Boleta" funcione
       const result = await createTransaction(saleData, itemsWithCost);
-      setLastSale(result); // 👈 Esto permite que "Ver Boleta" funcione
+      setLastSale(result);
 
+      // LIMPIEZA Y NOTIFICACIÓN
       clearCart();
       setSelectedCustomer(null);
       setShowMobileCart(false);
