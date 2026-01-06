@@ -373,42 +373,35 @@ export default function App() {
   };
 
   const handleCheckout = async () => {
-    // 1. Validaciones iniciales
     if (!user || cart.length === 0) return;
     setIsProcessing(true);
 
     try {
-      // 2. Determinar el cliente final de forma segura
       let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest' };
-
       if (userData?.role === 'admin' && selectedCustomer) {
         finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer' };
       } else if (userData?.role === 'client') {
         finalClient = { id: user.uid, name: userData.name, role: 'client' };
       }
 
-      // 3. CREAR COPIA DE SEGURIDAD DE LOS ITEMS (Deep Copy)
-      // Esto evita que si el carrito se limpia, los datos enviados a la nube se pierdan.
       const itemsWithCost = cart.map(i => {
         const p = products.find(prod => prod.id === i.id);
         return {
           id: i.id,
           name: i.name,
-          qty: Number(i.qty), // Forzamos a número para evitar errores en Firebase
+          qty: Number(i.qty),
           price: Number(i.price),
           cost: p ? Number(p.cost || 0) : 0
         };
       });
 
-      // 4. CAPTURAR EL TOTAL EN UNA CONSTANTE
       const totalFinal = Number(cartTotal);
 
-      // 5. CONSTRUIR EL OBJETO DE VENTA
       const saleData = {
         type: 'sale',
         total: totalFinal,
         amountPaid: 0,
-        items: itemsWithCost, // Usamos la copia independiente
+        items: itemsWithCost,
         date: serverTimestamp(),
         clientId: finalClient.id,
         clientName: finalClient.name,
@@ -420,11 +413,10 @@ export default function App() {
         fulfillmentStatus: 'pending'
       };
 
-      // 6. EJECUTAR TRANSACCIÓN
-      // Pasamos la copia de items (itemsWithCost) en lugar del estado 'cart' original
-      await createTransaction(saleData, itemsWithCost);
+      // --- 🟢 CAMBIO AQUÍ: Capturamos el resultado de la venta ---
+      const result = await createTransaction(saleData, itemsWithCost);
+      setLastSale(result); // 👈 Esto permite que "Ver Boleta" funcione
 
-      // 7. LIMPIEZA POST-VENTA
       clearCart();
       setSelectedCustomer(null);
       setShowMobileCart(false);
@@ -434,8 +426,8 @@ export default function App() {
       setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
     } catch (e) {
-      console.error("Error crítico en checkout:", e);
-      alert("Hubo un problema al guardar la venta. Verifica tu conexión y los datos.");
+      console.error("Error en checkout:", e);
+      alert("Error al guardar la venta.");
       setIsProcessing(false);
     }
   };
