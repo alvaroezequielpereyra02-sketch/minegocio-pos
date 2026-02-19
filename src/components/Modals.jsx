@@ -12,7 +12,7 @@ import { compressImage } from '../utils/imageHelpers';
 
 const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200";
 
-// --- MODALES INDIVIDUALES EXPORTADOS (Soluciona el error traceVariable) ---
+// --- MODALES INDIVIDUALES EXPORTADOS ---
 
 export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
     return (
@@ -315,6 +315,8 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         onSave({ items: localItems, total: newTotal });
     };
 
+    // Calculamos el total actual para la validación del botón
+    const currentTotal = localItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
     return (
         <div className="fixed inset-0 z-[20000] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center">
@@ -326,15 +328,14 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                     </div>
                     <button
                         onClick={handleSave}
-                        // 🛡️ ESCUDO FÍSICO: El botón se apaga si no hay productos cargados
-                        disabled={!formData.items || formData.items.length === 0 || formData.total === 0}
-                        className={`px-4 py-2 rounded-lg font-bold transition-all ${(!formData.items || formData.items.length === 0 || formData.total === 0)
-                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed' // Estilo desactivado
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95' // Estilo activo
+                        // 🛡️ CORRECCIÓN: Se usa localItems en lugar de formData
+                        disabled={localItems.length === 0 || currentTotal === 0}
+                        className={`px-4 py-2 rounded-lg font-bold transition-all ${(localItems.length === 0 || currentTotal === 0)
+                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95'
                             }`}
                     >
-                        {/* Texto dinámico que indica el estado al administrador */}
-                        {(!formData.items || formData.items.length === 0 || formData.total === 0)
+                        {localItems.length === 0
                             ? (
                                 <div className="flex items-center gap-2">
                                     <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
@@ -361,14 +362,12 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                 </div>
                 <div className="p-4 bg-white border-t flex justify-between items-center">
                     <span className="font-bold text-slate-600">Total:</span>
-                    <span className="font-extrabold text-2xl">${localItems.reduce((acc, i) => acc + (i.price * i.qty), 0).toLocaleString()}</span>
+                    <span className="font-extrabold text-2xl">${currentTotal.toLocaleString()}</span>
                 </div>
             </div>
         </div>
     );
 }
-
-// Ubicación: Al final de src/components/Modals.jsx
 
 export function FaultyProductModal({ onClose, onConfirm, product }) {
     const [qty, setQty] = useState(1);
