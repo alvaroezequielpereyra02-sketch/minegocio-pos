@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-// 1. IMPORTANTE: Usamos el contexto para que el reparto se actualice en tiempo real
+// 🛡️ IMPORTANTE: Usamos el Contexto para estar siempre sincronizados
 import { useTransactionsContext } from '../context/TransactionsContext';
 import {
     Clock,
@@ -8,20 +8,21 @@ import {
     CheckCircle,
     Truck,
     XCircle,
-    ShoppingBag
+    ShoppingBag,
+    RefreshCw
 } from 'lucide-react';
 
 const Delivery = () => {
-    // 2. Extraemos las funciones y datos del contexto global
-    const { transactions, updateTransaction } = useTransactionsContext();
-    const [statusFilter, setStatusFilter] = useState('active');
+    // Extraemos los datos y funciones del contexto global
+    const { transactions, updateTransaction, loading } = useTransactionsContext();
+    const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'completed'
 
-    // 3. FILTRO DE DELIVERY: Busca la etiqueta que pusimos en handleCheckout
+    // 🛡️ FILTRO: Solo pedidos marcados como delivery y ordenados por fecha
     const deliveryOrders = transactions
         .filter(t => t.deliveryType === 'delivery')
         .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
-    // 4. FILTRO POR ESTADO (Activos vs Completados)
+    // Filtrado por pestaña (Activos vs Historial)
     const filteredOrders = deliveryOrders.filter(order => {
         if (statusFilter === 'active') return ['pending', 'preparing', 'delivering'].includes(order.status);
         if (statusFilter === 'completed') return ['completed', 'cancelled'].includes(order.status);
@@ -50,122 +51,166 @@ const Delivery = () => {
         }
     };
 
-    // 5. FUNCIÓN DE ACTUALIZACIÓN CORREGIDA
     const handleStatusUpdate = async (orderId, newStatus) => {
         if (window.confirm(`¿Cambiar estado a ${getStatusText(newStatus)}?`)) {
             try {
-                // Actualizamos el status para este componente y fulfillmentStatus para el historial
+                // Buscamos la orden actual para mantener el monto pagado (evitar error undefined)
+                const currentOrder = transactions.find(t => t.id === orderId);
+
                 await updateTransaction(orderId, {
                     status: newStatus,
-                    fulfillmentStatus: newStatus === 'completed' ? 'delivered' : 'pending'
+                    fulfillmentStatus: newStatus === 'completed' ? 'delivered' : 'pending',
+                    // 🛡️ Protección contra valores undefined en Firebase
+                    amountPaid: currentOrder?.amountPaid ?? 0
                 });
             } catch (error) {
-                alert("Error al actualizar el pedido");
+                console.error("Error al actualizar:", error);
+                alert("Ocurrió un error al actualizar el pedido.");
             }
         }
     };
 
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-full">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm h-[calc(100dvh-80px)] md:h-[calc(100vh-100px)] overflow-y-auto">
+
             {/* Cabecera */}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <Truck className="h-6 w-6 text-indigo-600" />
+                    <Truck className="h-7 w-7 text-indigo-600" />
                     Gestión de Reparto
                 </h2>
             </div>
 
-            {/* Pestañas de Filtro */}
-            <div className="flex space-x-2 mb-6 border-b overflow-x-auto pb-2">
+            {/* Pestañas / Filtros */}
+            <div className="flex space-x-2 mb-6 border-b overflow-x-auto pb-2 scrollbar-hide">
                 <button
                     onClick={() => setStatusFilter('active')}
-                    className={`px-4 py-2 rounded-t-lg font-medium whitespace-nowrap transition-colors ${statusFilter === 'active' ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500'}`}
+                    className={`px-6 py-2 rounded-t-xl font-bold whitespace-nowrap transition-all ${statusFilter === 'active'
+                            ? 'bg-indigo-50 text-indigo-600 border-b-4 border-indigo-600'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
                 >
-                    Activos ({deliveryOrders.filter(o => ['pending', 'preparing', 'delivering'].includes(o.status)).length})
+                    Pedidos Activos ({deliveryOrders.filter(o => ['pending', 'preparing', 'delivering'].includes(o.status)).length})
                 </button>
                 <button
                     onClick={() => setStatusFilter('completed')}
-                    className={`px-4 py-2 rounded-t-lg font-medium whitespace-nowrap transition-colors ${statusFilter === 'completed' ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500'}`}
+                    className={`px-6 py-2 rounded-t-xl font-bold whitespace-nowrap transition-all ${statusFilter === 'completed'
+                            ? 'bg-indigo-50 text-indigo-600 border-b-4 border-indigo-600'
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
                 >
-                    Historial
+                    Historial de Envíos
                 </button>
             </div>
 
-            {/* Grid de Pedidos */}
+            {/* Listado de Pedidos */}
             {filteredOrders.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                    <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                    <p>No hay pedidos de reparto en esta lista</p>
+                <div className="flex flex-col items-center justify-center py-20 text-gray-300">
+                    <ShoppingBag size={64} className="mb-4 opacity-20" />
+                    <p className="text-lg font-bold">No hay pedidos en esta sección</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredOrders.map((order) => (
-                        <div key={order.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50 flex flex-col shadow-sm">
+                        <div key={order.id} className="bg-white border-2 border-slate-100 rounded-2xl p-5 hover:shadow-xl hover:border-indigo-100 transition-all flex flex-col group">
 
-                            {/* Info de Cliente y Hora */}
-                            <div className="flex justify-between items-start mb-3">
+                            {/* Info de Cliente y Tiempo */}
+                            <div className="flex justify-between items-start mb-4">
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-lg text-gray-800 truncate">{order.clientInfo?.name || 'Cliente'}</h3>
-                                    <div className="flex items-center text-sm text-gray-500 gap-1 mt-1">
-                                        <Clock className="h-3 w-3" />
-                                        {/* CORRECCIÓN: Manejo de fecha de Firebase */}
+                                    <h3 className="font-black text-slate-800 text-lg truncate uppercase italic">
+                                        {order.clientInfo?.name || 'Cliente sin nombre'}
+                                    </h3>
+                                    <div className="flex items-center text-xs font-bold text-slate-400 gap-1.5 mt-1">
+                                        <Clock size={14} />
                                         {order.date?.seconds
                                             ? new Date(order.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                                             : 'Sincronizando...'}
                                     </div>
                                 </div>
-                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase shrink-0 ${getStatusColor(order.status)}`}>
+                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${getStatusColor(order.status)}`}>
                                     {getStatusText(order.status)}
                                 </span>
                             </div>
 
-                            {/* Dirección y Teléfono */}
-                            <div className="space-y-2 mb-4 text-sm">
-                                <div className="flex items-start gap-2">
-                                    <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                                    <span className="text-gray-600 font-medium line-clamp-2">
-                                        {order.clientInfo?.address || 'Sin dirección de entrega'}
+                            {/* Contacto y Dirección */}
+                            <div className="space-y-3 mb-5">
+                                <div className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <MapPin size={18} className="text-slate-400 shrink-0 mt-0.5" />
+                                    <span className="text-sm font-bold text-slate-600 leading-snug">
+                                        {order.clientInfo?.address || 'Retira en local / Sin dirección'}
                                     </span>
                                 </div>
                                 {order.clientInfo?.phone && (
-                                    <div className="flex items-center gap-2">
-                                        <Phone className="h-4 w-4 text-gray-400 shrink-0" />
-                                        <a href={`tel:${order.clientInfo.phone}`} className="text-indigo-600 font-bold hover:underline">
+                                    <div className="flex items-center gap-3 px-1">
+                                        <Phone size={16} className="text-green-500" />
+                                        <a href={`tel:${order.clientInfo.phone}`} className="text-sm font-black text-indigo-600 hover:underline">
                                             {order.clientInfo.phone}
                                         </a>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Detalle de Productos */}
-                            <div className="bg-white p-3 rounded border mb-4 text-sm flex-1">
-                                <div className="flex justify-between font-bold mb-2 border-b pb-1">
-                                    <span>Total</span>
-                                    <span className="text-indigo-600">${order.total?.toLocaleString()}</span>
+                            {/* Detalle de Productos (qty corregido) */}
+                            <div className="bg-white rounded-2xl border-2 border-slate-50 mb-5 overflow-hidden flex-1 shadow-inner">
+                                <div className="p-3 bg-slate-50/50 flex justify-between items-center border-b border-slate-50">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Productos</span>
+                                    <span className="font-black text-slate-800 text-sm">${order.total?.toLocaleString()}</span>
                                 </div>
-                                <ul className="space-y-1 text-gray-600">
+                                <ul className="p-3 space-y-2">
                                     {order.items?.map((item, idx) => (
-                                        <li key={idx} className="flex justify-between gap-2">
-                                            <span className="truncate">{item.qty}x {item.name}</span>
-                                            <span className="shrink-0 font-medium">${(item.price * item.qty).toLocaleString()}</span>
+                                        <li key={idx} className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-500 font-bold truncate pr-4">
+                                                <span className="text-indigo-600 font-black mr-1">{item.qty}x</span> {item.name}
+                                            </span>
+                                            <span className="text-slate-800 font-black shrink-0">
+                                                ${(item.price * item.qty).toLocaleString()}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>
                             </div>
 
-                            {/* Botones de Cambio de Estado */}
+                            {/* Botones de Acción (Solo en activos) */}
                             {statusFilter === 'active' && (
                                 <div className="grid grid-cols-2 gap-2 mt-auto">
                                     {order.status === 'pending' && (
-                                        <button onClick={() => handleStatusUpdate(order.id, 'preparing')} className="col-span-2 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors">Preparar Pedido</button>
+                                        <button
+                                            onClick={() => handleStatusUpdate(order.id, 'preparing')}
+                                            className="col-span-2 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                                        >
+                                            Empezar a Preparar
+                                        </button>
                                     )}
                                     {order.status === 'preparing' && (
-                                        <button onClick={() => handleStatusUpdate(order.id, 'delivering')} className="col-span-2 bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700 transition-colors">Enviar Pedido</button>
+                                        <button
+                                            onClick={() => handleStatusUpdate(order.id, 'delivering')}
+                                            className="col-span-2 bg-purple-600 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-purple-700 shadow-lg shadow-purple-100 transition-all active:scale-95"
+                                        >
+                                            Enviar con Repartidor
+                                        </button>
                                     )}
                                     {order.status === 'delivering' && (
                                         <>
-                                            <button onClick={() => handleStatusUpdate(order.id, 'completed')} className="bg-green-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-1 hover:bg-green-700"><CheckCircle size={16} /> Entregado</button>
-                                            <button onClick={() => handleStatusUpdate(order.id, 'cancelled')} className="bg-red-50 text-red-600 py-2 rounded-lg font-bold border border-red-100 hover:bg-red-100">X</button>
+                                            <button
+                                                onClick={() => handleStatusUpdate(order.id, 'completed')}
+                                                className="flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95"
+                                            >
+                                                <CheckCircle size={14} /> Entregado
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                                                className="bg-red-50 text-red-600 py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-red-100 hover:bg-red-100 transition-all"
+                                            >
+                                                X
+                                            </button>
                                         </>
                                     )}
                                 </div>

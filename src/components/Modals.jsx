@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 
 // IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
-import { usePrinter } from '../hooks/usePrinter';
 import { uploadImage } from '../config/uploadImage';
 import { compressImage } from '../utils/imageHelpers';
 
@@ -106,7 +105,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
             <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
                 <div className="flex justify-between items-center">
                     <h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>
-                    {editingProduct && <button onClick={() => onDelete(editingProduct.id)} className="text-red-500 text-xs underline">Eliminar</button>}
+                    {editingProduct && <button type="button" onClick={() => onDelete(editingProduct.id)} className="text-red-500 text-xs underline">Eliminar</button>}
                 </div>
                 <form onSubmit={onSave} className="space-y-3">
                     <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
@@ -149,7 +148,9 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                     <div className="flex gap-2 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
                         <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Guardar</button>
-                        <button type="button" onClick={onRegisterFaulty} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Registrar como dañado</button>
+                        {editingProduct && (
+                            <button type="button" onClick={onRegisterFaulty} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Falla</button>
+                        )}
                     </div>
                 </form>
             </div>
@@ -315,7 +316,7 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         onSave({ items: localItems, total: newTotal });
     };
 
-    // Calculamos el total actual para la validación del botón
+    // 🛡️ Calculamos el total actual para usar en la validación del botón
     const currentTotal = localItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
     return (
@@ -324,22 +325,23 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                 <div className="p-4 border-b flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
-                        <h3 className="font-bold text-lg">Editar Pedido</h3>
+                        <h3 className="font-bold text-lg text-slate-800">Editar Pedido</h3>
                     </div>
                     <button
                         onClick={handleSave}
-                        // 🛡️ CORRECCIÓN: Se usa localItems en lugar de formData
+                        // 🛡️ CORRECCIÓN: Usamos localItems y currentTotal en lugar de formData
                         disabled={localItems.length === 0 || currentTotal === 0}
                         className={`px-4 py-2 rounded-lg font-bold transition-all ${(localItems.length === 0 || currentTotal === 0)
-                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95'
+                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95'
                             }`}
                     >
-                        {localItems.length === 0
+                        {/* Texto dinámico */}
+                        {(localItems.length === 0 || currentTotal === 0)
                             ? (
                                 <div className="flex items-center gap-2">
                                     <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                                    <span>Cargando datos...</span>
+                                    <span>Cargando...</span>
                                 </div>
                             )
                             : 'Guardar Cambios'}
@@ -353,16 +355,16 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
                                 <div className="text-xs text-blue-600 font-bold">${item.price} x {item.qty}</div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={() => updateQty(index, -1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Minus size={16} /></button>
+                                <button onClick={() => updateQty(index, -1)} className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-slate-100 transition-colors"><Minus size={16} /></button>
                                 <span className="font-bold">{item.qty}</span>
-                                <button onClick={() => updateQty(index, 1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Plus size={16} /></button>
+                                <button onClick={() => updateQty(index, 1)} className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-slate-100 transition-colors"><Plus size={16} /></button>
                             </div>
                         </div>
                     ))}
                 </div>
                 <div className="p-4 bg-white border-t flex justify-between items-center">
-                    <span className="font-bold text-slate-600">Total:</span>
-                    <span className="font-extrabold text-2xl">${currentTotal.toLocaleString()}</span>
+                    <span className="font-bold text-slate-600 uppercase tracking-wider text-xs">Total de la boleta:</span>
+                    <span className="font-black text-2xl text-slate-900">${currentTotal.toLocaleString()}</span>
                 </div>
             </div>
         </div>
@@ -382,23 +384,23 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-lg mb-4">
-                    <div className="font-bold text-sm text-slate-800">{product.name}</div>
-                    <div className="text-xs text-slate-500">Stock actual: <span className="font-bold text-slate-800">{product?.stock ?? 0}</span></div>
+                    <div className="font-bold text-sm text-slate-800 uppercase">{product.name}</div>
+                    <div className="text-xs text-slate-500 font-bold">STOCK ACTUAL: <span className="text-slate-800">{product?.stock ?? 0}</span></div>
                 </div>
 
                 <form onSubmit={(e) => { e.preventDefault(); onConfirm(product, qty, reason); }} className="space-y-4">
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase">Unidades con Falla</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Unidades con Falla</label>
                         <input
                             type="number" min="1" max={product.stock} required
                             value={qty} onChange={(e) => setQty(Number(e.target.value))}
-                            className="w-full p-3 border-2 border-orange-100 rounded-xl text-center text-2xl font-black text-orange-600 outline-none"
+                            className="w-full p-3 border-2 border-orange-100 rounded-xl text-center text-2xl font-black text-orange-600 outline-none focus:border-orange-300 transition-colors"
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase">Motivo / Nota</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Motivo / Nota</label>
                         <textarea
-                            className="w-full p-2 border rounded-lg text-sm bg-slate-50"
+                            className="w-full p-2 border rounded-lg text-sm bg-slate-50 outline-none focus:bg-white transition-colors h-20 resize-none"
                             placeholder="Ej: Roto de fábrica, vencido..."
                             value={reason} onChange={(e) => setReason(e.target.value)}
                         />
@@ -413,7 +415,7 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-orange-200 active:scale-95 transition-all"
+                            className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-orange-100 active:scale-95 transition-all"
                         >
                             Confirmar
                         </button>
