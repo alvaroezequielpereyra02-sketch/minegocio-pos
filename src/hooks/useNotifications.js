@@ -8,6 +8,12 @@ const VAPID_KEY = "BINx8NukBcTbTC9LeWI5ePYTbtYVZ60OmD_BB75r1DmJ5Eeq9fKg3Cs885rAH
 export const useNotifications = (user, userData) => {
     const tokenSavedRef = useRef(false);
 
+    // ✅ Si el rol cambia, reseteamos el ref para forzar que el token
+    // se vuelva a guardar con el rol actualizado
+    useEffect(() => {
+        tokenSavedRef.current = false;
+    }, [userData?.role]);
+
     const saveToken = useCallback(async (token) => {
         if (!user || tokenSavedRef.current) return;
         try {
@@ -18,7 +24,7 @@ export const useNotifications = (user, userData) => {
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
-            console.log("✅ Token guardado en Firestore.");
+            console.log("✅ Token guardado en Firestore con rol:", userData?.role);
         } catch (e) { console.error('Error al guardar token:', e); }
     }, [user, userData?.role]);
 
@@ -37,8 +43,7 @@ export const useNotifications = (user, userData) => {
             // 1. Registrar el SW unificado
             await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
 
-            // 2. Esperar a que esté ACTIVO (forma robusta, sin while loop)
-            //    navigator.serviceWorker.ready resuelve solo cuando hay un SW activo controlando la página
+            // 2. Esperar a que esté ACTIVO
             const registration = await navigator.serviceWorker.ready;
             console.log("🚀 Service Worker ACTIVO:", registration.scope);
 
@@ -46,7 +51,6 @@ export const useNotifications = (user, userData) => {
             const messaging = await getMessagingInstance();
 
             // 4. Pasar la registration explícitamente a getToken
-            //    Esto evita el AbortError porque FCM no necesita buscar el SW por su cuenta
             const token = await getToken(messaging, {
                 vapidKey: VAPID_KEY,
                 serviceWorkerRegistration: registration
