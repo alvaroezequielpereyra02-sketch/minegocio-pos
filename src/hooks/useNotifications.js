@@ -5,11 +5,18 @@ import { db, appId, getMessagingInstance } from '../config/firebase';
 
 const VAPID_KEY = "BINx8NukBcTbTC9LeWI5ePYTbtYVZ60OmD_BB75r1DmJ5Eeq9fKg3Cs885rAHPNYcy1JfzGKXX7SogeIwS_90TM";
 
+// Detecta si es móvil o desktop
+const getPlatform = () => {
+    const ua = navigator.userAgent.toLowerCase();
+    if (/android/.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+    return 'desktop';
+};
+
 export const useNotifications = (user, userData) => {
     const tokenSavedRef = useRef(false);
 
-    // ✅ Si el rol cambia, reseteamos el ref para forzar que el token
-    // se vuelva a guardar con el rol actualizado
+    // Si el rol cambia, forzar re-guardado del token con rol actualizado
     useEffect(() => {
         tokenSavedRef.current = false;
     }, [userData?.role]);
@@ -21,10 +28,11 @@ export const useNotifications = (user, userData) => {
                 token,
                 uid: user.uid,
                 role: userData?.role || 'unknown',
+                platform: getPlatform(), // ✅ guardamos la plataforma
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
-            console.log("✅ Token guardado en Firestore con rol:", userData?.role);
+            console.log("✅ Token guardado en Firestore. Plataforma:", getPlatform());
         } catch (e) { console.error('Error al guardar token:', e); }
     }, [user, userData?.role]);
 
@@ -40,17 +48,11 @@ export const useNotifications = (user, userData) => {
                 return;
             }
 
-            // 1. Registrar el SW unificado
             await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
-
-            // 2. Esperar a que esté ACTIVO
             const registration = await navigator.serviceWorker.ready;
             console.log("🚀 Service Worker ACTIVO:", registration.scope);
 
-            // 3. Obtener la instancia de messaging
             const messaging = await getMessagingInstance();
-
-            // 4. Pasar la registration explícitamente a getToken
             const token = await getToken(messaging, {
                 vapidKey: VAPID_KEY,
                 serviceWorkerRegistration: registration

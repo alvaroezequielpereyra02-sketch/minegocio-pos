@@ -34,69 +34,70 @@ export default async function handler(req, res) {
             return res.status(200).json({ success: true, message: 'No tokens registrados' });
         }
 
-        const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
+        // Separar tokens por plataforma
+        const mobileTokens = [];
+        const desktopTokens = [];
 
-        const response = await messaging.sendEachForMulticast({
-            tokens,
-
-            // top-level notification: necesario para que Android despierte Chrome cerrado
-            // El sistema (Google Play Services) lo entrega sin necesidad de que Chrome esté vivo
-            notification: { title, body },
-
-            // data: disponible en el SW para manejar el click
-            data: {
-                url: '/',
-                transactionId: transactionId || ''
-            },
-
-            // webpush: configuración para Chrome en PC y Android
-            // Al poner notification acá también, Chrome la muestra con ícono correcto
-            webpush: {
-                headers: {
-                    Urgency: 'high',
-                    TTL: '60'
-                },
-                notification: {
-                    title,
-                    body,
-                    icon: '/logo192.png',
-                    badge: '/logo192.png',
-                    vibrate: [200, 100, 200],
-                    tag: 'pedido-nuevo',
-                    renotify: true
-                },
-                fcmOptions: { link: '/' }
-            },
-
-            android: {
-                priority: 'high',
-                notification: {
-                    color: '#2563eb',
-                    sound: 'default'
-                }
+        tokensSnapshot.docs.forEach(doc => {
+            const { token, platform } = doc.data();
+            if (!token) return;
+            if (platform === 'android' || platform === 'ios') {
+                mobileTokens.push(token);
+            } else {
+                desktopTokens.push(token); // 'desktop' o sin plataforma (legacy)
             }
         });
 
-        // Limpieza de tokens inválidos
-        const invalidTokens = [];
-        response.responses.forEach((resp, idx) => {
-            if (!resp.success && resp.error?.code === 'messaging/registration-token-not-registered') {
-                invalidTokens.push(tokens[idx]);
-            }
-        });
+        const sends = [];
 
-        if (invalidTokens.length > 0) {
-            const batch = db.batch();
-            const tokenDocs = await db
-                .collection('stores').doc(storeId)
-                .collection('fcm_tokens')
-                .where('token', 'in', invalidTokens)
-                .get();
-            tokenDocs.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
+        // MÓVIL: notification top-level para que Android despierte Chrome cerrado
+        if (mobileTokens.length > 0) {
+            sends.push(
+                messaging.sendEachForMulticast({
+                    tokens: mobileTokens,
+                    notification: { title, body },
+                    data: { url: '/', transactionId: transactionId || '' },
+                    android: {
+                        priority: 'high',
+                        notification: {
+                            color: '#2563eb',
+                            sound: 'default'
+                        }
+                    }
+                })
+            );
         }
 
-        return res.status(200).json({ success: true, sent: tokens.length });
+        // DESKTOP: solo webpush, el SW muestra via onBackgroundMessage
+        if (desktopTokens.length > 0) {
+            sends.push(
+                messaging.sendEachForMulticast({
+                    tokens: desktopTokens,
+                    notification: { title, body },
+                    data: { url: '/', transactionId: transactionId || '' },
+                    webpush: {
+                        headers: { Urgency: 'high', TTL: '60' },
+                        notification: {
+                            title,
+                            body,
+                            icon: '/logo192.png',
+                            badge: '/logo192.png',
+                            vibrate: [200, 100, 200],
+                            tag: 'pedido-nuevo',
+                            renotify: true
+                        },
+                        fcmOptions: { link: '/' }
+                    }
+                })
+            );
+        }
+
+        await Promise.all(sends);
+
+        return res.status(200).json({
+            success: true,
+            sent: { mobile: mobileTokens.length, desktop: desktopTokens.length }
+        });
 
     } catch (error) {
         console.error('Error en /api/notify:', error);
