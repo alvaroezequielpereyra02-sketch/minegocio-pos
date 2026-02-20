@@ -69,20 +69,20 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
     const updateTransaction = async (id, data) => {
-        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' para evitar errores de Firebase
+        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' antes de enviar a Firebase
         const cleanData = Object.fromEntries(
             Object.entries(data).filter(([_, value]) => value !== undefined)
         );
 
-        // ESCUDO DE SEGURIDAD: Evita la sobrescritura con ceros
+        // ESCUDO DE SEGURIDAD: Evita la sobrescritura con ceros o boletas vacías
         if (cleanData.items && cleanData.items.length === 0 && cleanData.total === 0) {
-            console.error("Bloqueo preventivo: Se intentó guardar una boleta vacía.");
+            console.warn("Bloqueo preventivo: Intento de guardar boleta vacía.");
             return;
         }
 
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
 
-        // Si solo actualizamos campos simples (como el estado de pago) sin tocar productos
+        // Si solo actualizamos campos simples (como el estado de pago o status de reparto)
         if (!cleanData.items) {
             await updateDoc(transactionRef, cleanData);
             return;
@@ -90,26 +90,26 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
         const batch = writeBatch(db);
 
-        // 1. Obtener la transacción original antes de modificarla
+        // 1. Obtener la transacción original para comparar productos
         const oldTransactionSnap = await getDoc(transactionRef);
         if (!oldTransactionSnap.exists()) throw new Error("La transacción no existe.");
 
         const oldItems = oldTransactionSnap.data().items || [];
         const newItems = cleanData.items;
 
-        // 2. Revertir el stock (devolver lo viejo a la estantería)
+        // 2. Revertir el stock viejo
         oldItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(item.qty) });
         });
 
-        // 3. Aplicar el nuevo stock (restar lo nuevo)
+        // 3. Aplicar el nuevo stock
         newItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(-item.qty) });
         });
 
-        // 4. Guardar los cambios finales en el documento
+        // 4. Guardar los cambios finales (usando cleanData)
         batch.update(transactionRef, cleanData);
 
         await batch.commit();
@@ -145,7 +145,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         await batch.commit();
     };
 
-    // 5. CÁLCULO DE BALANCE
+    // 5. CÁLCULO DE BALANCE OPTIMIZADO
     const balance = useMemo(() => {
         let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
         const now = new Date();
@@ -153,6 +153,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         const daysToSubtract = dateRange === 'month' ? 30 : 7;
         startDate.setDate(now.getDate() - daysToSubtract);
         startDate.setHours(0, 0, 0, 0);
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -168,8 +169,12 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         const categoryStats = {};
         let filteredExpenses = 0;
 
-        products.forEach(p => { inventoryValue += (p.price * (p.stock || 0)); });
+        // Valor del inventario actual
+        products.forEach(p => {
+            inventoryValue += ((p.price || 0) * (p.stock || 0));
+        });
 
+        // Gastos del periodo
         expenses.forEach(e => {
             const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
             if (eDate >= startDate) filteredExpenses += (e.amount || 0);
@@ -180,9 +185,10 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
             const isWithinRange = tDate >= startDate;
 
             if (t.type === 'sale') {
-                const currentTotal = t.total || 0;
-                const currentPaid = t.amountPaid || 0;
+                const currentTotal = Number(t.total || 0);
+                const currentPaid = Number(t.amountPaid || 0);
 
+                // Clasificación por estado de pago
                 if (t.paymentStatus === 'paid') salesPaid += currentTotal;
                 else if (t.paymentStatus === 'partial') {
                     salesPartial += currentPaid;
@@ -190,6 +196,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                 }
                 else if (t.paymentStatus === 'pending') salesPending += currentTotal;
 
+                // Ventas de hoy
                 if (tDate >= today) {
                     const amountToday = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
                     todayTotal += amountToday;
@@ -197,6 +204,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                     else todayDigital += amountToday;
                 }
 
+                // Datos para el gráfico y costos
                 if (isWithinRange && (t.paymentStatus === 'paid' || t.paymentStatus === 'partial')) {
                     const amount = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
                     const dayLabel = tDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
@@ -204,14 +212,15 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
                     if (t.items) {
                         t.items.forEach(item => {
-                            if (isWithinRange) costOfGoodsSold += (item.cost || 0) * (item.qty || 0);
+                            costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
+
                             let catName = 'Varios';
                             if (item.categoryId) {
                                 const cat = categories.find(c => c.id === item.categoryId);
                                 if (cat) catName = cat.name;
                             }
                             if (!categoryStats[catName]) categoryStats[catName] = 0;
-                            categoryStats[catName] += ((item.price || 0) * (item.qty || 0));
+                            categoryStats[catName] += (Number(item.price || 0) * Number(item.qty || 0));
                         });
                     }
                 }
@@ -223,7 +232,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
             value: categoryStats[key]
         })).sort((a, b) => b.value - a.value);
 
-        const totalPeriodSales = Object.values(chartDataMap).reduce((a, b) => a + b.total, 0);
+        const totalPeriodSales = Object.values(chartDataMap).reduce((acc, curr) => acc + curr.total, 0);
 
         return {
             salesPaid, salesPending, salesPartial, inventoryValue,

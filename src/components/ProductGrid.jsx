@@ -5,20 +5,22 @@ import { getThumbnailUrl } from '../config/uploadImage';
 const ProductGrid = ({
     products, addToCart, searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory, categories,
-    userData, barcodeInput, setBarcodeInput, handleBarcodeSubmit
+    userData, barcodeInput, setBarcodeInput, handleBarcodeSubmit,
+    onEditProduct, setFaultyProduct, toggleModal // 👈 Agregados props faltantes
 }) => {
 
-    // 1. Filtrar las categorías para mostrar solo las activas
     const activeCategories = categories.filter(c => c.isActive !== false);
 
-    // 2. Filtrado de productos: ocultar si su categoría está inactiva
     const filteredProducts = products.filter(product => {
-        // Verificar si la categoría del producto está activa
         const category = categories.find(c => c.id === product.categoryId);
         if (category && category.isActive === false) return false;
 
-        const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            product.barcode?.includes(searchTerm);
+        // 🛡️ Filtramos usando AMBOS campos por si acaso
+        const effectiveSearch = (barcodeInput || searchTerm).toLowerCase();
+
+        const matchesSearch = product.name?.toLowerCase().includes(effectiveSearch) ||
+            product.barcode?.toLowerCase().includes(effectiveSearch);
+
         const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
 
         return matchesSearch && matchesCategory;
@@ -33,27 +35,29 @@ const ProductGrid = ({
                         <input
                             type="text"
                             placeholder="Escanear o buscar..."
-                            value={barcodeInput !== undefined ? barcodeInput : searchTerm}
-                            onChange={(e) => barcodeInput !== undefined ? setBarcodeInput(e.target.value) : setSearchTerm(e.target.value)}
+                            // 🛡️ Sincronizamos para que lo que escribas se vea y filtre al mismo tiempo
+                            value={barcodeInput || searchTerm}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (barcodeInput !== undefined) setBarcodeInput(val);
+                                setSearchTerm(val);
+                            }}
                             className="w-full pl-10 p-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                     </form>
 
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                         <button
                             onClick={() => setSelectedCategory('all')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                                }`}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                         >
                             Todas
                         </button>
-                        {/* Solo mapeamos las categorías activas */}
                         {activeCategories.map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => setSelectedCategory(cat.id)}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                                    }`}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                             >
                                 {cat.name}
                             </button>
@@ -67,30 +71,22 @@ const ProductGrid = ({
                     {filteredProducts.map((product) => (
                         <div
                             key={product.id}
-                            onClick={() => addToCart(product)} // AHORA TODA LA TARJETA ES CLICKEABLE
+                            onClick={() => addToCart(product)}
                             className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
                         >
                             <div className="aspect-square bg-slate-50 relative">
                                 {product.imageUrl ? (
-                                    <img
-                                        src={getThumbnailUrl(product.imageUrl, 300)}
-                                        alt={product.name}
-                                        className="w-full h-full object-cover"
-                                    />
+                                    <img src={getThumbnailUrl(product.imageUrl, 300)} alt={product.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                        <ImageIcon size={32} />
-                                    </div>
+                                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32} /></div>
                                 )}
 
                                 {userData?.role === 'admin' && (
-                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-lg">
-
-                                        {/* 👈 AGREGAR ESTE BOTÓN PARA FALLAS */}
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-lg shadow-sm">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setFaultyProduct(product); // Necesitarás pasar setFaultyProduct como prop al Grid
+                                                setFaultyProduct(product);
                                                 toggleModal('faulty', true);
                                             }}
                                             className="p-1.5 text-orange-600 hover:bg-orange-50 rounded"
@@ -98,8 +94,10 @@ const ProductGrid = ({
                                         >
                                             <AlertCircle size={16} />
                                         </button>
-
-                                        <button onClick={(e) => { e.stopPropagation(); onEditProduct(product); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onEditProduct(product); }}
+                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                        >
                                             <Edit size={16} />
                                         </button>
                                     </div>
@@ -111,13 +109,10 @@ const ProductGrid = ({
                                 <div className="mt-auto">
                                     <div className="text-blue-600 font-black text-lg">${product.price?.toLocaleString()}</div>
                                     <div className="flex justify-between items-center mt-2">
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'
-                                            }`}>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
                                             Stock: {product.stock}
                                         </span>
-                                        <div className="bg-blue-600 text-white p-2 rounded-lg">
-                                            <ShoppingCart size={16} />
-                                        </div>
+                                        <div className="bg-blue-600 text-white p-2 rounded-lg"><ShoppingCart size={16} /></div>
                                     </div>
                                 </div>
                             </div>
