@@ -54,8 +54,11 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // Notificaciones en background (app cerrada o en segundo plano)
-// ✅ Payload data-only: los campos vienen en payload.data (no en payload.notification)
 messaging.onBackgroundMessage((payload) => {
+  // Si el payload ya trae `notification`, Firebase lo muestra automáticamente.
+  // Mostramos nosotros solo si es data-only, para evitar duplicados.
+  if (payload.notification) return;
+
   const { title, body, icon, badge, url } = payload.data || {};
   self.registration.showNotification(title || '¡Nuevo Pedido!', {
     body: body || 'Tienes un nuevo pedido pendiente.',
