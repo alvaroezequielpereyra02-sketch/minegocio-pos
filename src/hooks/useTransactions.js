@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     collection, query, orderBy, limit, where, onSnapshot,
-    addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch, getDoc, increment
+    updateDoc, doc, serverTimestamp, writeBatch, getDoc, increment
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
@@ -15,7 +15,8 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
         let q;
         if (userData.role === 'admin') {
-            q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(1000));
+            // 🛡️ Aumentamos el límite a 5000 para asegurar que el balance de 30 días tenga datos suficientes
+            q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(5000));
         } else {
             q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(50));
         }
@@ -69,14 +70,14 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
     const updateTransaction = async (id, data) => {
-        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' antes de enviar a Firebase
+        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' para evitar errores de Firebase
         const cleanData = Object.fromEntries(
             Object.entries(data).filter(([_, value]) => value !== undefined)
         );
 
         // ESCUDO DE SEGURIDAD: Evita la sobrescritura con ceros o boletas vacías
         if (cleanData.items && cleanData.items.length === 0 && cleanData.total === 0) {
-            console.warn("Bloqueo preventivo: Intento de guardar boleta vacía.");
+            console.error("Bloqueo preventivo: Se intentó guardar una boleta vacía.");
             return;
         }
 
@@ -90,32 +91,32 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
         const batch = writeBatch(db);
 
-        // 1. Obtener la transacción original para comparar productos
+        // 1. Obtener la transacción original antes de modificarla
         const oldTransactionSnap = await getDoc(transactionRef);
         if (!oldTransactionSnap.exists()) throw new Error("La transacción no existe.");
 
         const oldItems = oldTransactionSnap.data().items || [];
         const newItems = cleanData.items;
 
-        // 2. Revertir el stock viejo
+        // 2. Revertir el stock (devolver lo viejo a la estantería)
         oldItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(item.qty) });
         });
 
-        // 3. Aplicar el nuevo stock
+        // 3. Aplicar el nuevo stock (restar lo nuevo)
         newItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(-item.qty) });
         });
 
-        // 4. Guardar los cambios finales (usando cleanData)
+        // 4. Guardar los cambios finales en el documento (usando cleanData)
         batch.update(transactionRef, cleanData);
 
         await batch.commit();
     };
 
-    // 4. Borrar Transacción (¡DEVOLVIENDO EL STOCK!)
+    // 4. Borrar Transacción
     const deleteTransaction = async (id) => {
         const batch = writeBatch(db);
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
@@ -145,12 +146,16 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         await batch.commit();
     };
 
-    // 5. CÁLCULO DE BALANCE OPTIMIZADO
+    // 5. CÁLCULO DE BALANCE (CON CORRECCIÓN PARA 30 DÍAS Y NÚMEROS SEGUROS)
     const balance = useMemo(() => {
         let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
         const now = new Date();
         const startDate = new Date();
-        const daysToSubtract = dateRange === 'month' ? 30 : 7;
+
+        // 🛡️ CORRECCIÓN: Aceptamos múltiples etiquetas para el rango de 30 días
+        const isMonth = dateRange === 'month' || dateRange === '30' || dateRange === '30days';
+        const daysToSubtract = isMonth ? 30 : 7;
+
         startDate.setDate(now.getDate() - daysToSubtract);
         startDate.setHours(0, 0, 0, 0);
 
@@ -159,25 +164,27 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
         let todayCash = 0, todayDigital = 0, todayTotal = 0;
         const chartDataMap = {};
+
+        // Inicializamos el mapa con ceros para el rango seleccionado
         for (let i = daysToSubtract - 1; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const key = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-            chartDataMap[key] = { name: key, total: 0, fullDate: d };
+            chartDataMap[key] = { name: key, total: 0 };
         }
 
         const categoryStats = {};
         let filteredExpenses = 0;
 
-        // Valor del inventario actual
+        // Valor de inventario (Seguro contra undefined)
         products.forEach(p => {
-            inventoryValue += ((p.price || 0) * (p.stock || 0));
+            inventoryValue += (Number(p.price || 0) * Number(p.stock || 0));
         });
 
-        // Gastos del periodo
+        // Gastos del periodo (Seguro contra undefined)
         expenses.forEach(e => {
             const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
-            if (eDate >= startDate) filteredExpenses += (e.amount || 0);
+            if (eDate >= startDate) filteredExpenses += Number(e.amount || 0);
         });
 
         transactions.forEach(t => {
@@ -188,7 +195,6 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                 const currentTotal = Number(t.total || 0);
                 const currentPaid = Number(t.amountPaid || 0);
 
-                // Clasificación por estado de pago
                 if (t.paymentStatus === 'paid') salesPaid += currentTotal;
                 else if (t.paymentStatus === 'partial') {
                     salesPartial += currentPaid;
@@ -196,7 +202,6 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                 }
                 else if (t.paymentStatus === 'pending') salesPending += currentTotal;
 
-                // Ventas de hoy
                 if (tDate >= today) {
                     const amountToday = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
                     todayTotal += amountToday;
@@ -204,14 +209,15 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
                     else todayDigital += amountToday;
                 }
 
-                // Datos para el gráfico y costos
                 if (isWithinRange && (t.paymentStatus === 'paid' || t.paymentStatus === 'partial')) {
                     const amount = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
                     const dayLabel = tDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
                     if (chartDataMap[dayLabel]) chartDataMap[dayLabel].total += amount;
 
                     if (t.items) {
                         t.items.forEach(item => {
+                            // Cálculo de COGS (Costo de Mercadería Vendida)
                             costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
 
                             let catName = 'Varios';
