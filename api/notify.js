@@ -20,6 +20,9 @@ export default async function handler(req, res) {
 
     const { transactionId, clientName, total, storeId } = req.body;
 
+    const title = '🛒 ¡Nuevo Pedido!';
+    const body = `${clientName} realizó un pedido por $${Number(total).toLocaleString('es-AR')}`;
+
     try {
         // 1. Obtener tokens de admins
         const tokensSnapshot = await db
@@ -34,19 +37,46 @@ export default async function handler(req, res) {
 
         const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
 
-        // 2. Payload DATA-ONLY: fuerza que el SW maneje la notificación
-        //    Esto evita que Android muestre la notificación por su cuenta (y la pierda)
+        // 2. PAYLOAD HÍBRIDO
+        //
+        //    - `notification` (top level): lo usa el cliente FCM de Android a nivel de sistema.
+        //      Esto permite mostrar la notificación aunque Chrome esté completamente cerrado,
+        //      porque el servicio de Google Play (no Chrome) la entrega.
+        //
+        //    - `data`: siempre llega al SW para que pueda manejar el click y enrutar a la URL.
+        //
+        //    - `webpush`: configuración específica para Chrome en PC/Mac.
+        //
         const response = await messaging.sendEachForMulticast({
             tokens,
+
+            // Datos disponibles en el SW siempre (Android y Web)
             data: {
-                title: '🛒 ¡Nuevo Pedido!',
-                body: `${clientName} realizó un pedido por $${Number(total).toLocaleString('es-AR')}`,
+                title,
+                body,
                 icon: '/logo192.png',
                 badge: '/logo192.png',
                 url: '/',
                 transactionId: transactionId || ''
             },
-            // webpush.headers es clave para que llegue aunque la app esté cerrada
+
+            // Notificación a nivel sistema: usada por Android cuando Chrome está cerrado
+            notification: {
+                title,
+                body
+            },
+
+            // Android: alta prioridad para despertar el dispositivo
+            android: {
+                priority: 'high',
+                notification: {
+                    color: '#2563eb',
+                    sound: 'default',
+                    channelId: 'pedidos'
+                }
+            },
+
+            // Web: SW maneja la notificación vía onBackgroundMessage
             webpush: {
                 headers: {
                     Urgency: 'high',
@@ -55,9 +85,6 @@ export default async function handler(req, res) {
                 fcmOptions: {
                     link: '/'
                 }
-            },
-            android: {
-                priority: 'high'
             }
         });
 
