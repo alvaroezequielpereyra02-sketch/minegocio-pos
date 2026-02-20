@@ -29,6 +29,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     }, [user, userData]);
 
     // 2. Crear Transacción (Venta)
+    // 2. Crear Transacción (Venta)
     const createTransaction = async (saleData, cartItems) => {
         // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' para evitar errores de Firebase
         const cleanSaleData = Object.fromEntries(
@@ -47,13 +48,17 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
             batch.update(productRef, { stock: increment(-item.qty) });
         });
 
-        // C) Actualizar cliente (si corresponde)
+        // C) Actualizar o CREAR cliente (si corresponde)
         if (cleanSaleData.clientId && cleanSaleData.clientId !== 'anonimo') {
             const customerRef = doc(db, 'stores', appId, 'customers', cleanSaleData.clientId);
-            batch.update(customerRef, {
+
+            // 🔄 CAMBIO CLAVE: Usamos set con { merge: true } en lugar de update
+            batch.set(customerRef, {
+                name: cleanSaleData.clientName || 'Cliente',
+                email: user?.email || '',
                 externalOrdersCount: increment(1),
                 lastPurchase: serverTimestamp()
-            });
+            }, { merge: true }); // <--- Esto evita el error "No document to update"
         }
 
         await batch.commit();
