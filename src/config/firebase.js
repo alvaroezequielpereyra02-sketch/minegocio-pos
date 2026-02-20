@@ -9,12 +9,12 @@ import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
+    apiKey: self.VITE_FIREBASE_API_KEY || 'AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM',
+    authDomain: self.VITE_FIREBASE_AUTH_DOMAIN || 'minegocio-pos-e35bf.firebaseapp.com',
+    projectId: self.VITE_FIREBASE_PROJECT_ID || 'minegocio-pos-e35bf',
+    storageBucket: self.VITE_FIREBASE_STORAGE_BUCKET || 'minegocio-pos-e35bf.firebasestorage.app',
+    messagingSenderId: self.VITE_FIREBASE_MESSAGING_SENDER_ID || '613903188094',
+    appId: self.VITE_FIREBASE_APP_ID || '613903188094:web:2ed15b6fb6ff5be6fd582f'
 };
 
 export const app = initializeApp(firebaseConfig);
