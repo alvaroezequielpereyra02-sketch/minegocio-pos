@@ -6,7 +6,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
 // ─── CACHE ────────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'minegocio-pos-v17-FCM-unified';
+const CACHE_NAME = 'minegocio-pos-v18-FCM-unified';
 
 const STATIC_ASSETS = [
   '/',
@@ -54,8 +54,8 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ─── NOTIFICACIONES EN BACKGROUND (FCM) ──────────────────────────────────────
-// onBackgroundMessage es el único lugar donde se muestran notificaciones.
-// NO hay listener manual de 'push' para evitar duplicados con el SDK de Firebase.
+// En Chrome (PC y Android), onBackgroundMessage es OBLIGATORIO.
+// Sin este handler, Firebase no muestra ninguna notificación en background.
 messaging.onBackgroundMessage((payload) => {
   const { title, body } = payload.notification || {};
   const { url } = payload.data || {};
