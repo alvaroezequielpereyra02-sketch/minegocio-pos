@@ -1,20 +1,21 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { getToken } from 'firebase/messaging';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { db, appId, getMessagingInstance } from '../config/firebase'; //
+import { db, appId, getMessagingInstance } from '../config/firebase';
 
-// --- CAMBIO TEMPORAL PARA DEPUREACIÓN ---
-// Reemplaza el texto entre comillas con tu Public Key de Firebase Console
-const VAPID_KEY = "BINx8NukBcTbTC9LeWI5ePYTbtYVZ60OmD_BB75r1DmJ5Eeq9fKg3Cs885rAHPNYcy1JfzGKXX7SogeIwS_90TM";
-// ----------------------------------------
+// Reemplaza esto con tu Public VAPID Key de Firebase
+const VAPID_KEY = "TU_CLAVE_VAPID_REAL_AQUI";
 
+/**
+ * Hook completo para notificaciones con corrección de Service Worker.
+ */
 export const useNotifications = (user, userData) => {
     const tokenSavedRef = useRef(false);
 
+    // Guarda el token en Firestore
     const saveToken = useCallback(async (token) => {
         if (!user || tokenSavedRef.current) return;
         try {
-            // Guarda el token en: stores/tienda-principal/fcm_tokens/{uid}
             await setDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid), {
                 token,
                 uid: user.uid,
@@ -22,68 +23,59 @@ export const useNotifications = (user, userData) => {
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
-            console.log("✅ Token guardado con éxito en Firestore para el admin.");
+            console.log("✅ Token guardado en Firestore.");
         } catch (e) {
-            console.error('❌ Error guardando FCM token en Firestore:', e);
+            console.error('Error guardando FCM token:', e);
         }
     }, [user, userData?.role]);
 
+    // Elimina el token al cerrar sesión
     const removeToken = useCallback(async () => {
         if (!user) return;
         try {
             await deleteDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid));
             tokenSavedRef.current = false;
-            console.log("🗑️ Token eliminado (logout).");
+            console.log("🗑️ Token eliminado.");
         } catch (e) {
-            console.error('❌ Error eliminando FCM token:', e);
+            console.error('Error eliminando FCM token:', e);
         }
     }, [user]);
 
     const requestAndSaveToken = useCallback(async () => {
-        console.log("🔍 Iniciando registro de notificaciones. Rol actual:", userData?.role);
-
-        if (userData?.role !== 'admin') {
-            console.warn("⚠️ Solo los administradores pueden registrar tokens.");
-            return;
-        }
-
-        if (!('Notification' in window)) {
-            console.error("❌ Este navegador no soporta notificaciones.");
-            return;
-        }
+        if (userData?.role !== 'admin') return;
+        if (!('Notification' in window)) return;
 
         try {
             const permission = await Notification.requestPermission();
-            console.log("🔔 Permiso de notificación:", permission);
             if (permission !== 'granted') return;
 
-            const messaging = await getMessagingInstance();
+            // --- CORRECCIÓN CRÍTICA: Esperar al Service Worker ---
+            if ('serviceWorker' in navigator) {
+                await navigator.serviceWorker.ready;
+                console.log("👷 Service Worker listo para suscribirse.");
+            }
 
-            if (!messaging || VAPID_KEY === "TU_CLAVE_VAPID_AQUI_ENTRE_COMILLAS") {
-                console.error("❌ Falta la VAPID_KEY manual en el archivo useNotifications.js");
+            const messaging = await getMessagingInstance();
+            if (!messaging || !VAPID_KEY) {
+                console.error("FCM o VAPID_KEY no disponibles.");
                 return;
             }
 
-            console.log("🔑 Solicitando token a Firebase con la clave manual...");
             const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-
-            if (token) {
-                console.log("✨ Token generado con éxito:", token);
-                await saveToken(token);
-            } else {
-                console.warn("⚠️ No se generó ningún token. Revisa tu clave en Firebase Console.");
-            }
+            if (token) await saveToken(token);
         } catch (e) {
-            console.error('❌ Error crítico al obtener el FCM token:', e);
+            console.error('Error al obtener FCM token:', e);
         }
     }, [userData?.role, saveToken]);
 
+    // Registro automático para admins
     useEffect(() => {
         if (userData?.role === 'admin') {
             requestAndSaveToken();
         }
     }, [userData?.role, requestAndSaveToken]);
 
+    // Limpieza en logout
     useEffect(() => {
         return () => {
             if (!user) {
