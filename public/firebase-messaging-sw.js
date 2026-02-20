@@ -6,7 +6,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
 // ─── CACHE ────────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'minegocio-pos-v16-FCM-unified';
+const CACHE_NAME = 'minegocio-pos-v17-FCM-unified';
 
 const STATIC_ASSETS = [
   '/',
@@ -53,26 +53,21 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ─── NOTIFICACIONES NATIVAS (fallback sin FCM) ────────────────────────────────
-self.addEventListener('push', (event) => {
-  // Firebase SDK intercepta sus propios mensajes antes de llegar aquí.
-  // Este bloque actúa como fallback para pushes enviados sin FCM.
-  let data = { title: 'Nuevo Pedido', body: 'Tienes un nuevo pedido pendiente.' };
-  if (event.data) {
-    try { data = event.data.json(); }
-    catch (e) { data = { title: 'Nuevo Pedido', body: event.data.text() }; }
-  }
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/logo192.png',
-      badge: '/logo192.png',
-      vibrate: [200, 100, 200],
-      tag: 'pedido-nuevo',
-      renotify: true,
-      data: { url: '/' }
-    })
-  );
+// ─── NOTIFICACIONES EN BACKGROUND (FCM) ──────────────────────────────────────
+// onBackgroundMessage es el único lugar donde se muestran notificaciones.
+// NO hay listener manual de 'push' para evitar duplicados con el SDK de Firebase.
+messaging.onBackgroundMessage((payload) => {
+  const { title, body } = payload.notification || {};
+  const { url } = payload.data || {};
+  self.registration.showNotification(title || '¡Nuevo Pedido!', {
+    body: body || 'Tienes un nuevo pedido pendiente.',
+    icon: '/logo192.png',
+    badge: '/logo192.png',
+    vibrate: [200, 100, 200],
+    tag: 'pedido-nuevo',
+    renotify: true,
+    data: { url: url || '/' }
+  });
 });
 
 // ─── CLICK EN NOTIFICACIÓN ────────────────────────────────────────────────────
