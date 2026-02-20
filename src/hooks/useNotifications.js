@@ -29,22 +29,35 @@ export const useNotifications = (user, userData) => {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') return;
 
-            if ('serviceWorker' in navigator) {
-                // Registro explícito
-                const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-
-                // 🔄 ESPERA ACTIVA: No avanzar hasta que esté 'activated'
-                while (!reg.active || reg.active.state !== 'activated') {
-                    console.log("⏳ Esperando activación del Service Worker...");
-                    await new Promise(res => setTimeout(res, 500));
-                }
-                console.log("🚀 Service Worker ACTIVO.");
+            if (!('serviceWorker' in navigator)) {
+                console.warn('Service Workers no soportados en este navegador.');
+                return;
             }
 
-            const messaging = await getMessagingInstance();
-            const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+            // 1. Registrar el SW unificado
+            await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
 
-            if (token) await saveToken(token);
+            // 2. Esperar a que esté ACTIVO (forma robusta, sin while loop)
+            //    navigator.serviceWorker.ready resuelve solo cuando hay un SW activo controlando la página
+            const registration = await navigator.serviceWorker.ready;
+            console.log("🚀 Service Worker ACTIVO:", registration.scope);
+
+            // 3. Obtener la instancia de messaging
+            const messaging = await getMessagingInstance();
+
+            // 4. Pasar la registration explícitamente a getToken
+            //    Esto evita el AbortError porque FCM no necesita buscar el SW por su cuenta
+            const token = await getToken(messaging, {
+                vapidKey: VAPID_KEY,
+                serviceWorkerRegistration: registration
+            });
+
+            if (token) {
+                console.log("🔑 Token FCM obtenido.");
+                await saveToken(token);
+            } else {
+                console.warn("⚠️ No se obtuvo token. Verificá permisos y configuración VAPID.");
+            }
         } catch (e) {
             console.error('❌ Error FCM:', e);
         }
