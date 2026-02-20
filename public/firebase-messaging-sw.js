@@ -53,12 +53,15 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Notificaciones en background (app cerrada o en segundo plano)
+// Notificaciones en background
+// webpush.notification en notify.js las muestra a nivel de sistema (Chrome PC y Android).
+// Este handler solo se ejecuta como fallback si el payload es data-only puro.
 messaging.onBackgroundMessage((payload) => {
-  // Si el payload ya trae `notification`, Firebase lo muestra automáticamente.
-  // Mostramos nosotros solo si es data-only, para evitar duplicados.
+  // Si hay notification en el payload (webpush.notification), el sistema ya lo mostró.
+  // No hacemos nada para evitar duplicados.
   if (payload.notification) return;
 
+  // Fallback solo para mensajes data-only sin notification
   const { title, body, icon, badge, url } = payload.data || {};
   self.registration.showNotification(title || '¡Nuevo Pedido!', {
     body: body || 'Tienes un nuevo pedido pendiente.',

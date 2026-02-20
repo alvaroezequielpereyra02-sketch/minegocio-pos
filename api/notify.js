@@ -24,7 +24,6 @@ export default async function handler(req, res) {
     const body = `${clientName} realizó un pedido por $${Number(total).toLocaleString('es-AR')}`;
 
     try {
-        // 1. Obtener tokens de admins
         const tokensSnapshot = await db
             .collection('stores').doc(storeId)
             .collection('fcm_tokens')
@@ -37,50 +36,30 @@ export default async function handler(req, res) {
 
         const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
 
-        // 2. PAYLOAD HÍBRIDO
-        //
-        //    - `notification` (top level): lo usa el cliente FCM de Android a nivel de sistema.
-        //      Esto permite mostrar la notificación aunque Chrome esté completamente cerrado,
-        //      porque el servicio de Google Play (no Chrome) la entrega.
-        //
-        //    - `data`: siempre llega al SW para que pueda manejar el click y enrutar a la URL.
-        //
-        //    - `webpush`: configuración específica para Chrome en PC/Mac.
-        //
         const response = await messaging.sendEachForMulticast({
             tokens,
 
-            // Datos disponibles en el SW siempre (Android y Web)
+            // data: disponible en el SW para el click handler
             data: {
-                title,
-                body,
-                icon: '/logo192.png',
-                badge: '/logo192.png',
                 url: '/',
                 transactionId: transactionId || ''
             },
 
-            // Notificación a nivel sistema: usada por Android cuando Chrome está cerrado
-            notification: {
-                title,
-                body
-            },
-
-            // Android: alta prioridad para despertar el dispositivo
-            android: {
-                priority: 'high',
-                notification: {
-                    color: '#2563eb',
-                    sound: 'default',
-                    channelId: 'pedidos'
-                }
-            },
-
-            // Web: SW maneja la notificación vía onBackgroundMessage
+            // webpush.notification: Chrome (PC y Android) lo muestra a nivel de sistema.
+            // Esto evita que el SW tenga que mostrar nada manualmente → sin duplicados.
             webpush: {
                 headers: {
                     Urgency: 'high',
                     TTL: '60'
+                },
+                notification: {
+                    title,
+                    body,
+                    icon: '/logo192.png',
+                    badge: '/logo192.png',
+                    vibrate: [200, 100, 200],
+                    tag: 'pedido-nuevo',
+                    renotify: true
                 },
                 fcmOptions: {
                     link: '/'
@@ -88,7 +67,7 @@ export default async function handler(req, res) {
             }
         });
 
-        // 3. Limpieza de tokens inválidos
+        // Limpieza de tokens inválidos
         const invalidTokens = [];
         response.responses.forEach((resp, idx) => {
             if (!resp.success && resp.error?.code === 'messaging/registration-token-not-registered') {
