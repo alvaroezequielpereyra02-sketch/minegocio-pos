@@ -2,6 +2,10 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
+// 🛡️ 1. FORZAR ACTIVACIÓN INMEDIATA (Soluciona el AbortError)
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
 firebase.initializeApp({
     apiKey: "AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM",
     authDomain: "minegocio-pos-e35bf.firebaseapp.com",
