@@ -53,15 +53,6 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Notificaciones en background
-// El campo `notification` del payload hace que el sistema (Chrome/Android) las muestre
-// automáticamente. Este handler NO debe mostrar nada para evitar duplicados.
-// Solo se usa para lógica adicional si fuera necesario en el futuro.
-messaging.onBackgroundMessage((payload) => {
-  // Sistema ya mostró la notificación via notification field → no hacemos nada
-  return;
-});
-
 // ─── NOTIFICACIONES NATIVAS (fallback sin FCM) ────────────────────────────────
 self.addEventListener('push', (event) => {
   // Firebase SDK intercepta sus propios mensajes antes de llegar aquí.
