@@ -4,7 +4,7 @@ import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db, appId, getMessagingInstance } from '../config/firebase'; //
 
 // Esta variable debe estar definida en el panel de Vercel (o archivo .env) con prefijo VITE_
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const VAPID_KEY = BINx8NukBcTbTC9LeWI5ePYTbtYVZ60OmD_BB75r1DmJ5Eeq9fKg3Cs885rAHPNYcy1JfzGKXX7SogeIwS_90TM;
 
 /**
  * Hook para manejar la suscripción a notificaciones push.
