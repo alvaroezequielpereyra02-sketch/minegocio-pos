@@ -7,31 +7,30 @@ import {
     signOut,
     sendPasswordResetEmail
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { appId } from '../config/firebase'; // <--- IMPORTANTE: Importamos el ID de la tienda
+import {
+    getFirestore, doc, getDoc, setDoc, serverTimestamp,
+    collection, query, where, getDocs, updateDoc
+} from 'firebase/firestore';
+import { appId } from '../config/firebase';
 
 export const useAuth = (app) => {
-    const [user, setUser] = useState(null);
-    const [userData, setUserData] = useState(null);
+    const [user, setUser]           = useState(null);
+    const [userData, setUserData]   = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
-    const [loginError, setLoginError] = useState('');
+    const [loginError, setLoginError]   = useState('');
 
     const auth = getAuth(app);
-    const db = getFirestore(app);
+    const db   = getFirestore(app);
 
-    // Escuchar cambios en la sesión
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
                 try {
-                    // Intentar cargar datos extra del usuario (rol, teléfono, etc.)
                     const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
                     if (userDoc.exists()) {
                         setUserData(userDoc.data());
                     } else if (navigator.onLine) {
-                        // Si hay internet y no existe perfil, forzar logout por seguridad
-                        // (Opcional: podrías permitirlo si quieres que se autorepare, pero mejor logout)
                         await signOut(auth);
                         setUserData(null);
                         setUser(null);
@@ -47,43 +46,64 @@ export const useAuth = (app) => {
         return () => unsubscribe();
     }, [auth, db]);
 
-    // Funciones de acción
     const login = async (email, password) => {
         try {
             setLoginError('');
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
-            console.error(error);
             setLoginError("Credenciales incorrectas.");
             throw error;
         }
     };
 
+    // Valida el código de invitación contra la colección de Firestore
+    const validateInviteCode = async (code) => {
+        if (!code) throw new Error("Código de invitación requerido.");
+
+        const codesRef = collection(db, 'stores', appId, 'invitation_codes');
+        const q = query(codesRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            throw new Error("Código de invitación inválido o ya utilizado.");
+        }
+
+        // Devolvemos el doc para marcarlo como usado después del registro
+        return snapshot.docs[0];
+    };
+
     const register = async ({ email, password, name, phone, address, inviteCode }) => {
         try {
             setLoginError('');
-            // 1. Crear usuario en Firebase Auth
+
+            // 1. Validar código ANTES de crear el usuario
+            const inviteDoc = await validateInviteCode(inviteCode);
+
+            // 2. Crear usuario en Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const uid = userCredential.user.uid;
 
             const newUserData = {
-                email,
-                name,
-                phone,
-                address,
-                inviteCode: inviteCode || '',
+                email, name, phone, address,
+                inviteCode: inviteCode.toUpperCase(),
                 role: 'client',
                 createdAt: serverTimestamp()
             };
 
-            // 2. Guardar en colección global de USUARIOS (Para login y roles)
+            // 3. Guardar perfil en colección global de usuarios
             await setDoc(doc(db, 'users', uid), newUserData);
 
-            // 3. Guardar TAMBIÉN en colección de CLIENTES de la tienda (Para que aparezca en la lista del admin)
-            // Usamos el mismo UID para que sea fácil de relacionar
+            // 4. Guardar también en la colección de clientes de la tienda
             await setDoc(doc(db, 'stores', appId, 'customers', uid), {
                 ...newUserData,
-                userId: uid // Referencia al ID de Auth
+                userId: uid
+            });
+
+            // 5. Marcar el código como usado para que no se reutilice
+            await updateDoc(doc(db, 'stores', appId, 'invitation_codes', inviteDoc.id), {
+                status: 'used',
+                usedBy: uid,
+                usedAt: serverTimestamp()
             });
 
             return userCredential.user;
@@ -107,14 +127,8 @@ export const useAuth = (app) => {
     };
 
     return {
-        user,
-        userData,
-        authLoading,
-        loginError,
-        setLoginError,
-        login,
-        register,
-        logout,
-        resetPassword
+        user, userData, authLoading,
+        loginError, setLoginError,
+        login, register, logout, resetPassword
     };
 };

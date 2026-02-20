@@ -1,7 +1,7 @@
 // public/service-worker.js
 
 // Incrementamos versión para forzar actualización en el cliente
-const CACHE_NAME = 'minegocio-pos-v14-PUSH-READY'; // Actualizado a v14
+const CACHE_NAME = 'minegocio-pos-v15-FCM'; // v15: FCM + código invitación validado
 
 const STATIC_ASSETS = [
   '/',

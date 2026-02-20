@@ -117,18 +117,22 @@ function OrderWorkModal({ order, onClose }) {
         // Filtrar y limpiar para entrega final
         const finalItems = localItems.map(i => ({
             ...i,
-            qty: i.packedQty || 0, // La cantidad oficial pasa a ser lo que se armó
+            qty: i.packedQty || 0,
             packed: true
         })).filter(i => i.qty > 0);
+
+        if (finalItems.length === 0) return;
 
         const finalTotal = finalItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
         await updateTransaction(order.id, {
             items: finalItems,
             total: finalTotal,
-            // Si estaba pagado, actualizamos el monto pagado al nuevo total real
-            amountPaid: order.paymentStatus === 'paid' ? finalTotal : order.amountPaid,
-            fulfillmentStatus: 'ready'
+            amountPaid: order.paymentStatus === 'paid' ? finalTotal : (order.amountPaid || 0),
+            // fulfillmentStatus 'ready' → el pedido aparece en Reparto como "Listo para despachar"
+            fulfillmentStatus: 'ready',
+            // Aseguramos que deliveryType esté seteado para que Delivery lo filtre
+            deliveryType: order.deliveryType || 'delivery',
         });
         onClose();
     };

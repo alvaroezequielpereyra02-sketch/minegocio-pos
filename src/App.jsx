@@ -2,747 +2,575 @@ import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
 import { serverTimestamp } from 'firebase/firestore';
 
-// IMPORTS DE CONTEXTOS
-import { useAuthContext } from './context/AuthContext';
-import { useInventoryContext } from './context/InventoryContext';
+// Contextos
+import { useAuthContext }         from './context/AuthContext';
+import { useInventoryContext }    from './context/InventoryContext';
 import { useTransactionsContext } from './context/TransactionsContext';
-import { useCartContext } from './context/CartContext';
+import { useCartContext }         from './context/CartContext';
 
-// HOOKS Y UTILIDADES
-import { usePrinter } from './hooks/usePrinter';
-import { usePWA } from './hooks/usePWA';
-import { uploadImage } from './config/uploadImage';
+// Hooks
+import { usePrinter }       from './hooks/usePrinter';
+import { usePWA }           from './hooks/usePWA';
+import { useCheckout }      from './hooks/useCheckout';
+import { useExports }       from './hooks/useExports';
+import { useNotifications } from './hooks/useNotifications';
+import { uploadImage }      from './config/uploadImage';
+import { compressImage }    from './utils/imageHelpers';
 
-// COMPONENTES
+// Componentes
 import Sidebar, { MobileNav } from './components/Sidebar';
-import Cart from './components/Cart';
-import ProductGrid from './components/ProductGrid';
+import Cart           from './components/Cart';
+import ProductGrid    from './components/ProductGrid';
 import {
-  ExpenseModal, ProductModal, CategoryModal, CustomerModal, StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal, InvitationModal, ProcessingModal, ConfirmModal,
-  FaultyProductModal
+    ExpenseModal, ProductModal, CategoryModal, CustomerModal,
+    StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal,
+    InvitationModal, ProcessingModal, ConfirmModal, FaultyProductModal
 } from './components/Modals';
 
-// LAZY LOADING
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const History = lazy(() => import('./components/History'));
+// Lazy Loading
+const Dashboard         = lazy(() => import('./components/Dashboard'));
+const History           = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
-const Orders = lazy(() => import('./components/Orders'));
-const Delivery = lazy(() => import('./components/Delivery'));
+const Orders            = lazy(() => import('./components/Orders'));
+const Delivery          = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
-  <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
-    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-    <span className="text-xs font-bold">Cargando...</span>
-  </div>
+    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
+        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+        <span className="text-xs font-bold">Cargando...</span>
+    </div>
 );
 
-const compressImage = (file, maxWidth = 500, quality = 0.7) => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-    };
-  });
-};
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState('pos');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastSale, setLastSale] = useState(null);
-  const [showMobileCart, setShowMobileCart] = useState(false);
-  const [notification, setNotification] = useState(null);
-  const [confirmConfig, setConfirmConfig] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
+    const [activeTab, setActiveTab]           = useState('pos');
+    const [isOnline, setIsOnline]             = useState(navigator.onLine);
+    const [showMobileCart, setShowMobileCart] = useState(false);
+    const [notification, setNotification]     = useState(null);
+    const [confirmConfig, setConfirmConfig]   = useState(null);
+    const [dashboardDateRange, setDashboardDateRange] = useState('week');
 
+    const { supportsPWA, installApp } = usePWA();
 
-  const { supportsPWA, installApp } = usePWA();
-  const [dashboardDateRange, setDashboardDateRange] = useState('week');
+    const [modals, setModals] = useState({
+        product: false, category: false, customer: false, transaction: false,
+        store: false, stock: false, expense: false, logout: false,
+        invitation: false, faulty: false
+    });
+    const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
 
-  const [modals, setModals] = useState({
-    product: false, category: false, customer: false, transaction: false,
-    store: false, stock: false, expense: false, logout: false, invitation: false,
-    faulty: false
-  });
-  const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
+    // Contextos
+    const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
+    const {
+        products, categories, subcategories, customers, expenses, storeProfile,
+        addProduct, updateProduct, deleteProduct, addStock,
+        addCategory, deleteCategory, updateCategory,
+        addSubCategory, deleteSubCategory,
+        addCustomer, updateCustomer, deleteCustomer,
+        addExpense, deleteExpense,
+        updateStoreProfile, generateInvitationCode, registerFaultyProduct
+    } = useInventoryContext();
+    const { transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
+    const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
+    const printer = usePrinter();
 
-  // CONTEXTOS
-  const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
+    // Estados UI locales
+    const [selectedTransaction, setSelectedTransaction]   = useState(null);
+    const [editingTransaction, setEditingTransaction]     = useState(null);
+    const [faultyProduct, setFaultyProduct]               = useState(null);
+    const [editingProduct, setEditingProduct]             = useState(null);
+    const [editingCustomer, setEditingCustomer]           = useState(null);
+    const [selectedCustomer, setSelectedCustomer]         = useState(null);
+    const [scannedProduct, setScannedProduct]             = useState(null);
+    const [searchTerm, setSearchTerm]                     = useState('');
+    const [selectedCategory, setSelectedCategory]         = useState('all');
+    const [customerSearch, setCustomerSearch]             = useState('');
+    const [barcodeInput, setBarcodeInput]                 = useState('');
+    const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState('');
+    const [imageMode, setImageMode]                       = useState('link');
+    const [previewImage, setPreviewImage]                 = useState('');
+    const [isRegistering, setIsRegistering]               = useState(false);
+    const [historySection, setHistorySection]             = useState('menu');
 
-  const {
-    products, categories, subcategories, customers, expenses, storeProfile,
-    addProduct, updateProduct, deleteProduct, addStock,
-    addCategory, deleteCategory, updateCategory,
-    addSubCategory, deleteSubCategory,
-    addCustomer, updateCustomer, deleteCustomer,
-    addExpense, deleteExpense,
-    updateStoreProfile, generateInvitationCode, registerFaultyProduct
-  } = useInventoryContext();
+    const quantityInputRef = useRef(null);
 
-  const {
-    transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange
-  } = useTransactionsContext();
-
-
-
-  const {
-    cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod
-  } = useCartContext();
-
-  const printer = usePrinter();
-
-  // ESTADOS LOCALES
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [editingTransaction, setEditingTransaction] = useState(null);
-  const [faultyProduct, setFaultyProduct] = useState(null);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [editingCustomer, setEditingCustomer] = useState(null);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [scannedProduct, setScannedProduct] = useState(null);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState('');
-  const [imageMode, setImageMode] = useState('link');
-  const [previewImage, setPreviewImage] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [historySection, setHistorySection] = useState('menu');
-
-  const quantityInputRef = useRef(null);
-  // --- UBICACIÓN: Debajo de tus contextos (Línea 105 aprox) ---
-
-  // 1. Filtramos pedidos de clientes que estén pendientes
-  const pendingOrders = transactions.filter(t =>
-    t.clientRole === 'client' &&
-    t.fulfillmentStatus === 'pending'
-  );
-
-  // 2. Referencia para comparar el conteo anterior
-  const prevOrdersCount = useRef(pendingOrders.length);
-
-  // 3. Efecto para detectar nuevos pedidos en tiempo real
-  useEffect(() => {
-    // Si el número de pedidos pendientes subió y eres admin, notificamos
-
-
-    // Actualizamos la referencia para la siguiente comparación
-    prevOrdersCount.current = pendingOrders.length;
-  }, [pendingOrders.length, userData?.role]);
-
-  // Escuchar botón "Atrás"
-  useEffect(() => {
-    const handlePopState = () => {
-      if (selectedTransaction) setSelectedTransaction(null);
+    // ── Notificación visual interna ────────────────────────────────────────────
+    const showNotification = (msg) => {
+        setNotification(msg);
+        setTimeout(() => setNotification(null), 3000);
     };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedTransaction]);
 
-  useEffect(() => {
-    const handleStatus = () => {
-      setIsOnline(navigator.onLine);
-      if (navigator.onLine) showNotification("🟢 Conexión restaurada");
-      else showNotification("🔴 Sin conexión (Modo Offline)");
-
-    };
-    window.addEventListener('online', handleStatus);
-    window.addEventListener('offline', handleStatus);
-    return () => { window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
-  }, []);
-  useEffect(() => {
-    // Solo pedimos permiso si el usuario es administrador
-    if (userData?.role === 'admin' && 'Notification' in window) {
-      Notification.requestPermission();
-    }
-  }, [userData]);
-
-  const showNotification = (msg) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  };
-  useEffect(() => {
-    // Si el número de pedidos actuales es mayor al que teníamos guardado
-    if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
-
-      // 1. Alerta visual interna de la App
-      showNotification("🔔 ¡Nuevo pedido de cliente!");
-
-      // 2. Alerta en la BANDEJA DEL CELULAR
-      if (Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.showNotification('¡Nuevo Pedido!', {
-            body: `Tienes un nuevo pedido pendiente de revisar.`,
-            icon: '/logo192.png',
-            vibrate: [200, 100, 200],
-            tag: 'nuevo-pedido', // Evita duplicados en la bandeja
-            renotify: true
-          });
+    // ── Confirmación reutilizable ──────────────────────────────────────────────
+    const requestConfirm = (title, message, action, isDanger = false) => {
+        setConfirmConfig({
+            title, message, isDanger,
+            onConfirm: async () => { setConfirmConfig(null); await action(); },
+            onCancel:  () => setConfirmConfig(null)
         });
-      }
+    };
 
-      // 3. Sonido de alerta
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-      audio.play().catch(() => { });
-    }
+    // ── Hooks extraídos ────────────────────────────────────────────────────────
+    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, handleCheckout } = useCheckout({
+        user, userData, cart, products, cartTotal, paymentMethod,
+        selectedCustomer, createTransaction, clearCart, showNotification
+    });
 
-    // Actualizamos la referencia para la próxima comparación
-    prevOrdersCount.current = pendingOrders.length;
-  }, [pendingOrders.length, userData?.role]);
+    const { handlePrintShoppingList, handleExportData } = useExports({
+        products, transactions, expenses, balance, storeProfile,
+        dashboardDateRange, purgeTransactions, showNotification,
+        requestConfirm, setIsProcessing
+    });
 
-  // --- 1. FUNCIÓN DE FALTANTES (Restaurada y corregida) ---
-  const handlePrintShoppingList = async () => {
-    setIsProcessing(true);
-    try {
-      // CORRECCIÓN: Filtramos SOLO lo que es MENOR A 0.
-      const negativeStockProducts = products
-        .filter(p => p.stock < 0)
-        .sort((a, b) => a.stock - b.stock);
+    // ── Notificaciones push (FCM, funciona con app cerrada) ───────────────────
+    useNotifications(user, userData);
 
-      if (negativeStockProducts.length === 0) {
-        alert("✅ ¡Excelente! No tienes productos con stock negativo.");
+    // ── Pedidos pendientes para badge ──────────────────────────────────────────
+    const pendingOrders = transactions.filter(t =>
+        t.clientRole === 'client' && t.fulfillmentStatus === 'pending'
+    );
+    const prevOrdersCount = useRef(pendingOrders.length);
+
+    useEffect(() => {
+        if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
+            showNotification("🔔 ¡Nuevo pedido de cliente!");
+            // El push a dispositivo lo maneja la Cloud Function via FCM
+        }
+        prevOrdersCount.current = pendingOrders.length;
+    }, [pendingOrders.length, userData?.role]);
+
+    // ── Botón "Atrás" del celular ──────────────────────────────────────────────
+    useEffect(() => {
+        const handler = () => { if (selectedTransaction) setSelectedTransaction(null); };
+        window.addEventListener('popstate', handler);
+        return () => window.removeEventListener('popstate', handler);
+    }, [selectedTransaction]);
+
+    // ── Estado de conexión ─────────────────────────────────────────────────────
+    useEffect(() => {
+        const handler = () => {
+            setIsOnline(navigator.onLine);
+            showNotification(navigator.onLine ? "🟢 Conexión restaurada" : "🔴 Sin conexión (Modo Offline)");
+        };
+        window.addEventListener('online',  handler);
+        window.addEventListener('offline', handler);
+        return () => { window.removeEventListener('online', handler); window.removeEventListener('offline', handler); };
+    }, []);
+
+    // ── Handlers de formularios ────────────────────────────────────────────────
+    const handleAuthSubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        try {
+            if (isRegistering) {
+                await register({
+                    name: form.name.value, phone: form.phone.value,
+                    address: form.address.value, email: form.email.value,
+                    password: form.password.value,
+                    inviteCode: form.inviteCode?.value || ''
+                });
+            } else {
+                await login(form.email.value, form.password.value);
+            }
+        } catch (e) { /* el error ya se setea en loginError */ }
+    };
+
+    const handleSaveProductWrapper = async (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
+        setIsProcessing(true);
+        try {
+            const finalImageUrl = await uploadImage(rawImage, f.name.value);
+            const data = {
+                name: f.name.value, barcode: f.barcode.value,
+                price: parseFloat(f.price.value),
+                cost: parseFloat(f.cost.value || 0),
+                stock: parseInt(f.stock.value),
+                categoryId: f.category.value,
+                subCategoryId: f.subcategory.value,
+                imageUrl: finalImageUrl || ''
+            };
+            if (editingProduct) await updateProduct(editingProduct.id, data);
+            else                await addProduct(data);
+            toggleModal('product', false);
+            showNotification("✅ Producto guardado");
+        } catch (e) {
+            showNotification("❌ Error: " + e.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleInventoryBarcodeSubmit = (e) => {
+        e.preventDefault();
+        if (!inventoryBarcodeInput) return;
+        const p = products.find(p => p.barcode === inventoryBarcodeInput);
+        if (p) {
+            setScannedProduct(p);
+            toggleModal('stock', true);
+            setTimeout(() => quantityInputRef.current?.focus(), 100);
+        } else {
+            requestConfirm("Producto no existe", "¿Crear nuevo?", () => {
+                setEditingProduct({ barcode: inventoryBarcodeInput });
+                toggleModal('product', true);
+            });
+        }
+        setInventoryBarcodeInput('');
+    };
+
+    const handleFileChange = async (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { showNotification("⚠️ Imagen muy pesada (Máx 5MB)"); return; }
+        setIsProcessing(true);
+        const base64 = await compressImage(f);
+        setPreviewImage(base64);
         setIsProcessing(false);
-        return;
-      }
+    };
 
-      const html2pdf = (await import('html2pdf.js')).default;
+    // ── Pantallas de carga y login ─────────────────────────────────────────────
+    if (authLoading) {
+        return (
+            <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600 font-bold">
+                <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                Cargando Sistema...
+                {!isOnline && <span className="text-xs text-slate-400 mt-2">Iniciando en modo offline</span>}
+            </div>
+        );
+    }
 
-      const styles = {
-        container: "font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white; width: 100%; max-width: 800px; margin: auto;",
-        header: "display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;",
-        brand: "flex: 1;",
-        logo: "height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;",
-        storeName: "font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;",
-        invoiceInfo: "text-align: right; flex: 1;",
-        invoiceTitle: "font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;",
-        meta: "font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5;",
-        table: "width: 100%; border-collapse: collapse; margin-bottom: 30px;",
-        th: "text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;",
-        td: "padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155;",
-        tdRight: "text-align: right;",
-        tdCenter: "text-align: center;",
-        footer: "margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;"
-      };
-
-      const content = `
-        <div style="${styles.container}">
-            <div style="${styles.header}">
-                <div style="${styles.brand}">
-                    ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="${styles.logo}" crossorigin="anonymous"/>` : ''}
-                    <h1 style="${styles.storeName}">${storeProfile.name}</h1>
-                </div>
-                <div style="${styles.invoiceInfo}">
-                    <h2 style="${styles.invoiceTitle}">STOCK NEGATIVO</h2>
-                    <div style="${styles.meta}">
-                        FECHA: ${new Date().toLocaleDateString()}<br/>
-                        HORA: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+    if (!user || !userData) {
+        return (
+            <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+                <div className="bg-white p-2 md:p-8 rounded-2xl shadow-xl w-full max-w-md">
+                    <div className="text-center mb-6">
+                        {storeProfile.logoUrl
+                            ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" />
+                            : <Store className="mx-auto text-blue-600 mb-2" size={48} />}
+                        <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1>
                     </div>
+                    <form onSubmit={handleAuthSubmit} className="space-y-4">
+                        {isRegistering && (
+                            <>
+                                <input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre" />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" />
+                                    <input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" />
+                                </div>
+                                <input name="inviteCode" required className="w-full p-2 border rounded-lg text-center font-bold uppercase" placeholder="CÓDIGO INVITACIÓN" />
+                            </>
+                        )}
+                        <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" />
+                        <input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
+                        {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">
+                            {isRegistering ? 'Registrarse' : 'Entrar'}
+                        </button>
+                    </form>
+                    <button onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">
+                        {isRegistering ? 'Volver al Login' : 'Crear Cuenta'}
+                    </button>
+                    {!isRegistering && (
+                        <button
+                            onClick={() => {
+                                const emailInput = document.querySelector('input[name="email"]');
+                                if (!emailInput?.value) { setLoginError("Escribe tu correo primero."); return; }
+                                resetPassword(emailInput.value)
+                                    .then(() => showNotification("📧 Correo de recuperación enviado"))
+                                    .catch(e => setLoginError(e.message));
+                            }}
+                            className="w-full mt-2 text-slate-400 text-xs hover:text-slate-600"
+                        >
+                            Olvidé contraseña
+                        </button>
+                    )}
                 </div>
             </div>
-
-            <div style="background: #fff1f2; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #fecdd3; color: #9f1239; font-size: 13px;">
-                <strong>INFORME DE RECUPERACIÓN:</strong> Listado de productos vendidos sin stock. La columna "A COMPRAR" indica la cantidad necesaria estrictamente para volver el stock a 0.
-            </div>
-
-            <table style="${styles.table}">
-                <thead>
-                    <tr>
-                        <th style="${styles.th}">PRODUCTO / CÓDIGO</th>
-                        <th style="${styles.th} ${styles.tdCenter}">STOCK ACTUAL</th>
-                        <th style="${styles.th} ${styles.tdRight}">A COMPRAR (PARA LLEGAR A 0)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${negativeStockProducts.map(p => {
-        const debt = Math.abs(p.stock);
-        return `
-                        <tr>
-                            <td style="${styles.td}">
-                                <span style="font-weight: bold; display: block;">${p.name}</span>
-                                <span style="font-size: 11px; color: #94a3b8;">${p.barcode || 'Sin código'}</span>
-                            </td>
-                            <td style="${styles.td} ${styles.tdCenter}">
-                                <span style="font-weight: bold; color: #ef4444;">${p.stock}</span>
-                            </td>
-                            <td style="${styles.td} ${styles.tdRight}">
-                                <span style="font-weight: bold; font-size: 14px; color: #2563eb;">+${debt}</span>
-                            </td>
-                        </tr>
-                    `}).join('')}
-                </tbody>
-            </table>
-
-            <div style="${styles.footer}">
-                <p>Generado automáticamente por el sistema de gestión.</p>
-                <p>${storeProfile.name} • Control de Stock</p>
-            </div>
-        </div>`;
-
-      const el = document.createElement('div');
-      el.innerHTML = content;
-
-      const opt = {
-        margin: 0,
-        filename: `Recuperacion_Stock_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      await html2pdf().set(opt).from(el).save();
-      showNotification("✅ Lista generada");
-
-    } catch (e) {
-      console.error(e);
-      alert("Error generando PDF");
-    } finally {
-      setIsProcessing(false);
+        );
     }
-  };
 
-  // --- 2. FUNCIÓN DE EXPORTAR CSV (¡LA QUE FALTABA!) ---
-  const handleExportData = () => {
-    if (transactions.length === 0) return alert("No hay datos para exportar.");
-    try {
-      let csvContent = "\uFEFF";
-      csvContent += `REPORTE GENERAL (${dashboardDateRange === 'week' ? 'Últimos 7 días' : 'Últimos 30 días'})\n`;
-      csvContent += "INVENTARIO ACTUAL DE PRODUCTOS\n";
-      csvContent += "Nombre,Código,Precio,Costo,Stock,Categoría\n";
-      products.forEach(p => {
-        csvContent += `"${p.name}","${p.barcode || ''}",${p.price},${p.cost || 0},${p.stock},"${p.categoryId || ''}"\n`;
-      });
-      csvContent += "\n";
-      csvContent += `Generado el,${new Date().toLocaleString()}\n\n`;
-      csvContent += "METRICAS DEL PERIODO\n";
-      csvContent += `Ventas Totales,$${balance.periodSales}\n`;
-      csvContent += `Gastos Operativos,-$${balance.periodExpenses}\n`;
-      csvContent += `Costo Mercadería,-$${balance.periodCost}\n`;
-      csvContent += `GANANCIA NETA,$${balance.periodNet}\n\n`;
-      csvContent += "VENTAS POR CATEGORIA\n";
-      csvContent += "Categoría,Monto Vendido\n";
-      balance.salesByCategory.forEach(cat => { csvContent += `${cat.name},$${cat.value}\n`; });
-      csvContent += "\n";
-      csvContent += "GASTOS DETALLADOS\n";
-      csvContent += "Fecha,Descripción,Monto\n";
-      expenses.forEach(e => { csvContent += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`; });
-      csvContent += "\n";
-      csvContent += "DETALLE DE TRANSACCIONES\n";
-      csvContent += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
-      transactions.forEach(t => {
-        const date = new Date(t.date?.seconds * 1000).toLocaleString();
-        const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        const safeItems = `"${itemsStr.replace(/"/g, '""')}"`;
-        csvContent += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},${safeItems}\n`;
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Reporte_Completo_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => {
-        requestConfirm("¿Limpiar Base de Datos?", "✅ Reporte descargado.\n\n¿Quieres borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.", async () => {
-          setIsProcessing(true);
-          await purgeTransactions();
-          setIsProcessing(false);
-          showNotification("🧹 Historial limpiado");
-        }, true);
-      }, 1500);
-    } catch (error) { console.error("Error exportando:", error); alert("Error al generar el reporte."); }
-  };
-
-  const handleCheckout = async () => {
-    if (!user || cart.length === 0) return;
-    setIsProcessing(true);
-
-    try {
-      let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
-
-      // Obtenemos los datos del cliente seleccionado para el reparto
-      if (userData?.role === 'admin' && selectedCustomer) {
-        finalClient = {
-          id: selectedCustomer.id,
-          name: selectedCustomer.name,
-          role: 'customer',
-          address: selectedCustomer.address || '',
-          phone: selectedCustomer.phone || ''
-        };
-      } else if (userData?.role === 'client') {
-        finalClient = {
-          id: user.uid,
-          name: userData.name,
-          role: 'client',
-          address: userData.address || '',
-          phone: userData.phone || ''
-        };
-      }
-
-      const itemsWithCost = cart.map(i => {
-        const p = products.find(prod => prod.id === i.id);
-        return {
-          id: i.id,
-          name: i.name,
-          qty: Number(i.qty),
-          price: Number(i.price),
-          cost: p ? Number(p.cost || 0) : 0
-        };
-      });
-
-      const saleData = {
-        type: 'sale',
-        total: Number(cartTotal),
-        items: itemsWithCost,
-        date: serverTimestamp(),
-
-        // 🚚 CAMPOS OBLIGATORIOS PARA QUE APAREZCA EN REPARTO
-        deliveryType: 'delivery', // 👈 Sin esto, el filtro lo ignora
-        status: 'pending',        // 👈 Sin esto, no aparece en la pestaña "Activos"
-        clientInfo: {             // 👈 Objeto que espera la tarjeta de Delivery.jsx
-          name: finalClient.name,
-          address: finalClient.address,
-          phone: finalClient.phone
-        },
-
-        // Campos de respaldo para el resto de la App
-        clientId: finalClient.id,
-        clientName: finalClient.name,
-        clientRole: finalClient.role,
-        paymentStatus: 'pending',
-        fulfillmentStatus: 'pending',
-        sellerId: user.uid,
-        paymentMethod: paymentMethod
-      };
-
-      const result = await createTransaction(saleData, itemsWithCost);
-      setLastSale(result);
-
-      clearCart();
-      setSelectedCustomer(null);
-      setShowMobileCart(false);
-      setIsProcessing(false);
-      setShowCheckoutSuccess(true);
-      setTimeout(() => setShowCheckoutSuccess(false), 4000);
-
-    } catch (e) {
-      console.error("Error:", e);
-      alert("Error al procesar pedido.");
-      setIsProcessing(false);
-    }
-  };
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    try {
-      if (isRegistering) {
-        const registerData = {
-          name: form.name.value, phone: form.phone.value, address: form.address.value, email: form.email.value, password: form.password.value, inviteCode: form.inviteCode ? form.inviteCode.value : ''
-        };
-        await register(registerData);
-      } else { await login(form.email.value, form.password.value); }
-    } catch (e) { console.error("Error autenticación:", e); }
-  };
-
-  const requestConfirm = (title, message, action, isDanger = false) => {
-    setConfirmConfig({ title, message, onConfirm: async () => { setConfirmConfig(null); await action(); }, onCancel: () => setConfirmConfig(null), isDanger });
-  };
-
-  const handleSaveProductWrapper = async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
-    setIsProcessing(true);
-    try {
-      const finalImageUrl = await uploadImage(rawImage, f.name.value);
-      const data = {
-        name: f.name.value, barcode: f.barcode.value, price: parseFloat(f.price.value),
-        cost: parseFloat(f.cost.value || 0), stock: parseInt(f.stock.value),
-        categoryId: f.category.value, subCategoryId: f.subcategory.value, imageUrl: finalImageUrl || ''
-      };
-      if (editingProduct) await updateProduct(editingProduct.id, data);
-      else await addProduct(data);
-      toggleModal('product', false);
-      showNotification("✅ Producto guardado");
-    } catch (e) {
-      alert("Error: " + e.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleInventoryBarcodeSubmit = (e) => {
-    e.preventDefault();
-    if (!inventoryBarcodeInput) return;
-    const p = products.find(p => p.barcode === inventoryBarcodeInput);
-    if (p) { setScannedProduct(p); toggleModal('stock', true); setTimeout(() => quantityInputRef.current?.focus(), 100); }
-    else { requestConfirm("Producto no existe", "¿Crear nuevo?", () => { setEditingProduct({ barcode: inventoryBarcodeInput }); toggleModal('product', true); }); }
-    setInventoryBarcodeInput('');
-  };
-
-  const handleFileChange = async (e) => {
-    const f = e.target.files[0];
-    if (f) {
-      if (f.size > 5 * 1024 * 1024) return alert("Imagen muy pesada (Máx 5MB)");
-      setIsProcessing(true);
-      const base64 = await compressImage(f);
-      setPreviewImage(base64);
-      setIsProcessing(false);
-    }
-  };
-
-  if (authLoading) {
+    // ── UI Principal ───────────────────────────────────────────────────────────
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600 font-bold">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        Cargando Sistema...
-        {!isOnline && <span className="text-xs text-slate-400 mt-2">Iniciando en modo offline</span>}
-      </div>
-    );
-  }
-  if (!user || !userData) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-2 md:p-8 rounded-2xl shadow-xl w-full max-w-md">
-          <div className="text-center mb-6">
-            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" /> : <Store className="mx-auto text-blue-600 mb-2" size={48} />}
-            <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1>
-          </div>
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {isRegistering && (
-              <>
-                <input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre" />
-                <div className="grid grid-cols-2 gap-2"><input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" /><input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" /></div>
-                <input name="inviteCode" required className="w-full p-2 border rounded-lg text-center font-bold uppercase" placeholder="CÓDIGO INVITACIÓN" />
-              </>
+        <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
+            <Sidebar
+                user={user} userData={userData} storeProfile={storeProfile}
+                activeTab={activeTab} setActiveTab={setActiveTab}
+                onLogout={() => toggleModal('logout', true)}
+                onEditStore={() => toggleModal('store', true)}
+                supportsPWA={supportsPWA} installApp={installApp}
+                pendingCount={pendingOrders.length}
+            />
+
+            {!isOnline && (
+                <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90">
+                    <WifiOff size={12} className="inline mr-1" /> OFFLINE
+                </div>
             )}
-            <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" />
-            <input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
-            {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">{isRegistering ? 'Registrarse' : 'Entrar'}</button>
-          </form>
-          <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">{isRegistering ? 'Volver al Login' : 'Crear Cuenta'}</button>
-          {!isRegistering && <button onClick={() => { const e = document.querySelector('input[name="email"]').value; resetPassword(e).then(() => alert("Correo enviado")).catch(e => setLoginError(e.message)); }} className="w-full mt-2 text-slate-400 text-xs hover:text-slate-600">Olvidé contraseña</button>}
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
-      <Sidebar
-        user={user} userData={userData} storeProfile={storeProfile} activeTab={activeTab} setActiveTab={setActiveTab}
-        onLogout={() => toggleModal('logout', true)} onEditStore={() => toggleModal('store', true)}
-        supportsPWA={supportsPWA} installApp={installApp} pendingCount={pendingOrders.length}
-      />
-
-      {!isOnline && <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90"><WifiOff size={12} className="inline mr-1" /> OFFLINE</div>}
-
-      {confirmConfig && <ConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} isDanger={confirmConfig.isDanger} />}
-      {notification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3"><Bell size={18} className="text-yellow-400" /><span className="font-bold text-sm">{notification}</span></div>}
-      {isProcessing && <ProcessingModal />}
-
-      <div className="flex flex-col flex-1 min-w-0 h-full">
-        <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
-          <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
-            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />} <span>{storeProfile.name}</span>
-          </button>
-          <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
-        </header>
-
-        {/* --- MAIN SIN PADDING GLOBAL --- */}
-        <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
-
-          {activeTab === 'pos' && (
-            <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-0 lg:pb-4">
-              <ProductGrid products={products} addToCart={addToCart} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput} handleBarcodeSubmit={(e) => { e.preventDefault(); if (!barcodeInput) return; const p = products.find(x => x.barcode === barcodeInput); if (p) { addToCart(p); setBarcodeInput(''); } else alert("No encontrado"); }} onEditProduct={(p) => { setEditingProduct(p); toggleModal('product', true); }}
-                setFaultyProduct={setFaultyProduct}
-                toggleModal={toggleModal} />
-              <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>
-              {showMobileCart && <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom"><Cart cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} setCartItemQty={setCartItemQty} userData={userData} selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer} customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} cartTotal={cartTotal} handleCheckout={handleCheckout} setShowMobileCart={setShowMobileCart} /></div>}
-
-              {cart.length > 0 && !showMobileCart && <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in"><div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div><div className="font-bold text-lg">${cartTotal.toLocaleString()}</div></button>}
-            </div>
-          )}
-
-          {activeTab === 'dashboard' && userData.role === 'admin' && (
-            <Suspense fallback={<TabLoader />}>
-              <Dashboard
-                balance={balance}
-                expenses={expenses}
-                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
-                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
-                dateRange={dateRange}      // 🟢 Usamos el del contexto
-                setDateRange={setDateRange} // 🟢 Usamos el del contexto
-              />
-            </Suspense>
-          )}
-          {activeTab === 'orders' && userData.role === 'admin' && (
-            <Suspense fallback={<TabLoader />}>
-              <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={(id, data) => updateTransaction(id, data)} onSelectTransaction={(t) => setSelectedTransaction(t)} />
-            </Suspense>
-          )}
-
-          {activeTab === 'delivery' && userData.role === 'admin' && (
-            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
-              <Suspense fallback={<TabLoader />}>
-                <Delivery transactions={transactions} customers={customers} onUpdateTransaction={updateTransaction} onSelectTransaction={(t) => setSelectedTransaction(t)} onRequestConfirm={requestConfirm} />
-              </Suspense>
-            </div>
-          )}
-
-          {/* STOCK / INVENTARIO - AGREGADO BOTÓN DE FALTANTES */}
-          {activeTab === 'inventory' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
-              <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
-                <div className="flex gap-2">
-                  <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
-                  {/* BOTÓN NUEVO: Faltantes */}
-                  <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
-                  <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
+            {confirmConfig && <ConfirmModal {...confirmConfig} />}
+            {notification && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
+                    <Bell size={18} className="text-yellow-400" />
+                    <span className="font-bold text-sm">{notification}</span>
                 </div>
-              </div>
-              <ProductGrid products={products} addToCart={(p) => { setEditingProduct(p); setPreviewImage(p.imageUrl || ''); setImageMode(p.imageUrl?.startsWith('data:') ? 'file' : 'link'); toggleModal('product', true); }} searchTerm={searchTerm} setSearchTerm={setSearchTerm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} categories={categories} subcategories={subcategories} userData={userData} barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput} handleBarcodeSubmit={handleInventoryBarcodeSubmit} />
-            </div>
-          )}
+            )}
+            {isProcessing && <ProcessingModal />}
 
-          {activeTab === 'customers' && userData.role === 'admin' && (
-            <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
-              <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                <h2 className="text-xl font-bold">Clientes</h2>
-                <div className="flex gap-2">
-                  <button onClick={() => toggleModal('invitation', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><KeyRound size={16} /> Invitación</button>
-                  <button onClick={() => { setEditingCustomer(null); toggleModal('customer', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Cliente</button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
-                {customers.map(c => (
-                  <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                    <div><div className="font-bold text-slate-800">{c.name}</div><div className="text-xs text-slate-500">{c.phone}</div></div>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setEditingCustomer(c); toggleModal('customer', true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1 rounded">Editar</button>
-                      <button onClick={() => requestConfirm("Borrar Cliente", "¿Seguro?", () => deleteCustomer(c.id), true)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1 rounded">Borrar</button>
+            <div className="flex flex-col flex-1 min-w-0 h-full">
+                {/* Header móvil */}
+                <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
+                    <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
+                        {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />}
+                        <span>{storeProfile.name}</span>
+                    </button>
+                    <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
+                </header>
+
+                <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
+
+                    {/* POS */}
+                    {activeTab === 'pos' && (
+                        <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-0 lg:pb-4">
+                            <ProductGrid
+                                products={products} addToCart={addToCart}
+                                searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                                selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
+                                categories={categories} subcategories={subcategories}
+                                userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput}
+                                handleBarcodeSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!barcodeInput) return;
+                                    const p = products.find(x => x.barcode === barcodeInput);
+                                    if (p) { addToCart(p); setBarcodeInput(''); }
+                                    else showNotification("⚠️ Producto no encontrado");
+                                }}
+                                onEditProduct={(p) => { setEditingProduct(p); toggleModal('product', true); }}
+                                setFaultyProduct={setFaultyProduct}
+                                toggleModal={toggleModal}
+                            />
+                            <div className="hidden lg:block w-80 rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                                <Cart
+                                    cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart}
+                                    setCartItemQty={setCartItemQty} userData={userData}
+                                    selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer}
+                                    customerSearch={customerSearch} setCustomerSearch={setCustomerSearch}
+                                    customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod}
+                                    cartTotal={cartTotal}
+                                    handleCheckout={() => handleCheckout({ setShowMobileCart, setSelectedCustomer })}
+                                    setShowMobileCart={setShowMobileCart}
+                                />
+                            </div>
+                            {showMobileCart && (
+                                <div className="lg:hidden absolute inset-0 z-[60] bg-white flex flex-col animate-in slide-in-from-bottom">
+                                    <Cart
+                                        cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart}
+                                        setCartItemQty={setCartItemQty} userData={userData}
+                                        selectedCustomer={selectedCustomer} setSelectedCustomer={setSelectedCustomer}
+                                        customerSearch={customerSearch} setCustomerSearch={setCustomerSearch}
+                                        customers={customers} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod}
+                                        cartTotal={cartTotal}
+                                        handleCheckout={() => handleCheckout({ setShowMobileCart, setSelectedCustomer })}
+                                        setShowMobileCart={setShowMobileCart}
+                                    />
+                                </div>
+                            )}
+                            {cart.length > 0 && !showMobileCart && (
+                                <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 bg-blue-600 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in">
+                                    <div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div>
+                                    <div className="font-bold text-lg">${cartTotal.toLocaleString()}</div>
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Dashboard */}
+                    {activeTab === 'dashboard' && userData.role === 'admin' && (
+                        <Suspense fallback={<TabLoader />}>
+                            <Dashboard
+                                balance={balance} expenses={expenses}
+                                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
+                                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
+                                dateRange={dateRange} setDateRange={setDateRange}
+                            />
+                        </Suspense>
+                    )}
+
+                    {/* Pedidos */}
+                    {activeTab === 'orders' && userData.role === 'admin' && (
+                        <Suspense fallback={<TabLoader />}>
+                            <Orders
+                                transactions={transactions} products={products} categories={categories}
+                                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
+                                onSelectTransaction={(t) => setSelectedTransaction(t)}
+                            />
+                        </Suspense>
+                    )}
+
+                    {/* Reparto */}
+                    {activeTab === 'delivery' && userData.role === 'admin' && (
+                        <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+                            <Suspense fallback={<TabLoader />}>
+                                <Delivery
+                                    transactions={transactions} customers={customers}
+                                    onUpdateTransaction={updateTransaction}
+                                    onSelectTransaction={(t) => setSelectedTransaction(t)}
+                                    onRequestConfirm={requestConfirm}
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+
+                    {/* Inventario */}
+                    {activeTab === 'inventory' && userData.role === 'admin' && (
+                        <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+                            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                                <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
+                                <div className="flex gap-2">
+                                    <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
+                                    <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
+                                    <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Prod</button>
+                                </div>
+                            </div>
+                            <ProductGrid
+                                products={products}
+                                addToCart={(p) => { setEditingProduct(p); setPreviewImage(p.imageUrl || ''); setImageMode(p.imageUrl?.startsWith('data:') ? 'file' : 'link'); toggleModal('product', true); }}
+                                searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                                selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
+                                categories={categories} subcategories={subcategories}
+                                userData={userData}
+                                barcodeInput={inventoryBarcodeInput} setBarcodeInput={setInventoryBarcodeInput}
+                                handleBarcodeSubmit={handleInventoryBarcodeSubmit}
+                            />
+                        </div>
+                    )}
+
+                    {/* Clientes */}
+                    {activeTab === 'customers' && userData.role === 'admin' && (
+                        <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+                            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                                <h2 className="text-xl font-bold">Clientes</h2>
+                                <div className="flex gap-2">
+                                    <button onClick={() => toggleModal('invitation', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><KeyRound size={16} /> Invitación</button>
+                                    <button onClick={() => { setEditingCustomer(null); toggleModal('customer', true); }} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Plus size={16} /> Cliente</button>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border divide-y divide-slate-100">
+                                {customers.map(c => (
+                                    <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
+                                        <div>
+                                            <div className="font-bold text-slate-800">{c.name}</div>
+                                            <div className="text-xs text-slate-500">{c.phone}</div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingCustomer(c); toggleModal('customer', true); }} className="text-blue-600 text-xs font-bold border border-blue-200 bg-blue-50 px-3 py-1 rounded">Editar</button>
+                                            <button onClick={() => requestConfirm("Borrar Cliente", "¿Seguro?", () => deleteCustomer(c.id), true)} className="text-red-600 text-xs font-bold border border-red-200 bg-red-50 px-3 py-1 rounded">Borrar</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Historial */}
+                    {activeTab === 'transactions' && (
+                        <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+                            <Suspense fallback={<TabLoader />}>
+                                <History
+                                    transactions={transactions} userData={userData}
+                                    handleExportCSV={handleExportData}
+                                    historySection={historySection} setHistorySection={setHistorySection}
+                                    onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }}
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                </main>
+
+                {!showMobileCart && !selectedTransaction && (
+                    <MobileNav
+                        activeTab={activeTab} setActiveTab={setActiveTab}
+                        userData={userData} onLogout={() => toggleModal('logout', true)}
+                        supportsPWA={supportsPWA} installApp={installApp}
+                        pendingCount={pendingOrders.length}
+                    />
+                )}
+
+                {/* Detalle de transacción */}
+                {selectedTransaction && (
+                    <Suspense fallback={<ProcessingModal />}>
+                        <TransactionDetail
+                            transaction={selectedTransaction}
+                            onClose={() => { setSelectedTransaction(null); if (window.history.state) window.history.back(); }}
+                            printer={printer} storeProfile={storeProfile} customers={customers}
+                            onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
+                            userData={userData}
+                        />
+                    </Suspense>
+                )}
+
+                {/* Checkout success banner */}
+                {showCheckoutSuccess && (
+                    <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
+                        <div className="flex flex-col">
+                            <p className="font-bold text-sm">¡Venta Guardada!</p>
+                            <p className="text-[10px] opacity-80">Modo offline activo</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                if (lastSale) { setSelectedTransaction(lastSale); setActiveTab('transactions'); window.history.pushState({ view: 't' }, ''); }
+                                setShowCheckoutSuccess(false);
+                            }}
+                            className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50"
+                        >
+                            Ver Boleta
+                        </button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                )}
+
+                {/* Modales */}
+                {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch { showNotification("❌ Error al guardar gasto"); } }} />}
+                {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} onRegisterFaulty={(p) => { setFaultyProduct(p); toggleModal('faulty', true); }} />}
+                {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} onUpdate={updateCategory} />}
+                {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch { showNotification("❌ Error al guardar cliente"); } }} editingCustomer={editingCustomer} />}
+                {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { showNotification("❌ Error al guardar: " + error.message); } }} />}
+                {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
+                {modals.transaction && editingTransaction && (
+                    <TransactionModal
+                        onClose={() => toggleModal('transaction', false)}
+                        onSave={async (d) => {
+                            if (!d.items || d.items.length === 0 || d.total === 0) {
+                                showNotification("⚠️ Los datos de la boleta aún no han cargado.");
+                                return;
+                            }
+                            setIsProcessing(true);
+                            try {
+                                await updateTransaction(editingTransaction.id, d);
+                                toggleModal('transaction', false);
+                                showNotification("✅ Boleta actualizada");
+                                if (selectedTransaction?.id === editingTransaction.id) {
+                                    setSelectedTransaction(prev => ({ ...prev, ...d }));
+                                }
+                            } catch { showNotification("❌ No se pudieron guardar los cambios."); }
+                            finally { setIsProcessing(false); }
+                        }}
+                        editingTransaction={editingTransaction}
+                    />
+                )}
+                {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={async () => { await logout(); toggleModal('logout', false); }} />}
+                {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
+                {modals.faulty && faultyProduct && (
+                    <FaultyProductModal
+                        product={faultyProduct}
+                        onClose={() => toggleModal('faulty', false)}
+                        onConfirm={async (p, q, r) => {
+                            setIsProcessing(true);
+                            await registerFaultyProduct(p, q, r);
+                            toggleModal('faulty', false);
+                            setIsProcessing(false);
+                            showNotification("✅ Falla registrada como gasto");
+                        }}
+                    />
+                )}
             </div>
-          )}
-
-          {activeTab === 'transactions' && (
-            <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
-              <Suspense fallback={<TabLoader />}>
-                <History transactions={transactions} userData={userData} handleExportCSV={handleExportData} historySection={historySection} setHistorySection={setHistorySection} onSelectTransaction={(t) => { setSelectedTransaction(t); window.history.pushState({ view: 't' }, ''); }} />
-              </Suspense>
-            </div>
-          )}
-        </main>
-
-        {!showMobileCart && !selectedTransaction && <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} userData={userData} onLogout={() => toggleModal('logout', true)} supportsPWA={supportsPWA} installApp={installApp} pendingCount={pendingOrders.length} />}
-
-        {selectedTransaction && (
-          <Suspense fallback={<ProcessingModal />}>
-            <TransactionDetail transaction={selectedTransaction} onClose={() => { setSelectedTransaction(null); if (window.history.state) window.history.back(); }} printer={printer} storeProfile={storeProfile} customers={customers} onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }} userData={userData} />
-          </Suspense>
-        )}
-
-        {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch (e) { alert("Error") } }} />}
-        {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} onRegisterFaulty={(p) => { setFaultyProduct(p); toggleModal('faulty', true); }} />}
-        {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} onUpdate={updateCategory} />}
-        {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch (e) { alert("Error") } }} editingCustomer={editingCustomer} />}
-        {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { console.error(error); alert("❌ Error al guardar: " + error.message + "\n\nVerifica que tu usuario tenga rol 'admin' en la base de datos."); } }} />}
-        {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
-        {modals.transaction && editingTransaction && (
-          <TransactionModal
-            onClose={() => toggleModal('transaction', false)}
-            onSave={async (d) => {
-              // 🛡️ ESCUDO DE PROTECCIÓN: Evita guardar si la boleta está vacía o en cero
-              if (!d.items || d.items.length === 0 || d.total === 0) {
-                alert("⚠️ Error: Los datos de la boleta aún no han cargado o están vacíos. Por favor, espera un momento o intenta abrirla de nuevo.");
-                return; // Detiene la ejecución aquí mismo
-              }
-
-              setIsProcessing(true); // Activa el estado de carga visual
-              try {
-                // Ejecuta la actualización en la base de datos
-                await updateTransaction(editingTransaction.id, d);
-
-                toggleModal('transaction', false);
-                showNotification("✅ Boleta actualizada correctamente");
-
-                // Sincroniza la vista de detalle si estaba abierta
-                if (selectedTransaction?.id === editingTransaction.id) {
-                  setSelectedTransaction(prev => ({ ...prev, ...d }));
-                }
-              } catch (error) {
-                console.error("Error al actualizar la transacción:", error);
-                alert("No se pudieron guardar los cambios. Revisa tu conexión.");
-              } finally {
-                setIsProcessing(false); // Apaga el estado de carga
-              }
-            }}
-            editingTransaction={editingTransaction}
-          />
-        )}
-        {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={() => { logout(); toggleModal('logout', false); setCartItemQty([]); }} />}
-        {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
-        {modals.faulty && faultyProduct && (
-          <FaultyProductModal
-            product={faultyProduct}
-            onClose={() => toggleModal('faulty', false)}
-            onConfirm={async (p, q, r) => {
-              setIsProcessing(true);
-              await registerFaultyProduct(p, q, r);
-              toggleModal('faulty', false);
-              setIsProcessing(false);
-              showNotification("✅ Falla registrada como gasto");
-            }}
-          />
-        )}
-        {showCheckoutSuccess && (
-          <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
-            <div className="flex flex-col">
-              <p className="font-bold text-sm">¡Venta Guardada!</p>
-              <p className="text-[10px] opacity-80">Modo offline activo</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (lastSale) {
-                    setSelectedTransaction(lastSale); // Abrimos el detalle
-                    setActiveTab('transactions'); // Vamos al historial
-                    window.history.pushState({ view: 't' }, ''); // Estado para botón atrás
-                  }
-                  setShowCheckoutSuccess(false);
-                }}
-                className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50"
-              >
-                Ver Boleta
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+    );
 }
