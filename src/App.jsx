@@ -96,7 +96,7 @@ export default function App() {
   } = useInventoryContext();
 
   const {
-    transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance
+    transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange
   } = useTransactionsContext();
 
 
@@ -586,10 +586,16 @@ export default function App() {
 
           {activeTab === 'dashboard' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
-              <Dashboard balance={balance} expenses={expenses} setIsExpenseModalOpen={(v) => toggleModal('expense', v)} handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)} dateRange={dashboardDateRange} setDateRange={setDashboardDateRange} />
+              <Dashboard
+                balance={balance}
+                expenses={expenses}
+                setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
+                handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
+                dateRange={dateRange}      // 🟢 Usamos el del contexto
+                setDateRange={setDateRange} // 🟢 Usamos el del contexto
+              />
             </Suspense>
           )}
-
           {activeTab === 'orders' && userData.role === 'admin' && (
             <Suspense fallback={<TabLoader />}>
               <Orders transactions={transactions} products={products} categories={categories} onUpdateTransaction={(id, data) => updateTransaction(id, data)} onSelectTransaction={(t) => setSelectedTransaction(t)} />
