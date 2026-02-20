@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
+import { appId } from '../config/firebase'; //
 
 /**
  * Encapsula toda la lógica de procesar una venta (checkout).
- * Extrae esta responsabilidad de App.jsx para mantenerlo limpio.
  */
 export const useCheckout = ({
     user, userData,
@@ -12,8 +12,8 @@ export const useCheckout = ({
     createTransaction, clearCart,
     showNotification
 }) => {
-    const [isProcessing, setIsProcessing]           = useState(false);
-    const [lastSale, setLastSale]                   = useState(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [lastSale, setLastSale] = useState(null);
     const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
@@ -73,7 +73,24 @@ export const useCheckout = ({
                 paymentMethod: paymentMethod
             };
 
+            // 1. Crear la transacción en Firestore
             const result = await createTransaction(saleData, itemsWithCost);
+
+            // 2. DISPARAR NOTIFICACIÓN VÍA VERCEL
+            // Solo notificamos si es un pedido realizado por un cliente (no venta directa de admin)
+            if (saleData.clientRole === 'client') {
+                fetch('/api/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transactionId: result.id,
+                        clientName: saleData.clientName,
+                        total: saleData.total,
+                        storeId: appId // ID de la tienda desde firebase.js
+                    })
+                }).catch(err => console.error("Error al enviar notificación:", err));
+            }
+
             setLastSale(result);
             clearCart();
             setSelectedCustomer(null);
