@@ -39,14 +39,18 @@ export default async function handler(req, res) {
         const response = await messaging.sendEachForMulticast({
             tokens,
 
-            // data: disponible en el SW para el click handler
+            // top-level notification: necesario para que Android despierte Chrome cerrado
+            // El sistema (Google Play Services) lo entrega sin necesidad de que Chrome esté vivo
+            notification: { title, body },
+
+            // data: disponible en el SW para manejar el click
             data: {
                 url: '/',
                 transactionId: transactionId || ''
             },
 
-            // webpush.notification: Chrome (PC y Android) lo muestra a nivel de sistema.
-            // Esto evita que el SW tenga que mostrar nada manualmente → sin duplicados.
+            // webpush: configuración para Chrome en PC y Android
+            // Al poner notification acá también, Chrome la muestra con ícono correcto
             webpush: {
                 headers: {
                     Urgency: 'high',
@@ -61,8 +65,14 @@ export default async function handler(req, res) {
                     tag: 'pedido-nuevo',
                     renotify: true
                 },
-                fcmOptions: {
-                    link: '/'
+                fcmOptions: { link: '/' }
+            },
+
+            android: {
+                priority: 'high',
+                notification: {
+                    color: '#2563eb',
+                    sound: 'default'
                 }
             }
         });

@@ -54,24 +54,12 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // Notificaciones en background
-// webpush.notification en notify.js las muestra a nivel de sistema (Chrome PC y Android).
-// Este handler solo se ejecuta como fallback si el payload es data-only puro.
+// El campo `notification` del payload hace que el sistema (Chrome/Android) las muestre
+// automáticamente. Este handler NO debe mostrar nada para evitar duplicados.
+// Solo se usa para lógica adicional si fuera necesario en el futuro.
 messaging.onBackgroundMessage((payload) => {
-  // Si hay notification en el payload (webpush.notification), el sistema ya lo mostró.
-  // No hacemos nada para evitar duplicados.
-  if (payload.notification) return;
-
-  // Fallback solo para mensajes data-only sin notification
-  const { title, body, icon, badge, url } = payload.data || {};
-  self.registration.showNotification(title || '¡Nuevo Pedido!', {
-    body: body || 'Tienes un nuevo pedido pendiente.',
-    icon: icon || '/logo192.png',
-    badge: badge || '/logo192.png',
-    vibrate: [200, 100, 200],
-    tag: 'pedido-nuevo',
-    renotify: true,
-    data: { url: url || '/' }
-  });
+  // Sistema ya mostró la notificación via notification field → no hacemos nada
+  return;
 });
 
 // ─── NOTIFICACIONES NATIVAS (fallback sin FCM) ────────────────────────────────
