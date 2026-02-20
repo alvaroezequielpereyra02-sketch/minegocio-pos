@@ -2,7 +2,6 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 
-// Estas variables las configurarás en el panel de Vercel
 const serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -22,28 +21,43 @@ export default async function handler(req, res) {
     const { transactionId, clientName, total, storeId } = req.body;
 
     try {
-        // 1. Obtener tokens de admins filtrando por el storeId actual
+        // 1. Obtener tokens de admins
         const tokensSnapshot = await db
             .collection('stores').doc(storeId)
             .collection('fcm_tokens')
             .where('role', '==', 'admin')
             .get();
 
-        if (tokensSnapshot.empty) return res.status(200).json({ success: true, message: 'No tokens' });
+        if (tokensSnapshot.empty) {
+            return res.status(200).json({ success: true, message: 'No tokens registrados' });
+        }
 
         const tokens = tokensSnapshot.docs.map(doc => doc.data().token).filter(Boolean);
 
-        // 2. Enviar notificación (Misma estructura que tu index.js original)
+        // 2. Payload DATA-ONLY: fuerza que el SW maneje la notificación
+        //    Esto evita que Android muestre la notificación por su cuenta (y la pierda)
         const response = await messaging.sendEachForMulticast({
             tokens,
-            notification: {
+            data: {
                 title: '🛒 ¡Nuevo Pedido!',
-                body: `${clientName} realizó un pedido por $${total.toLocaleString('es-AR')}`,
+                body: `${clientName} realizó un pedido por $${Number(total).toLocaleString('es-AR')}`,
+                icon: '/logo192.png',
+                badge: '/logo192.png',
+                url: '/',
+                transactionId: transactionId || ''
             },
-            data: { url: '/', transactionId },
+            // webpush.headers es clave para que llegue aunque la app esté cerrada
             webpush: {
-                notification: { icon: '/logo192.png', badge: '/logo192.png' },
-                fcmOptions: { link: '/' }
+                headers: {
+                    Urgency: 'high',
+                    TTL: '60'
+                },
+                fcmOptions: {
+                    link: '/'
+                }
+            },
+            android: {
+                priority: 'high'
             }
         });
 
@@ -57,14 +71,19 @@ export default async function handler(req, res) {
 
         if (invalidTokens.length > 0) {
             const batch = db.batch();
-            const tokenDocs = await db.collection('stores').doc(storeId)
-                .collection('fcm_tokens').where('token', 'in', invalidTokens).get();
+            const tokenDocs = await db
+                .collection('stores').doc(storeId)
+                .collection('fcm_tokens')
+                .where('token', 'in', invalidTokens)
+                .get();
             tokenDocs.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
         }
 
-        return res.status(200).json({ success: true });
+        return res.status(200).json({ success: true, sent: tokens.length });
+
     } catch (error) {
+        console.error('Error en /api/notify:', error);
         return res.status(500).json({ error: error.message });
     }
 }

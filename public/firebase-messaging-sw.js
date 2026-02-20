@@ -48,22 +48,23 @@ firebase.initializeApp({
   projectId: "minegocio-pos-e35bf",
   storageBucket: "minegocio-pos-e35bf.firebasestorage.app",
   messagingSenderId: "613903188094",
-  appId: "613903188094:web:2ed15b6fb6ff5be6fd582f"
+  appId: "1:613903188094:web:2ed15b6fb6ff5be6fd582f"
 });
 
 const messaging = firebase.messaging();
 
 // Notificaciones en background (app cerrada o en segundo plano)
+// ✅ Payload data-only: los campos vienen en payload.data (no en payload.notification)
 messaging.onBackgroundMessage((payload) => {
-  const { title, body, icon } = payload.notification || {};
+  const { title, body, icon, badge, url } = payload.data || {};
   self.registration.showNotification(title || '¡Nuevo Pedido!', {
     body: body || 'Tienes un nuevo pedido pendiente.',
     icon: icon || '/logo192.png',
-    badge: '/logo192.png',
+    badge: badge || '/logo192.png',
     vibrate: [200, 100, 200],
     tag: 'pedido-nuevo',
     renotify: true,
-    data: { url: payload.data?.url || '/' }
+    data: { url: url || '/' }
   });
 });
 
