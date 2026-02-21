@@ -1,14 +1,11 @@
 import React, { createContext, useContext } from 'react';
-import { useAuth } from '../hooks/useAuth'; // Reutilizamos tu hook existente
-import { app } from '../config/firebase';
+import { useAuth } from '../hooks/useAuth';
 
-// 1. Crear el contexto
 const AuthContext = createContext();
 
-// 2. Crear el componente proveedor
 export const AuthProvider = ({ children }) => {
-    // Usamos el hook que ya tenías, pasándole la app de firebase
-    const auth = useAuth(app);
+    // ✅ Ya no pasamos `app` — useAuth importa auth y db directamente desde firebase.js
+    const auth = useAuth();
 
     return (
         <AuthContext.Provider value={auth}>
@@ -17,7 +14,6 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// 3. Crear un hook personalizado para usar el contexto fácilmente
 export const useAuthContext = () => {
     const context = useContext(AuthContext);
     if (!context) {

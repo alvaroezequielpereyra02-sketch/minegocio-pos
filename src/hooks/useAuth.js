@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import {
-    getAuth,
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -8,21 +7,21 @@ import {
     sendPasswordResetEmail
 } from 'firebase/auth';
 import {
-    getFirestore, doc, getDoc, setDoc, serverTimestamp,
+    doc, getDoc, setDoc, serverTimestamp,
     collection, query, where, getDocs, updateDoc
 } from 'firebase/firestore';
-import { appId } from '../config/firebase';
 
-export const useAuth = (app) => {
-    const [user, setUser]           = useState(null);
-    const [userData, setUserData]   = useState(null);
+// ✅ Importamos las instancias ya inicializadas en lugar de crearlas en cada render
+import { auth, db, appId } from '../config/firebase';
+
+export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
+    const [user, setUser]               = useState(null);
+    const [userData, setUserData]       = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [loginError, setLoginError]   = useState('');
 
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
-
     useEffect(() => {
+        // ✅ auth y db son estables (importados), no se recrean entre renders
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
@@ -44,7 +43,7 @@ export const useAuth = (app) => {
             setAuthLoading(false);
         });
         return () => unsubscribe();
-    }, [auth, db]);
+    }, []); // ✅ Sin dependencias: auth y db son estables
 
     const login = async (email, password) => {
         try {
@@ -56,30 +55,19 @@ export const useAuth = (app) => {
         }
     };
 
-    // Valida el código de invitación contra la colección de Firestore
     const validateInviteCode = async (code) => {
         if (!code) throw new Error("Código de invitación requerido.");
-
         const codesRef = collection(db, 'stores', appId, 'invitation_codes');
         const q = query(codesRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
         const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            throw new Error("Código de invitación inválido o ya utilizado.");
-        }
-
-        // Devolvemos el doc para marcarlo como usado después del registro
+        if (snapshot.empty) throw new Error("Código de invitación inválido o ya utilizado.");
         return snapshot.docs[0];
     };
 
     const register = async ({ email, password, name, phone, address, inviteCode }) => {
         try {
             setLoginError('');
-
-            // 1. Validar código ANTES de crear el usuario
             const inviteDoc = await validateInviteCode(inviteCode);
-
-            // 2. Crear usuario en Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const uid = userCredential.user.uid;
 
@@ -90,20 +78,10 @@ export const useAuth = (app) => {
                 createdAt: serverTimestamp()
             };
 
-            // 3. Guardar perfil en colección global de usuarios
             await setDoc(doc(db, 'users', uid), newUserData);
-
-            // 4. Guardar también en la colección de clientes de la tienda
-            await setDoc(doc(db, 'stores', appId, 'customers', uid), {
-                ...newUserData,
-                userId: uid
-            });
-
-            // 5. Marcar el código como usado para que no se reutilice
+            await setDoc(doc(db, 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
             await updateDoc(doc(db, 'stores', appId, 'invitation_codes', inviteDoc.id), {
-                status: 'used',
-                usedBy: uid,
-                usedAt: serverTimestamp()
+                status: 'used', usedBy: uid, usedAt: serverTimestamp()
             });
 
             return userCredential.user;

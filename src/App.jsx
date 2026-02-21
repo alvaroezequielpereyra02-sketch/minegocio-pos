@@ -47,7 +47,7 @@ export default function App() {
     const [showMobileCart, setShowMobileCart] = useState(false);
     const [notification, setNotification]     = useState(null);
     const [confirmConfig, setConfirmConfig]   = useState(null);
-    const [dashboardDateRange, setDashboardDateRange] = useState('week');
+    // ✅ dashboardDateRange eliminado — se usa dateRange/setDateRange del TransactionsContext
 
     const { supportsPWA, installApp } = usePWA();
 
@@ -116,7 +116,7 @@ export default function App() {
 
     const { handlePrintShoppingList, handleExportData } = useExports({
         products, transactions, expenses, balance, storeProfile,
-        dashboardDateRange, purgeTransactions, showNotification,
+        dashboardDateRange: dateRange, purgeTransactions, showNotification,
         requestConfirm, setIsProcessing
     });
 
