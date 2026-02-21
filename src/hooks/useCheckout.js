@@ -1,14 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { appId } from '../config/firebase';
 
+// ─── Cola offline persistente en localStorage ─────────────────────────────────
+// Sobrevive cierres de app. Se procesa cuando el admin vuelve con conexión.
+const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
+
+const getOfflineQueue = () => {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
+    catch { return []; }
+};
+
+const addToOfflineQueue = (entry) => {
+    const queue = getOfflineQueue();
+    queue.push(entry);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+};
+
+const removeFromOfflineQueue = (id) => {
+    const queue = getOfflineQueue().filter(e => e.localId !== id);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+};
+
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 3000;
-const CHECKOUT_TIMEOUT_MS = 12000; // 12 segundos máximo por intento
+const CHECKOUT_TIMEOUT_MS = 12000;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Envuelve una promesa con un timeout
 const withTimeout = (promise, ms) =>
     Promise.race([
         promise,
@@ -28,17 +47,129 @@ export const useCheckout = ({
     const [lastSale, setLastSale] = useState(null);
     const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
     const [checkoutError, setCheckoutError] = useState(null);
+    // ✅ Inicializamos desde localStorage — si había cola al cerrar la app, pendingSync arranca en true
+    const [pendingSync, setPendingSync] = useState(() => getOfflineQueue().length > 0);
+
+    // ✅ Refs para acceder a la versión más reciente de las funciones sin re-ejecutar efectos
+    const createTransactionRef = useRef(createTransaction);
+    useEffect(() => { createTransactionRef.current = createTransaction; }, [createTransaction]);
+    const showNotificationRef = useRef(showNotification);
+    useEffect(() => { showNotificationRef.current = showNotification; }, [showNotification]);
+
+    const processOfflineQueue = useCallback(async () => {
+        const queue = getOfflineQueue();
+        if (queue.length === 0) return;
+
+        showNotificationRef.current(`🔄 Sincronizando ${queue.length} pedido(s) guardado(s)...`);
+
+        let synced = 0;
+        for (const entry of queue) {
+            try {
+                const saleData = { ...entry.saleData, date: serverTimestamp() };
+                await createTransactionRef.current(saleData, entry.itemsWithCost);
+                removeFromOfflineQueue(entry.localId);
+                synced++;
+            } catch (e) {
+                console.error('Error sincronizando pedido offline:', entry.localId, e);
+            }
+        }
+
+        if (synced > 0) {
+            showNotificationRef.current(`✅ ${synced} pedido(s) sincronizado(s) correctamente.`);
+            setPendingSync(getOfflineQueue().length > 0);
+            setCheckoutError(null);
+        }
+    }, []); // Sin dependencias — usa refs internamente
+
+    // ✅ Efecto 1: dispara al montar con delay para que Firebase termine de inicializar
+    // Cubre el caso de abrir la app con internet después de haber facturado offline
+    useEffect(() => {
+        if (navigator.onLine && getOfflineQueue().length > 0) {
+            const timer = setTimeout(() => processOfflineQueue(), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [processOfflineQueue]);
+
+    // ✅ Efecto 2: listener de reconexión
+    useEffect(() => {
+        const handleOnline = () => processOfflineQueue();
+        window.addEventListener('online', handleOnline);
+        return () => window.removeEventListener('online', handleOnline);
+    }, [processOfflineQueue]);
 
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
         if (!user || cart.length === 0) return;
+
+        const isAdmin = userData?.role === 'admin';
+        const isOffline = !navigator.onLine;
+
+        // ✅ Clientes sin internet: bloqueamos antes de cualquier spinner
+        if (isOffline && !isAdmin) {
+            setCheckoutError({
+                message: 'Sin conexión a internet.',
+                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                total: cartTotal,
+                time: new Date().toLocaleTimeString(),
+                isOffline: true,
+                isAdmin: false
+            });
+            return;
+        }
+
+        // ✅ Admin sin internet: guardamos en localStorage SIN mostrar spinner.
+        // La operación es instantánea (solo escribe en RAM/localStorage),
+        // no tiene sentido mostrar "procesando por favor espere".
+        if (isOffline && isAdmin) {
+            const localId = 'offline-' + Date.now();
+            const itemsWithCostOffline = cart.map(i => {
+                const p = products.find(prod => prod.id === i.id);
+                return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
+            });
+            const offlineSaleData = {
+                type: 'sale',
+                total: Number(cartTotal),
+                items: itemsWithCostOffline,
+                date: { seconds: Math.floor(Date.now() / 1000) },
+                deliveryType: 'delivery',
+                status: 'pending',
+                clientInfo: {
+                    name: selectedCustomer?.name || 'Anónimo',
+                    address: selectedCustomer?.address || '',
+                    phone: selectedCustomer?.phone || ''
+                },
+                clientId: selectedCustomer?.id || 'anonimo',
+                clientName: selectedCustomer?.name || 'Anónimo',
+                clientRole: selectedCustomer ? 'customer' : 'guest',
+                paymentStatus: 'pending',
+                fulfillmentStatus: 'pending',
+                sellerId: user.uid,
+                paymentMethod: paymentMethod
+            };
+            addToOfflineQueue({ localId, saleData: offlineSaleData, itemsWithCost: itemsWithCostOffline });
+            setLastSale({ ...offlineSaleData, id: localId });
+            clearCart();
+            setSelectedCustomer(null);
+            setShowMobileCart(false);
+            setPendingSync(true);
+            setCheckoutError({
+                message: 'Pedido guardado sin conexión.',
+                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                total: cartTotal,
+                time: new Date().toLocaleTimeString(),
+                isOffline: true,
+                isAdmin: true,
+                isPendingSync: true
+            });
+            return;
+        }
+
+        // ─── Online: activamos spinner y procedemos normalmente ──────────────
         setIsProcessing(true);
         setCheckoutError(null);
 
-        // ✅ saleData e itemsWithCost se definen ANTES del try-catch
-        // para que sean accesibles en los reintentos del catch
         let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
 
-        if (userData?.role === 'admin' && selectedCustomer) {
+        if (isAdmin && selectedCustomer) {
             finalClient = {
                 id: selectedCustomer.id,
                 name: selectedCustomer.name,
@@ -88,8 +219,8 @@ export const useCheckout = ({
             paymentMethod: paymentMethod
         };
 
+        // ─── Online: intento normal con reintentos ────────────────────────────
         const attemptTransaction = async () => {
-            // ✅ Timeout por intento para no quedar colgado indefinidamente
             const result = await withTimeout(
                 createTransaction(saleData, itemsWithCost),
                 CHECKOUT_TIMEOUT_MS
@@ -129,12 +260,12 @@ export const useCheckout = ({
         } catch (e) {
             console.error("Error en checkout (intento 1):", e.message);
 
-            // ✅ Si es timeout o error de red, reintentamos
             let success = false;
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
                     showNotification(`⏳ Reintentando pedido (${attempt}/${MAX_RETRIES})...`);
                     await sleep(RETRY_DELAY_MS);
+                    if (!navigator.onLine) throw new Error('OFFLINE');
 
                     const result = await attemptTransaction();
                     setLastSale(result);
@@ -151,16 +282,16 @@ export const useCheckout = ({
             }
 
             if (!success) {
-                // ✅ Si era offline, mensaje específico. Si era otro error, mensaje genérico.
-                const isOffline = !navigator.onLine;
                 setCheckoutError({
-                    message: isOffline
-                        ? "Sin conexión a internet. El pedido no pudo enviarse."
-                        : "No se pudo registrar el pedido.",
+                    message: !navigator.onLine
+                        ? 'Sin conexión. El pedido no se envió.'
+                        : 'No se pudo registrar el pedido.',
                     items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
                     total: cartTotal,
                     time: new Date().toLocaleTimeString(),
-                    isOffline
+                    isOffline: !navigator.onLine,
+                    isAdmin,
+                    isPendingSync: false
                 });
             }
         } finally {
@@ -172,6 +303,7 @@ export const useCheckout = ({
         isProcessing, setIsProcessing,
         lastSale, showCheckoutSuccess, setShowCheckoutSuccess,
         checkoutError, setCheckoutError,
+        pendingSync,
         handleCheckout
     };
 };
