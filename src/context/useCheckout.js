@@ -2,6 +2,26 @@ import { useState, useEffect } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { appId } from '../config/firebase';
 
+// ─── Cola offline persistente en localStorage ─────────────────────────────────
+// Sobrevive cierres de app. Se procesa cuando el admin vuelve con conexión.
+const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
+
+const getOfflineQueue = () => {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
+    catch { return []; }
+};
+
+const addToOfflineQueue = (entry) => {
+    const queue = getOfflineQueue();
+    queue.push(entry);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+};
+
+const removeFromOfflineQueue = (id) => {
+    const queue = getOfflineQueue().filter(e => e.localId !== id);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+};
+
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 3000;
 const CHECKOUT_TIMEOUT_MS = 12000;
@@ -30,21 +50,45 @@ export const useCheckout = ({
     // ✅ Pedidos admin guardados offline pendientes de sincronizar
     const [pendingSync, setPendingSync] = useState(false);
 
-    // ✅ Cuando el admin vuelve a tener internet, mostramos aviso de sincronización
-    // Firestore sincroniza automáticamente con persistentLocalCache, solo avisamos
+    // ✅ Al recuperar conexión: procesa la cola offline guardada en localStorage
+    // Esto garantiza que los pedidos sobrevivan aunque el admin cierre la app
     useEffect(() => {
-        if (!pendingSync) return;
-        const handleOnline = () => {
-            showNotification('🔄 Conexión restaurada — sincronizando pedidos...');
-            // Damos 4s para que Firestore sincronice antes de confirmar
-            setTimeout(() => {
-                showNotification('✅ Pedidos sincronizados con el servidor.');
-                setPendingSync(false);
-            }, 4000);
+        const processOfflineQueue = async () => {
+            const queue = getOfflineQueue();
+            if (queue.length === 0) return;
+
+            showNotification(`🔄 Sincronizando ${queue.length} pedido(s) guardado(s)...`);
+
+            let synced = 0;
+            for (const entry of queue) {
+                try {
+                    // Restauramos serverTimestamp para la escritura real
+                    const saleData = { ...entry.saleData, date: serverTimestamp() };
+                    await createTransaction(saleData, entry.itemsWithCost);
+                    removeFromOfflineQueue(entry.localId);
+                    synced++;
+                } catch (e) {
+                    console.error('Error sincronizando pedido offline:', entry.localId, e);
+                }
+            }
+
+            if (synced > 0) {
+                showNotification(`✅ ${synced} pedido(s) sincronizado(s) correctamente.`);
+                setPendingSync(getOfflineQueue().length > 0);
+                setCheckoutError(null);
+            }
         };
+
+        const handleOnline = () => processOfflineQueue();
         window.addEventListener('online', handleOnline);
+
+        // También intentamos al montar si ya hay internet y hay cola pendiente
+        if (navigator.onLine && getOfflineQueue().length > 0) {
+            processOfflineQueue();
+        }
+
         return () => window.removeEventListener('online', handleOnline);
-    }, [pendingSync, showNotification]);
+    }, [createTransaction, showNotification]);
 
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
         if (!user || cart.length === 0) return;
@@ -121,32 +165,36 @@ export const useCheckout = ({
             paymentMethod: paymentMethod
         };
 
-        // ✅ Admin offline: encolamos en Firestore directamente sin timeout ni reintentos
-        // persistentLocalCache sincroniza automáticamente cuando vuelve la conexión
+        // ✅ Admin offline: guardamos en localStorage primero (sobrevive cierres de app)
+        // y mostramos éxito inmediatamente. Al volver la conexión, el useEffect
+        // procesa la cola y sube cada pedido a Firestore, eliminándolo del localStorage
+        // solo cuando la escritura se confirma en el servidor.
         if (isOffline && isAdmin) {
-            try {
-                await createTransaction(saleData, itemsWithCost);
-                setLastSale({ ...saleData, id: 'offline-pending' });
-                clearCart();
-                setSelectedCustomer(null);
-                setShowMobileCart(false);
-                setPendingSync(true);
-                // Notificación especial que no desaparece sola — ver App.jsx
-                setCheckoutError({
-                    message: 'Pedido guardado sin conexión.',
-                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                    total: cartTotal,
-                    time: new Date().toLocaleTimeString(),
-                    isOffline: true,
-                    isAdmin: true,
-                    isPendingSync: true
-                });
-            } catch (e) {
-                console.error("Error al guardar offline:", e);
-                showNotification("❌ No se pudo guardar el pedido offline.");
-            } finally {
-                setIsProcessing(false);
-            }
+            const localId = 'offline-' + Date.now();
+            // Serializamos la fecha como timestamp numérico para localStorage
+            const offlineSaleData = {
+                ...saleData,
+                date: { seconds: Math.floor(Date.now() / 1000) }
+            };
+
+            addToOfflineQueue({ localId, saleData: offlineSaleData, itemsWithCost });
+
+            const offlineSale = { ...offlineSaleData, id: localId };
+            setLastSale(offlineSale);
+            clearCart();
+            setSelectedCustomer(null);
+            setShowMobileCart(false);
+            setIsProcessing(false);
+            setPendingSync(true);
+            setCheckoutError({
+                message: 'Pedido guardado sin conexión.',
+                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                total: cartTotal,
+                time: new Date().toLocaleTimeString(),
+                isOffline: true,
+                isAdmin: true,
+                isPendingSync: true
+            });
             return;
         }
 
