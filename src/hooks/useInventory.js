@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-    collection, query, orderBy, onSnapshot,
+    collection, query, orderBy, limit, onSnapshot,
     addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp,
-    writeBatch, increment // 👈 Agregados para el registro de fallas
+    writeBatch, increment
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
@@ -38,11 +38,15 @@ export const useInventory = (user, userData) => {
         let unsubCustomers = () => { };
         let unsubExpenses = () => { };
         if (userData?.role === 'admin') {
-            unsubCustomers = onSnapshot(query(collection(db, 'stores', appId, 'customers'), orderBy('name')), (s) =>
-                setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
+            // ✅ Límites razonables: 500 clientes y 300 gastos recientes.
+            // Suficiente para cualquier tienda mediana sin abusar de lecturas de Firestore.
+            unsubCustomers = onSnapshot(
+                query(collection(db, 'stores', appId, 'customers'), orderBy('name'), limit(500)),
+                (s) => setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
             );
-            unsubExpenses = onSnapshot(query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc')), (s) =>
-                setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
+            unsubExpenses = onSnapshot(
+                query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc'), limit(300)),
+                (s) => setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
             );
         } else {
             setCustomers([]); setExpenses([]);

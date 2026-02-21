@@ -7,7 +7,7 @@ import {
     sendPasswordResetEmail
 } from 'firebase/auth';
 import {
-    doc, getDoc, setDoc, serverTimestamp,
+    doc, getDoc, onSnapshot, setDoc, serverTimestamp,
     collection, query, where, getDocs, updateDoc
 } from 'firebase/firestore';
 
@@ -21,28 +21,46 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
     const [loginError, setLoginError]   = useState('');
 
     useEffect(() => {
-        // ✅ auth y db son estables (importados), no se recrean entre renders
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
+        let unsubUserData = () => {};
+
+        // ✅ onAuthStateChanged detecta login/logout
+        const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+            // Limpiamos la suscripción anterior al perfil si el usuario cambia
+            unsubUserData();
+
             if (currentUser) {
-                try {
-                    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-                    if (userDoc.exists()) {
-                        setUserData(userDoc.data());
-                    } else if (navigator.onLine) {
-                        await signOut(auth);
-                        setUserData(null);
-                        setUser(null);
+                setUser(currentUser);
+                // ✅ onSnapshot en lugar de getDoc: detecta cambios de rol en tiempo real
+                // Si el admin cambia el rol de este usuario, se aplica sin necesidad de re-login
+                unsubUserData = onSnapshot(
+                    doc(db, 'users', currentUser.uid),
+                    (userDoc) => {
+                        if (userDoc.exists()) {
+                            setUserData(userDoc.data());
+                        } else if (navigator.onLine) {
+                            signOut(auth);
+                            setUserData(null);
+                            setUser(null);
+                        }
+                        setAuthLoading(false);
+                    },
+                    (e) => {
+                        // Error offline: ignorable, Firestore usa caché local
+                        console.log("Error auth offline (ignorable):", e);
+                        setAuthLoading(false);
                     }
-                } catch (e) {
-                    console.log("Error auth offline (ignorable):", e);
-                }
+                );
             } else {
+                setUser(null);
                 setUserData(null);
+                setAuthLoading(false);
             }
-            setAuthLoading(false);
         });
-        return () => unsubscribe();
+
+        return () => {
+            unsubAuth();
+            unsubUserData();
+        };
     }, []); // ✅ Sin dependencias: auth y db son estables
 
     const login = async (email, password) => {

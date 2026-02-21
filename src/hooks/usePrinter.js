@@ -86,7 +86,27 @@ export const usePrinter = () => {
     const printRawBT = (transaction, storeProfile) => {
         const text = generateReceiptText(transaction, storeProfile);
         const base64 = btoa(text);
-        window.location.href = `rawbt:base64,${base64}`;
+
+        // ✅ Detectamos si RawBT está instalado usando un iframe oculto.
+        // Si el scheme rawbt:// no está registrado, el iframe no dispara nada
+        // y mostramos un mensaje al usuario en lugar de silencio.
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+
+        let appOpened = false;
+        const handleBlur = () => { appOpened = true; };
+        window.addEventListener('blur', handleBlur);
+
+        iframe.src = `rawbt:base64,${base64}`;
+
+        setTimeout(() => {
+            window.removeEventListener('blur', handleBlur);
+            document.body.removeChild(iframe);
+            if (!appOpened) {
+                alert('No se encontró la app RawBT.\nInstalala desde Play Store para imprimir por Bluetooth.');
+            }
+        }, 1500);
     };
 
     const printBluetooth = async (transaction, storeProfile) => {

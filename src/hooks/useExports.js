@@ -24,7 +24,13 @@ export const useExports = ({ products, transactions, expenses, balance, storePro
                 <div style="font-family: Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white;">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;">
                         <div>
-                            ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;" crossorigin="anonymous"/>` : ''}
+                            ${storeProfile.logoUrl
+                                ? `<img src="${storeProfile.logoUrl}"
+                                        crossorigin="anonymous"
+                                        style="height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;"
+                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                   <div style="display:none; height:60px; width:60px; background:#eff6ff; border-radius:8px; align-items:center; justify-content:center; margin-bottom:10px; font-size:24px;">🏪</div>`
+                                : ''}
                             <h1 style="font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;">${storeProfile.name}</h1>
                         </div>
                         <div style="text-align: right;">

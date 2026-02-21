@@ -227,7 +227,99 @@ export default function App() {
         setIsProcessing(false);
     };
 
-    // ── Pantallas de carga y login ─────────────────────────────────────────────
+    // ── Handlers de modales (extraídos para legibilidad y debugging) ────────────
+
+    const handleSaveExpense = async (e) => {
+        e.preventDefault();
+        try {
+            await addExpense({
+                description: e.target.description.value,
+                amount: parseFloat(e.target.amount.value)
+            });
+            toggleModal('expense', false);
+        } catch { showNotification("❌ Error al guardar gasto"); }
+    };
+
+    const handleSaveCategory = async (e) => {
+        e.preventDefault();
+        if (e.target.catName.value) {
+            await addCategory(e.target.catName.value);
+            toggleModal('category', false);
+        }
+    };
+
+    const handleSaveCustomer = async (e) => {
+        e.preventDefault();
+        const d = {
+            name: e.target.name.value,
+            phone: e.target.phone.value,
+            address: e.target.address.value,
+            email: e.target.email.value
+        };
+        try {
+            if (editingCustomer) await updateCustomer(editingCustomer.id, d);
+            else await addCustomer(d);
+            toggleModal('customer', false);
+        } catch { showNotification("❌ Error al guardar cliente"); }
+    };
+
+    const handleSaveStore = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const newName = form.storeName.value;
+        let newLogo = storeProfile.logoUrl;
+        if (imageMode === 'file') {
+            if (previewImage) newLogo = previewImage;
+        } else {
+            if (form.logoUrlLink) newLogo = form.logoUrlLink.value;
+        }
+        try {
+            await updateStoreProfile({ name: newName, logoUrl: newLogo });
+            toggleModal('store', false);
+            showNotification("✅ Perfil actualizado");
+        } catch (error) {
+            showNotification("❌ Error al guardar: " + error.message);
+        }
+    };
+
+    const handleAddStock = async (e) => {
+        e.preventDefault();
+        await addStock(scannedProduct, parseInt(e.target.qty.value));
+        toggleModal('stock', false);
+        setScannedProduct(null);
+    };
+
+    const handleSaveTransaction = async (d) => {
+        if (!d.items || d.items.length === 0 || d.total === 0) {
+            showNotification("⚠️ Los datos de la boleta aún no han cargado.");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await updateTransaction(editingTransaction.id, d);
+            toggleModal('transaction', false);
+            showNotification("✅ Boleta actualizada");
+            if (selectedTransaction?.id === editingTransaction.id) {
+                setSelectedTransaction(prev => ({ ...prev, ...d }));
+            }
+        } catch { showNotification("❌ No se pudieron guardar los cambios."); }
+        finally { setIsProcessing(false); }
+    };
+
+    const handleConfirmLogout = async () => {
+        await logout();
+        toggleModal('logout', false);
+    };
+
+    const handleConfirmFaulty = async (p, q, r) => {
+        setIsProcessing(true);
+        await registerFaultyProduct(p, q, r);
+        toggleModal('faulty', false);
+        setIsProcessing(false);
+        showNotification("✅ Falla registrada como gasto");
+    };
+
+        // ── Pantallas de carga y login ─────────────────────────────────────────────
     if (authLoading) {
         return (
             <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600 font-bold">
@@ -527,47 +619,84 @@ export default function App() {
                 )}
 
                 {/* Modales */}
-                {modals.expense && <ExpenseModal onClose={() => toggleModal('expense', false)} onSave={async (e) => { e.preventDefault(); try { await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) }); toggleModal('expense', false); } catch { showNotification("❌ Error al guardar gasto"); } }} />}
-                {modals.product && <ProductModal onClose={() => toggleModal('product', false)} onSave={handleSaveProductWrapper} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)} editingProduct={editingProduct} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} categories={categories} subcategories={subcategories} onRegisterFaulty={(p) => { setFaultyProduct(p); toggleModal('faulty', true); }} />}
-                {modals.category && <CategoryModal onClose={() => toggleModal('category', false)} onSave={async (e) => { e.preventDefault(); if (e.target.catName.value) { await addCategory(e.target.catName.value); toggleModal('category', false); } }} onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)} categories={categories} subcategories={subcategories} onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory} onUpdate={updateCategory} />}
-                {modals.customer && <CustomerModal onClose={() => toggleModal('customer', false)} onSave={async (e) => { e.preventDefault(); const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value }; try { if (editingCustomer) await updateCustomer(editingCustomer.id, d); else await addCustomer(d); toggleModal('customer', false); } catch { showNotification("❌ Error al guardar cliente"); } }} editingCustomer={editingCustomer} />}
-                {modals.store && <StoreModal onClose={() => toggleModal('store', false)} storeProfile={storeProfile} imageMode={imageMode} setImageMode={setImageMode} previewImage={previewImage} setPreviewImage={setPreviewImage} handleFileChange={handleFileChange} onSave={async (e) => { e.preventDefault(); const form = e.target; const newName = form.storeName.value; let newLogo = storeProfile.logoUrl; if (imageMode === 'file') { if (previewImage) newLogo = previewImage; } else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; } try { await updateStoreProfile({ name: newName, logoUrl: newLogo }); toggleModal('store', false); showNotification("✅ Perfil actualizado"); } catch (error) { showNotification("❌ Error al guardar: " + error.message); } }} />}
-                {modals.stock && scannedProduct && <AddStockModal onClose={() => { toggleModal('stock', false); setScannedProduct(null); }} onConfirm={async (e) => { e.preventDefault(); await addStock(scannedProduct, parseInt(e.target.qty.value)); toggleModal('stock', false); setScannedProduct(null); }} scannedProduct={scannedProduct} quantityInputRef={quantityInputRef} />}
+                {modals.expense && (
+                    <ExpenseModal
+                        onClose={() => toggleModal('expense', false)}
+                        onSave={handleSaveExpense}
+                    />
+                )}
+                {modals.product && (
+                    <ProductModal
+                        onClose={() => toggleModal('product', false)}
+                        onSave={handleSaveProductWrapper}
+                        onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)}
+                        editingProduct={editingProduct}
+                        imageMode={imageMode} setImageMode={setImageMode}
+                        previewImage={previewImage} setPreviewImage={setPreviewImage}
+                        handleFileChange={handleFileChange}
+                        categories={categories} subcategories={subcategories}
+                        onRegisterFaulty={(p) => { setFaultyProduct(p); toggleModal('faulty', true); }}
+                    />
+                )}
+                {modals.category && (
+                    <CategoryModal
+                        onClose={() => toggleModal('category', false)}
+                        onSave={handleSaveCategory}
+                        onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)}
+                        categories={categories} subcategories={subcategories}
+                        onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory}
+                        onUpdate={updateCategory}
+                    />
+                )}
+                {modals.customer && (
+                    <CustomerModal
+                        onClose={() => toggleModal('customer', false)}
+                        onSave={handleSaveCustomer}
+                        editingCustomer={editingCustomer}
+                    />
+                )}
+                {modals.store && (
+                    <StoreModal
+                        onClose={() => toggleModal('store', false)}
+                        storeProfile={storeProfile}
+                        imageMode={imageMode} setImageMode={setImageMode}
+                        previewImage={previewImage} setPreviewImage={setPreviewImage}
+                        handleFileChange={handleFileChange}
+                        onSave={handleSaveStore}
+                    />
+                )}
+                {modals.stock && scannedProduct && (
+                    <AddStockModal
+                        onClose={() => { toggleModal('stock', false); setScannedProduct(null); }}
+                        onConfirm={handleAddStock}
+                        scannedProduct={scannedProduct}
+                        quantityInputRef={quantityInputRef}
+                    />
+                )}
                 {modals.transaction && editingTransaction && (
                     <TransactionModal
                         onClose={() => toggleModal('transaction', false)}
-                        onSave={async (d) => {
-                            if (!d.items || d.items.length === 0 || d.total === 0) {
-                                showNotification("⚠️ Los datos de la boleta aún no han cargado.");
-                                return;
-                            }
-                            setIsProcessing(true);
-                            try {
-                                await updateTransaction(editingTransaction.id, d);
-                                toggleModal('transaction', false);
-                                showNotification("✅ Boleta actualizada");
-                                if (selectedTransaction?.id === editingTransaction.id) {
-                                    setSelectedTransaction(prev => ({ ...prev, ...d }));
-                                }
-                            } catch { showNotification("❌ No se pudieron guardar los cambios."); }
-                            finally { setIsProcessing(false); }
-                        }}
+                        onSave={handleSaveTransaction}
                         editingTransaction={editingTransaction}
                     />
                 )}
-                {modals.logout && <LogoutConfirmModal onClose={() => toggleModal('logout', false)} onConfirm={async () => { await logout(); toggleModal('logout', false); }} />}
-                {modals.invitation && <InvitationModal onClose={() => toggleModal('invitation', false)} onGenerate={generateInvitationCode} />}
+                {modals.logout && (
+                    <LogoutConfirmModal
+                        onClose={() => toggleModal('logout', false)}
+                        onConfirm={handleConfirmLogout}
+                    />
+                )}
+                {modals.invitation && (
+                    <InvitationModal
+                        onClose={() => toggleModal('invitation', false)}
+                        onGenerate={generateInvitationCode}
+                    />
+                )}
                 {modals.faulty && faultyProduct && (
                     <FaultyProductModal
                         product={faultyProduct}
                         onClose={() => toggleModal('faulty', false)}
-                        onConfirm={async (p, q, r) => {
-                            setIsProcessing(true);
-                            await registerFaultyProduct(p, q, r);
-                            toggleModal('faulty', false);
-                            setIsProcessing(false);
-                            showNotification("✅ Falla registrada como gasto");
-                        }}
+                        onConfirm={handleConfirmFaulty}
                     />
                 )}
             </div>
