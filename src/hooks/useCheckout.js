@@ -79,16 +79,23 @@ export const useCheckout = ({
             // 2. DISPARAR NOTIFICACIÓN VÍA VERCEL
             // Solo notificamos si es un pedido realizado por un cliente (no venta directa de admin)
             if (saleData.clientRole === 'client') {
+                // ✅ AbortController con timeout de 8s para evitar fetch colgados en conexiones lentas
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
                 fetch('/api/notify', {
                     method: 'POST',
+                    signal: controller.signal,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         transactionId: result.id,
                         clientName: saleData.clientName,
                         total: saleData.total,
-                        storeId: appId // ID de la tienda desde firebase.js
+                        storeId: appId
                     })
-                }).catch(err => console.error("Error al enviar notificación:", err));
+                }).then(() => clearTimeout(timeoutId)).catch(err => {
+                    clearTimeout(timeoutId);
+                    console.error("Error al enviar notificación:", err);
+                });
             }
 
             setLastSale(result);

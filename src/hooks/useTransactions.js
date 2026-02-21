@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    collection, query, orderBy, limit, where, onSnapshot,
+    collection, query, orderBy, limit, where, onSnapshot, Timestamp,
     updateDoc, doc, serverTimestamp, writeBatch, getDoc, increment
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
@@ -10,15 +10,29 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     const [lastTransactionId, setLastTransactionId] = useState(null);
 
     // 1. Cargar Transacciones
+    // ✅ Filtramos por fecha en Firestore en lugar de traer 5000 docs y filtrar en cliente.
+    // Traemos 35 días siempre (5 días de margen sobre el máximo de 30 días del balance),
+    // más un límite de 500 como techo de seguridad para tiendas con mucho volumen.
     useEffect(() => {
         if (!user || !userData) return;
 
         let q;
         if (userData.role === 'admin') {
-            // 🛡️ Aumentamos el límite a 5000 para asegurar que el balance de 30 días tenga datos suficientes
-            q = query(collection(db, 'stores', appId, 'transactions'), orderBy('date', 'desc'), limit(5000));
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 35);
+            q = query(
+                collection(db, 'stores', appId, 'transactions'),
+                where('date', '>=', Timestamp.fromDate(cutoff)),
+                orderBy('date', 'desc'),
+                limit(500)
+            );
         } else {
-            q = query(collection(db, 'stores', appId, 'transactions'), where('clientId', '==', user.uid), orderBy('date', 'desc'), limit(50));
+            q = query(
+                collection(db, 'stores', appId, 'transactions'),
+                where('clientId', '==', user.uid),
+                orderBy('date', 'desc'),
+                limit(50)
+            );
         }
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
