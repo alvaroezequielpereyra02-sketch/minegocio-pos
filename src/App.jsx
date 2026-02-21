@@ -109,7 +109,7 @@ export default function App() {
     };
 
     // ── Hooks extraídos ────────────────────────────────────────────────────────
-    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, handleCheckout } = useCheckout({
+    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, checkoutError, setCheckoutError, handleCheckout } = useCheckout({
         user, userData, cart, products, cartTotal, paymentMethod,
         selectedCustomer, createTransaction, clearCart, showNotification
     });
@@ -615,6 +615,30 @@ export default function App() {
                         >
                             Ver Boleta
                         </button>
+                    </div>
+                )}
+
+                {/* ✅ Banner de error persistente — no desaparece hasta que el usuario lo cierra */}
+                {checkoutError && (
+                    <div className="fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 bg-red-600 text-white px-5 py-4 rounded-xl shadow-2xl z-[110] border-2 border-red-400">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                                <p className="font-bold text-base">⚠️ No se pudo registrar el pedido</p>
+                                <p className="text-xs opacity-80 mt-1">Ocurrió a las {checkoutError.time}</p>
+                            </div>
+                            <button
+                                onClick={() => setCheckoutError(null)}
+                                className="text-white opacity-70 hover:opacity-100 text-lg font-bold leading-none mt-0.5"
+                            >✕</button>
+                        </div>
+                        <div className="bg-red-700 rounded-lg p-3 mb-3 text-xs">
+                            <p className="font-bold mb-1">Detalle del pedido perdido:</p>
+                            <p className="opacity-90">{checkoutError.items}</p>
+                            <p className="font-bold mt-1">Total: ${Number(checkoutError.total).toLocaleString('es-AR')}</p>
+                        </div>
+                        <p className="text-xs opacity-80 text-center">
+                            Anotá el pedido manualmente y avisá al administrador.
+                        </p>
                     </div>
                 )}
 

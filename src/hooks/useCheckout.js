@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
-import { appId } from '../config/firebase'; //
+import { appId } from '../config/firebase';
+
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 3000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Encapsula toda la lógica de procesar una venta (checkout).
+ * Incluye reintentos automáticos y error persistente si falla todo.
  */
 export const useCheckout = ({
     user, userData,
@@ -15,10 +21,12 @@ export const useCheckout = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [lastSale, setLastSale] = useState(null);
     const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
+    const [checkoutError, setCheckoutError] = useState(null); // ✅ Error persistente
 
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
         if (!user || cart.length === 0) return;
         setIsProcessing(true);
+        setCheckoutError(null);
 
         try {
             let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
@@ -106,12 +114,67 @@ export const useCheckout = ({
             setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
         } catch (e) {
-            console.error("Error en checkout:", e);
-            showNotification("❌ Error al procesar pedido.");
+            console.error("Error en checkout (intento 1):", e);
+
+            // ✅ Reintentos automáticos
+            let success = false;
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    showNotification(`⏳ Reintentando pedido (${attempt}/${MAX_RETRIES})...`);
+                    await sleep(RETRY_DELAY_MS);
+
+                    const result = await createTransaction(saleData, itemsWithCost);
+
+                    if (saleData.clientRole === 'client') {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 8000);
+                        fetch('/api/notify', {
+                            method: 'POST',
+                            signal: controller.signal,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                transactionId: result.id,
+                                clientName: saleData.clientName,
+                                total: saleData.total,
+                                storeId: appId
+                            })
+                        }).then(() => clearTimeout(timeoutId)).catch(err => {
+                            clearTimeout(timeoutId);
+                            console.error("Error al enviar notificación:", err);
+                        });
+                    }
+
+                    setLastSale(result);
+                    clearCart();
+                    setSelectedCustomer(null);
+                    setShowMobileCart(false);
+                    setShowCheckoutSuccess(true);
+                    setTimeout(() => setShowCheckoutSuccess(false), 4000);
+                    success = true;
+                    break;
+                } catch (retryError) {
+                    console.error(`Error en checkout (intento ${attempt + 1}):`, retryError);
+                }
+            }
+
+            // ✅ Si todos los reintentos fallaron, mostramos error persistente
+            if (!success) {
+                setCheckoutError({
+                    message: "No se pudo registrar el pedido.",
+                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                    total: cartTotal,
+                    time: new Date().toLocaleTimeString()
+                });
+            }
         } finally {
             setIsProcessing(false);
         }
     };
 
-    return { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, handleCheckout };
+    return {
+        isProcessing, setIsProcessing,
+        lastSale, showCheckoutSuccess, setShowCheckoutSuccess,
+        checkoutError, setCheckoutError,
+        handleCheckout
+    };
 };
