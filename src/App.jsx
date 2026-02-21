@@ -109,7 +109,7 @@ export default function App() {
     };
 
     // ── Hooks extraídos ────────────────────────────────────────────────────────
-    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, handleCheckout } = useCheckout({
+    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, checkoutError, setCheckoutError, pendingSync, handleCheckout } = useCheckout({
         user, userData, cart, products, cartTotal, paymentMethod,
         selectedCustomer, createTransaction, clearCart, showNotification
     });
@@ -330,30 +330,6 @@ export default function App() {
         );
     }
 
-    // ✅ Si authLoading terminó pero no hay usuario/userData y estamos offline,
-    // mostramos mensaje específico en lugar de la pantalla de login
-    if (!user && !navigator.onLine && !authLoading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center gap-4">
-                {storeProfile?.logoUrl
-                    ? <img src={storeProfile.logoUrl} className="w-16 h-16 rounded-xl object-cover" />
-                    : <div className="text-5xl">🏪</div>}
-                <div className="text-4xl">📶</div>
-                <h2 className="text-xl font-bold text-slate-800">Sin conexión</h2>
-                <p className="text-sm text-slate-500 max-w-xs">
-                    No podemos verificar tu sesión sin internet.<br />
-                    Conectate y volvé a intentar.
-                </p>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="bg-blue-600 text-white font-bold px-6 py-3 rounded-xl"
-                >
-                    Reintentar
-                </button>
-            </div>
-        );
-    }
-
     if (!user || !userData) {
         return (
             <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -452,6 +428,7 @@ export default function App() {
                                 selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
                                 categories={categories} subcategories={subcategories}
                                 userData={userData} barcodeInput={barcodeInput} setBarcodeInput={setBarcodeInput}
+                                cart={cart}
                                 handleBarcodeSubmit={(e) => {
                                     e.preventDefault();
                                     if (!barcodeInput) return;
@@ -639,6 +616,37 @@ export default function App() {
                         >
                             Ver Boleta
                         </button>
+                    </div>
+                )}
+
+                {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
+                {checkoutError && (
+                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[110] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                                <p className="font-bold text-base">
+                                    {checkoutError.isPendingSync
+                                        ? '⏳ Pedido guardado — sin sincronizar'
+                                        : checkoutError.isOffline ? '📶 Sin conexión' : '⚠️ Error al registrar pedido'}
+                                </p>
+                                <p className="text-xs opacity-80 mt-1">Ocurrió a las {checkoutError.time}</p>
+                            </div>
+                            {!checkoutError.isPendingSync && (
+                                <button onClick={() => setCheckoutError(null)} className="text-white opacity-70 hover:opacity-100 text-xl font-bold leading-none">✕</button>
+                            )}
+                        </div>
+                        <div className={`rounded-lg p-3 mb-3 text-xs ${checkoutError.isPendingSync ? 'bg-amber-700' : 'bg-red-700'}`}>
+                            <p className="font-bold mb-1">Detalle del pedido:</p>
+                            <p className="opacity-90">{checkoutError.items}</p>
+                            <p className="font-bold mt-1">Total: ${Number(checkoutError.total).toLocaleString('es-AR')}</p>
+                        </div>
+                        <p className="text-xs opacity-90 text-center">
+                            {checkoutError.isPendingSync
+                                ? 'El pedido está guardado en este dispositivo. Se enviará automáticamente cuando haya conexión.'
+                                : checkoutError.isOffline
+                                    ? 'Necesitás internet para enviar pedidos. Conectate y repetí el pedido.'
+                                    : 'Anotá el pedido manualmente y avisá al administrador.'}
+                        </p>
                     </div>
                 )}
 
