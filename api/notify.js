@@ -34,7 +34,6 @@ export default async function handler(req, res) {
             return res.status(200).json({ success: true, message: 'No tokens registrados' });
         }
 
-        // Separar tokens por plataforma
         const mobileTokens = [];
         const desktopTokens = [];
 
@@ -44,37 +43,43 @@ export default async function handler(req, res) {
             if (platform === 'android' || platform === 'ios') {
                 mobileTokens.push(token);
             } else {
-                desktopTokens.push(token); // 'desktop' o sin plataforma (legacy)
+                desktopTokens.push(token);
             }
         });
 
         const sends = [];
 
-        // MÓVIL: notification top-level para que Android despierte Chrome cerrado
+        // MÓVIL: data-only + android.priority high
+        // El SW muestra la notificación via onBackgroundMessage → sin duplicados
         if (mobileTokens.length > 0) {
             sends.push(
                 messaging.sendEachForMulticast({
                     tokens: mobileTokens,
-                    notification: { title, body },
-                    data: { url: '/', transactionId: transactionId || '' },
+                    data: {
+                        title,
+                        body,
+                        icon: '/logo192.png',
+                        badge: '/logo192.png',
+                        url: '/',
+                        transactionId: transactionId || ''
+                    },
                     android: {
-                        priority: 'high',
-                        notification: {
-                            color: '#2563eb',
-                            sound: 'default'
-                        }
+                        priority: 'high'
                     }
                 })
             );
         }
 
-        // DESKTOP: solo webpush, el SW muestra via onBackgroundMessage
+        // DESKTOP: notification top-level para que onBackgroundMessage lo reciba
         if (desktopTokens.length > 0) {
             sends.push(
                 messaging.sendEachForMulticast({
                     tokens: desktopTokens,
                     notification: { title, body },
-                    data: { url: '/', transactionId: transactionId || '' },
+                    data: {
+                        url: '/',
+                        transactionId: transactionId || ''
+                    },
                     webpush: {
                         headers: { Urgency: 'high', TTL: '60' },
                         notification: {

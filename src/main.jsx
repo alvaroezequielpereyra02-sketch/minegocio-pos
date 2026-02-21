@@ -32,23 +32,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// REGISTRO DE SERVICE WORKER
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').then(registration => {
-      // console.log('SW registrado:', registration.scope);
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
-      }
-    }).catch(err => console.log('SW Error:', err));
-
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (let registration of registrations) {
-        if (registration.active && registration.active.scriptURL.includes('sw.js')) {
-          registration.unregister();
-        }
-      }
-    });
-  });
-}
+// El Service Worker es registrado por useNotifications.js (firebase-messaging-sw.js)
+// No registrar service-worker.js aquí para evitar conflictos con FCM

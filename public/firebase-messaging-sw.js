@@ -6,7 +6,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
 // ─── CACHE ────────────────────────────────────────────────────────────────────
-const CACHE_NAME = 'minegocio-pos-v18-FCM-unified';
+const CACHE_NAME = 'minegocio-pos-v19-FCM-unified';
 
 const STATIC_ASSETS = [
   '/',
@@ -54,19 +54,22 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ─── NOTIFICACIONES EN BACKGROUND (FCM) ──────────────────────────────────────
-// En Chrome (PC y Android), onBackgroundMessage es OBLIGATORIO.
-// Sin este handler, Firebase no muestra ninguna notificación en background.
+// Maneja dos tipos de payload:
+// - Móvil: data-only → lee de payload.data (evita duplicados con el sistema Android)
+// - Desktop: notification → lee de payload.notification
 messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification || {};
-  const { url } = payload.data || {};
-  self.registration.showNotification(title || '¡Nuevo Pedido!', {
-    body: body || 'Tienes un nuevo pedido pendiente.',
+  const title = payload.notification?.title || payload.data?.title || '¡Nuevo Pedido!';
+  const body = payload.notification?.body || payload.data?.body || 'Tienes un nuevo pedido pendiente.';
+  const url = payload.data?.url || '/';
+
+  self.registration.showNotification(title, {
+    body,
     icon: '/logo192.png',
     badge: '/logo192.png',
     vibrate: [200, 100, 200],
     tag: 'pedido-nuevo',
     renotify: true,
-    data: { url: url || '/' }
+    data: { url }
   });
 });
 
