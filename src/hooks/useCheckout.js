@@ -2,8 +2,21 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { appId } from '../config/firebase';
 
+const CHECKOUT_TIMEOUT_MS = 8000;
+const RETRY_DELAY_MS = 3000;
+const MAX_RETRIES = 2;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withTimeout = (promise, ms) =>
+    Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('TIMEOUT')), ms)
+        )
+    ]);
+
 // ─── Cola offline persistente en localStorage ─────────────────────────────────
-// Sobrevive cierres de app. Se procesa cuando el admin vuelve con conexión.
 const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
 
 const getOfflineQueue = () => {
@@ -22,19 +35,22 @@ const removeFromOfflineQueue = (id) => {
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
 };
 
-const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 3000;
-const CHECKOUT_TIMEOUT_MS = 5000; // Falla rápido — si no responde en 5s, probablemente sin internet real
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-const withTimeout = (promise, ms) =>
-    Promise.race([
-        promise,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('TIMEOUT')), ms)
-        )
-    ]);
+// ✅ Ping real a Firebase — navigator.onLine no es confiable en Android con señal débil.
+// Si este fetch falla, no hay internet real aunque el sistema diga que sí.
+const checkRealConnectivity = async () => {
+    try {
+        await withTimeout(
+            fetch('https://firestore.googleapis.com/v1/projects/minegocio-pos-e35bf/databases/(default)/documents', {
+                method: 'HEAD',
+                cache: 'no-store'
+            }),
+            3000
+        );
+        return true;
+    } catch {
+        return false;
+    }
+};
 
 export const useCheckout = ({
     user, userData,
@@ -47,14 +63,15 @@ export const useCheckout = ({
     const [lastSale, setLastSale] = useState(null);
     const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
     const [checkoutError, setCheckoutError] = useState(null);
-    // ✅ Inicializamos desde localStorage — si había cola al cerrar la app, pendingSync arranca en true
     const [pendingSync, setPendingSync] = useState(() => getOfflineQueue().length > 0);
 
-    // ✅ Refs para acceder a la versión más reciente de las funciones sin re-ejecutar efectos
+    // ✅ Refs estables — evitan que los efectos se re-ejecuten en cada render
     const createTransactionRef = useRef(createTransaction);
-    useEffect(() => { createTransactionRef.current = createTransaction; }, [createTransaction]);
     const showNotificationRef = useRef(showNotification);
-    useEffect(() => { showNotificationRef.current = showNotification; }, [showNotification]);
+    // Actualizamos los refs sincrónicamente en cada render (sin useEffect)
+    // para que estén disponibles de inmediato cuando los efectos disparen
+    createTransactionRef.current = createTransaction;
+    showNotificationRef.current = showNotification;
 
     const processOfflineQueue = useCallback(async () => {
         const queue = getOfflineQueue();
@@ -79,127 +96,117 @@ export const useCheckout = ({
             setPendingSync(getOfflineQueue().length > 0);
             setCheckoutError(null);
         }
-    }, []); // Sin dependencias — usa refs internamente
+    }, []); // Sin dependencias — usa refs que se actualizan sincrónicamente
 
-    // ✅ Efecto 1: dispara cuando el usuario está autenticado y hay cola pendiente.
-    // Usamos `user` como señal de que Firebase ya inicializó completamente.
-    // Sin esto, createTransaction puede ejecutarse antes de que Auth esté lista.
+    // ✅ Dispara cuando el usuario se autentica y hay cola pendiente
     useEffect(() => {
-        if (!user) return; // Esperar a que Auth esté lista
-        if (!navigator.onLine) return;
+        if (!user || !navigator.onLine) return;
         if (getOfflineQueue().length === 0) return;
-
         const timer = setTimeout(() => processOfflineQueue(), 1500);
         return () => clearTimeout(timer);
-    }, [user, processOfflineQueue]); // Se re-ejecuta cuando el usuario se autentica
+    }, [user, processOfflineQueue]);
 
-    // ✅ Efecto 2: listener de reconexión
+    // ✅ Dispara cuando vuelve la conexión
     useEffect(() => {
-        const handleOnline = () => processOfflineQueue();
+        const handleOnline = () => {
+            if (getOfflineQueue().length > 0) processOfflineQueue();
+        };
         window.addEventListener('online', handleOnline);
         return () => window.removeEventListener('online', handleOnline);
     }, [processOfflineQueue]);
+
+    // ─── Helpers para guardar offline ─────────────────────────────────────────
+    const buildItemsWithCost = () =>
+        cart.map(i => {
+            const p = products.find(prod => prod.id === i.id);
+            return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
+        });
+
+    const buildOfflineSaleData = (itemsWithCost) => {
+        const client = selectedCustomer
+            ? { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer', address: selectedCustomer.address || '', phone: selectedCustomer.phone || '' }
+            : userData?.role === 'client'
+                ? { id: user.uid, name: userData.name, role: 'client', address: userData.address || '', phone: userData.phone || '' }
+                : { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
+
+        return {
+            type: 'sale',
+            total: Number(cartTotal),
+            items: itemsWithCost,
+            date: { seconds: Math.floor(Date.now() / 1000) },
+            deliveryType: 'delivery',
+            status: 'pending',
+            clientInfo: { name: client.name, address: client.address, phone: client.phone },
+            clientId: client.id,
+            clientName: client.name,
+            clientRole: client.role,
+            paymentStatus: 'pending',
+            fulfillmentStatus: 'pending',
+            sellerId: user.uid,
+            paymentMethod: paymentMethod
+        };
+    };
+
+    const saveOffline = (itemsWithCost, offlineSaleData) => {
+        const localId = 'offline-' + Date.now();
+        addToOfflineQueue({ localId, saleData: offlineSaleData, itemsWithCost });
+        setLastSale({ ...offlineSaleData, id: localId });
+        clearCart();
+        setSelectedCustomer?.(null);
+        setPendingSync(true);
+        setCheckoutError({
+            message: 'Pedido guardado sin conexión.',
+            items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+            total: cartTotal,
+            time: new Date().toLocaleTimeString(),
+            isOffline: true,
+            isAdmin: true,
+            isPendingSync: true
+        });
+    };
 
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
         if (!user || cart.length === 0) return;
 
         const isAdmin = userData?.role === 'admin';
-        const isOffline = !navigator.onLine;
+        const itemsWithCost = buildItemsWithCost();
+        const offlineSaleData = buildOfflineSaleData(itemsWithCost);
 
-        // ✅ Clientes sin internet: bloqueamos antes de cualquier spinner
-        if (isOffline && !isAdmin) {
-            setCheckoutError({
-                message: 'Sin conexión a internet.',
-                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                total: cartTotal,
-                time: new Date().toLocaleTimeString(),
-                isOffline: true,
-                isAdmin: false
-            });
-            return;
-        }
-
-        // ✅ Admin sin internet: guardamos en localStorage SIN mostrar spinner.
-        // La operación es instantánea (solo escribe en RAM/localStorage),
-        // no tiene sentido mostrar "procesando por favor espere".
-        if (isOffline && isAdmin) {
-            const localId = 'offline-' + Date.now();
-            const itemsWithCostOffline = cart.map(i => {
-                const p = products.find(prod => prod.id === i.id);
-                return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
-            });
-            const offlineSaleData = {
-                type: 'sale',
-                total: Number(cartTotal),
-                items: itemsWithCostOffline,
-                date: { seconds: Math.floor(Date.now() / 1000) },
-                deliveryType: 'delivery',
-                status: 'pending',
-                clientInfo: {
-                    name: selectedCustomer?.name || 'Anónimo',
-                    address: selectedCustomer?.address || '',
-                    phone: selectedCustomer?.phone || ''
-                },
-                clientId: selectedCustomer?.id || 'anonimo',
-                clientName: selectedCustomer?.name || 'Anónimo',
-                clientRole: selectedCustomer ? 'customer' : 'guest',
-                paymentStatus: 'pending',
-                fulfillmentStatus: 'pending',
-                sellerId: user.uid,
-                paymentMethod: paymentMethod
-            };
-            addToOfflineQueue({ localId, saleData: offlineSaleData, itemsWithCost: itemsWithCostOffline });
-            setLastSale({ ...offlineSaleData, id: localId });
-            clearCart();
-            setSelectedCustomer(null);
-            setShowMobileCart(false);
-            setPendingSync(true);
-            setCheckoutError({
-                message: 'Pedido guardado sin conexión.',
-                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                total: cartTotal,
-                time: new Date().toLocaleTimeString(),
-                isOffline: true,
-                isAdmin: true,
-                isPendingSync: true
-            });
-            return;
-        }
-
-        // ─── Online: activamos spinner y procedemos normalmente ──────────────
-        setIsProcessing(true);
         setCheckoutError(null);
 
-        let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
+        // ✅ PASO 1: Verificamos conectividad real ANTES del spinner
+        // navigator.onLine no es confiable — hacemos un ping real a Firebase (3s timeout)
+        const hasRealConnection = await checkRealConnectivity();
 
-        if (isAdmin && selectedCustomer) {
-            finalClient = {
-                id: selectedCustomer.id,
-                name: selectedCustomer.name,
-                role: 'customer',
-                address: selectedCustomer.address || '',
-                phone: selectedCustomer.phone || ''
-            };
-        } else if (userData?.role === 'client') {
-            finalClient = {
-                id: user.uid,
-                name: userData.name,
-                role: 'client',
-                address: userData.address || '',
-                phone: userData.phone || ''
-            };
+        if (!hasRealConnection) {
+            if (isAdmin) {
+                // Admin sin internet real: guardar en localStorage sin mostrar spinner
+                saveOffline(itemsWithCost, offlineSaleData);
+                setShowMobileCart(false);
+            } else {
+                // Cliente sin internet: bloquear
+                setCheckoutError({
+                    message: 'Sin conexión a internet.',
+                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                    total: cartTotal,
+                    time: new Date().toLocaleTimeString(),
+                    isOffline: true,
+                    isAdmin: false,
+                    isPendingSync: false
+                });
+            }
+            return;
         }
 
-        const itemsWithCost = cart.map(i => {
-            const p = products.find(prod => prod.id === i.id);
-            return {
-                id: i.id,
-                name: i.name,
-                qty: Number(i.qty),
-                price: Number(i.price),
-                cost: p ? Number(p.cost || 0) : 0
-            };
-        });
+        // ✅ PASO 2: Hay conexión real — activamos spinner y procesamos
+        setIsProcessing(true);
+
+        let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
+        if (isAdmin && selectedCustomer) {
+            finalClient = { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer', address: selectedCustomer.address || '', phone: selectedCustomer.phone || '' };
+        } else if (userData?.role === 'client') {
+            finalClient = { id: user.uid, name: userData.name, role: 'client', address: userData.address || '', phone: userData.phone || '' };
+        }
 
         const saleData = {
             type: 'sale',
@@ -208,11 +215,7 @@ export const useCheckout = ({
             date: serverTimestamp(),
             deliveryType: 'delivery',
             status: 'pending',
-            clientInfo: {
-                name: finalClient.name,
-                address: finalClient.address,
-                phone: finalClient.phone
-            },
+            clientInfo: { name: finalClient.name, address: finalClient.address, phone: finalClient.phone },
             clientId: finalClient.id,
             clientName: finalClient.name,
             clientRole: finalClient.role,
@@ -222,32 +225,18 @@ export const useCheckout = ({
             paymentMethod: paymentMethod
         };
 
-        // ─── Online: intento normal con reintentos ────────────────────────────
         const attemptTransaction = async () => {
-            const result = await withTimeout(
-                createTransaction(saleData, itemsWithCost),
-                CHECKOUT_TIMEOUT_MS
-            );
+            const result = await withTimeout(createTransaction(saleData, itemsWithCost), CHECKOUT_TIMEOUT_MS);
 
             if (saleData.clientRole === 'client') {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 8000);
                 fetch('/api/notify', {
-                    method: 'POST',
-                    signal: controller.signal,
+                    method: 'POST', signal: controller.signal,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transactionId: result.id,
-                        clientName: saleData.clientName,
-                        total: saleData.total,
-                        storeId: appId
-                    })
-                }).then(() => clearTimeout(timeoutId)).catch(err => {
-                    clearTimeout(timeoutId);
-                    console.error("Error al enviar notificación:", err);
-                });
+                    body: JSON.stringify({ transactionId: result.id, clientName: saleData.clientName, total: saleData.total, storeId: appId })
+                }).then(() => clearTimeout(timeoutId)).catch(err => { clearTimeout(timeoutId); console.error("Error notificación:", err); });
             }
-
             return result;
         };
 
@@ -261,39 +250,22 @@ export const useCheckout = ({
             setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
         } catch (e) {
-            console.error("Error en checkout (intento 1):", e.message);
+            console.error("Error en checkout:", e.message);
 
-            // ✅ Si el primer intento falló (timeout o error de red) y es admin,
-            // guardamos offline directamente SIN reintentar — navigator.onLine no es
-            // confiable en Android con señal débil, puede decir "online" sin internet real.
+            // ✅ Si falló a pesar del ping exitoso (perdió conexión a mitad),
+            // admin va a offline directamente. Cliente reintenta.
             if (isAdmin) {
                 setIsProcessing(false);
-                const localId = 'offline-' + Date.now();
-                addToOfflineQueue({ localId, saleData: { ...saleData, date: { seconds: Math.floor(Date.now() / 1000) } }, itemsWithCost });
-                setLastSale({ ...saleData, id: localId });
-                clearCart();
-                setSelectedCustomer(null);
+                saveOffline(itemsWithCost, offlineSaleData);
                 setShowMobileCart(false);
-                setPendingSync(true);
-                setCheckoutError({
-                    message: 'Sin conexión real. Pedido guardado localmente.',
-                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                    total: cartTotal,
-                    time: new Date().toLocaleTimeString(),
-                    isOffline: true,
-                    isAdmin: true,
-                    isPendingSync: true
-                });
                 return;
             }
 
-            // Para clientes: un reintento antes de mostrar error
             let success = false;
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
                     showNotification(`⏳ Reintentando pedido (${attempt}/${MAX_RETRIES})...`);
                     await sleep(RETRY_DELAY_MS);
-
                     const result = await attemptTransaction();
                     setLastSale(result);
                     clearCart();
