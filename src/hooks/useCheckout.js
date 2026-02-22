@@ -24,7 +24,7 @@ const removeFromOfflineQueue = (id) => {
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 3000;
-const CHECKOUT_TIMEOUT_MS = 12000;
+const CHECKOUT_TIMEOUT_MS = 5000; // Falla rápido — si no responde en 5s, probablemente sin internet real
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -81,14 +81,17 @@ export const useCheckout = ({
         }
     }, []); // Sin dependencias — usa refs internamente
 
-    // ✅ Efecto 1: dispara al montar con delay para que Firebase termine de inicializar
-    // Cubre el caso de abrir la app con internet después de haber facturado offline
+    // ✅ Efecto 1: dispara cuando el usuario está autenticado y hay cola pendiente.
+    // Usamos `user` como señal de que Firebase ya inicializó completamente.
+    // Sin esto, createTransaction puede ejecutarse antes de que Auth esté lista.
     useEffect(() => {
-        if (navigator.onLine && getOfflineQueue().length > 0) {
-            const timer = setTimeout(() => processOfflineQueue(), 2000);
-            return () => clearTimeout(timer);
-        }
-    }, [processOfflineQueue]);
+        if (!user) return; // Esperar a que Auth esté lista
+        if (!navigator.onLine) return;
+        if (getOfflineQueue().length === 0) return;
+
+        const timer = setTimeout(() => processOfflineQueue(), 1500);
+        return () => clearTimeout(timer);
+    }, [user, processOfflineQueue]); // Se re-ejecuta cuando el usuario se autentica
 
     // ✅ Efecto 2: listener de reconexión
     useEffect(() => {
@@ -260,12 +263,36 @@ export const useCheckout = ({
         } catch (e) {
             console.error("Error en checkout (intento 1):", e.message);
 
+            // ✅ Si el primer intento falló (timeout o error de red) y es admin,
+            // guardamos offline directamente SIN reintentar — navigator.onLine no es
+            // confiable en Android con señal débil, puede decir "online" sin internet real.
+            if (isAdmin) {
+                setIsProcessing(false);
+                const localId = 'offline-' + Date.now();
+                addToOfflineQueue({ localId, saleData: { ...saleData, date: { seconds: Math.floor(Date.now() / 1000) } }, itemsWithCost });
+                setLastSale({ ...saleData, id: localId });
+                clearCart();
+                setSelectedCustomer(null);
+                setShowMobileCart(false);
+                setPendingSync(true);
+                setCheckoutError({
+                    message: 'Sin conexión real. Pedido guardado localmente.',
+                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                    total: cartTotal,
+                    time: new Date().toLocaleTimeString(),
+                    isOffline: true,
+                    isAdmin: true,
+                    isPendingSync: true
+                });
+                return;
+            }
+
+            // Para clientes: un reintento antes de mostrar error
             let success = false;
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
                     showNotification(`⏳ Reintentando pedido (${attempt}/${MAX_RETRIES})...`);
                     await sleep(RETRY_DELAY_MS);
-                    if (!navigator.onLine) throw new Error('OFFLINE');
 
                     const result = await attemptTransaction();
                     setLastSale(result);
@@ -283,14 +310,12 @@ export const useCheckout = ({
 
             if (!success) {
                 setCheckoutError({
-                    message: !navigator.onLine
-                        ? 'Sin conexión. El pedido no se envió.'
-                        : 'No se pudo registrar el pedido.',
+                    message: 'No se pudo enviar el pedido. Verificá tu conexión.',
                     items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
                     total: cartTotal,
                     time: new Date().toLocaleTimeString(),
-                    isOffline: !navigator.onLine,
-                    isAdmin,
+                    isOffline: false,
+                    isAdmin: false,
                     isPendingSync: false
                 });
             }
