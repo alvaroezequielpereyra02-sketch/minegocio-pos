@@ -94,9 +94,13 @@ export default function App() {
     const quantityInputRef = useRef(null);
 
     // ── Notificación visual interna ────────────────────────────────────────────
+    const notificationTimerRef = React.useRef(null);
     const showNotification = (msg) => {
+        // ✅ Limpiamos el timeout anterior antes de setear el nuevo
+        // Evita que el timeout de un mensaje anterior borre el mensaje siguiente
+        if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
         setNotification(msg);
-        setTimeout(() => setNotification(null), 3000);
+        notificationTimerRef.current = setTimeout(() => setNotification(null), 4000);
     };
 
     // ── Confirmación reutilizable ──────────────────────────────────────────────
@@ -400,7 +404,7 @@ export default function App() {
 
             {confirmConfig && <ConfirmModal {...confirmConfig} />}
             {notification && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[40000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
                     <Bell size={18} className="text-yellow-400" />
                     <span className="font-bold text-sm">{notification}</span>
                 </div>
@@ -621,7 +625,7 @@ export default function App() {
 
                 {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
                 {checkoutError && (
-                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[110] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
+                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[40000] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">

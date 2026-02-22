@@ -35,16 +35,20 @@ const removeFromOfflineQueue = (id) => {
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
 };
 
-// ✅ Ping real a Firebase — navigator.onLine no es confiable en Android con señal débil.
-// Si este fetch falla, no hay internet real aunque el sistema diga que sí.
+// ✅ Verificación de conectividad real en dos pasos:
+// 1. navigator.onLine: si dice false, offline seguro (no hace falta ping)
+// 2. Ping a 1.1.1.1 (Cloudflare DNS) con 1.5s timeout — más rápido y confiable
+//    que Firestore para detectar ausencia de internet real en Android con señal débil
 const checkRealConnectivity = async () => {
+    if (!navigator.onLine) return false; // offline seguro, ni intentamos
     try {
         await withTimeout(
-            fetch('https://firestore.googleapis.com/v1/projects/minegocio-pos-e35bf/databases/(default)/documents', {
-                method: 'HEAD',
-                cache: 'no-store'
+            fetch('https://1.1.1.1/cdn-cgi/trace', {
+                method: 'GET',
+                cache: 'no-store',
+                mode: 'no-cors' // evita errores CORS, solo nos importa que responda
             }),
-            3000
+            1500 // 1.5s — si en 1.5s no responde, no hay internet real
         );
         return true;
     } catch {

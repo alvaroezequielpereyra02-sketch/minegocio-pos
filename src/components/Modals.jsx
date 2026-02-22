@@ -37,7 +37,7 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
 
 export function ProcessingModal() {
     return (
-        <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[30000]">
+        <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[200]">
             <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center">
                 <div className="relative mb-6">
                     <div className="w-20 h-20 border-4 border-slate-100 rounded-full"></div>
@@ -320,7 +320,7 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
     const currentTotal = localItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
     return (
-        <div className="fixed inset-0 z-[20000] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center">
+        <div className="fixed inset-0 z-[300] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center">
             <div className="w-full max-w-2xl h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl flex flex-col">
                 <div className="p-4 border-b flex items-center justify-between">
                     <div className="flex items-center gap-3">
