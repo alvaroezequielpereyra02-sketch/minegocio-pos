@@ -2,20 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { appId } from '../config/firebase';
 
-const CHECKOUT_TIMEOUT_MS = 8000;
-const RETRY_DELAY_MS = 3000;
-const MAX_RETRIES = 2;
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-const withTimeout = (promise, ms) =>
-    Promise.race([
-        promise,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('TIMEOUT')), ms)
-        )
-    ]);
-
 // ─── Cola offline persistente en localStorage ─────────────────────────────────
 const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
 
@@ -23,37 +9,13 @@ const getOfflineQueue = () => {
     try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
     catch { return []; }
 };
-
 const addToOfflineQueue = (entry) => {
-    const queue = getOfflineQueue();
-    queue.push(entry);
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    const q = getOfflineQueue(); q.push(entry);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
 };
-
 const removeFromOfflineQueue = (id) => {
-    const queue = getOfflineQueue().filter(e => e.localId !== id);
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-};
-
-// ✅ Verificación de conectividad real en dos pasos:
-// 1. navigator.onLine: si dice false, offline seguro (no hace falta ping)
-// 2. Ping a 1.1.1.1 (Cloudflare DNS) con 1.5s timeout — más rápido y confiable
-//    que Firestore para detectar ausencia de internet real en Android con señal débil
-const checkRealConnectivity = async () => {
-    if (!navigator.onLine) return false; // offline seguro, ni intentamos
-    try {
-        await withTimeout(
-            fetch('https://1.1.1.1/cdn-cgi/trace', {
-                method: 'GET',
-                cache: 'no-store',
-                mode: 'no-cors' // evita errores CORS, solo nos importa que responda
-            }),
-            1500 // 1.5s — si en 1.5s no responde, no hay internet real
-        );
-        return true;
-    } catch {
-        return false;
-    }
+    localStorage.setItem(OFFLINE_QUEUE_KEY,
+        JSON.stringify(getOfflineQueue().filter(e => e.localId !== id)));
 };
 
 export const useCheckout = ({
@@ -63,25 +25,27 @@ export const useCheckout = ({
     createTransaction, clearCart,
     showNotification
 }) => {
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [lastSale, setLastSale] = useState(null);
+    const [isProcessing, setIsProcessing]           = useState(false);
+    const [lastSale, setLastSale]                   = useState(null);
     const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
-    const [checkoutError, setCheckoutError] = useState(null);
-    const [pendingSync, setPendingSync] = useState(() => getOfflineQueue().length > 0);
+    const [checkoutError, setCheckoutError]         = useState(null);
+    // isSyncing: bloquea toda la app mientras sube boletas offline al servidor
+    const [isSyncing, setIsSyncing]                 = useState(false);
+    const [pendingSync, setPendingSync]             = useState(() => getOfflineQueue().length > 0);
 
-    // ✅ Refs estables — evitan que los efectos se re-ejecuten en cada render
+    // Refs sincrónicos — se actualizan en cada render, no necesitan useEffect
     const createTransactionRef = useRef(createTransaction);
-    const showNotificationRef = useRef(showNotification);
-    // Actualizamos los refs sincrónicamente en cada render (sin useEffect)
-    // para que estén disponibles de inmediato cuando los efectos disparen
+    const showNotificationRef  = useRef(showNotification);
     createTransactionRef.current = createTransaction;
-    showNotificationRef.current = showNotification;
+    showNotificationRef.current  = showNotification;
 
+    // ─── Proceso de sincronización ────────────────────────────────────────────
     const processOfflineQueue = useCallback(async () => {
         const queue = getOfflineQueue();
-        if (queue.length === 0) return;
+        if (queue.length === 0) { setPendingSync(false); return; }
 
-        showNotificationRef.current(`🔄 Sincronizando ${queue.length} pedido(s) guardado(s)...`);
+        setIsSyncing(true);
+        showNotificationRef.current(`🔄 Sincronizando ${queue.length} boleta(s)...`);
 
         let synced = 0;
         for (const entry of queue) {
@@ -91,26 +55,34 @@ export const useCheckout = ({
                 removeFromOfflineQueue(entry.localId);
                 synced++;
             } catch (e) {
-                console.error('Error sincronizando pedido offline:', entry.localId, e);
+                console.error('Error sincronizando boleta offline:', entry.localId, e);
             }
         }
 
-        if (synced > 0) {
-            showNotificationRef.current(`✅ ${synced} pedido(s) sincronizado(s) correctamente.`);
-            setPendingSync(getOfflineQueue().length > 0);
-            setCheckoutError(null);
-        }
-    }, []); // Sin dependencias — usa refs que se actualizan sincrónicamente
+        setIsSyncing(false);
 
-    // ✅ Dispara cuando el usuario se autentica y hay cola pendiente
+        const remaining = getOfflineQueue().length;
+        setPendingSync(remaining > 0);
+
+        if (synced > 0) {
+            setCheckoutError(null);
+            showNotificationRef.current(`✅ ${synced} boleta(s) sincronizada(s) correctamente.`);
+        }
+        if (remaining > 0) {
+            showNotificationRef.current(`⚠️ ${remaining} boleta(s) no pudieron sincronizarse.`);
+        }
+    }, []);
+
+    // ── Dispara al autenticarse si hay cola y hay internet ────────────────────
     useEffect(() => {
         if (!user || !navigator.onLine) return;
         if (getOfflineQueue().length === 0) return;
-        const timer = setTimeout(() => processOfflineQueue(), 1500);
-        return () => clearTimeout(timer);
+        // 1500ms de espera para que Firestore termine de inicializar
+        const t = setTimeout(() => processOfflineQueue(), 1500);
+        return () => clearTimeout(t);
     }, [user, processOfflineQueue]);
 
-    // ✅ Dispara cuando vuelve la conexión
+    // ── Dispara cuando el dispositivo recupera conexión ───────────────────────
     useEffect(() => {
         const handleOnline = () => {
             if (getOfflineQueue().length > 0) processOfflineQueue();
@@ -119,21 +91,15 @@ export const useCheckout = ({
         return () => window.removeEventListener('online', handleOnline);
     }, [processOfflineQueue]);
 
-    // ─── Helpers para guardar offline ─────────────────────────────────────────
-    const buildItemsWithCost = () =>
-        cart.map(i => {
-            const p = products.find(prod => prod.id === i.id);
-            return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
-        });
-
-    const buildOfflineSaleData = (itemsWithCost) => {
+    // ─── Guardar boleta en localStorage (sin red) ─────────────────────────────
+    const saveOffline = ({ itemsWithCost, setShowMobileCart, setSelectedCustomer }) => {
         const client = selectedCustomer
             ? { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer', address: selectedCustomer.address || '', phone: selectedCustomer.phone || '' }
             : userData?.role === 'client'
                 ? { id: user.uid, name: userData.name, role: 'client', address: userData.address || '', phone: userData.phone || '' }
                 : { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
 
-        return {
+        const offlineSaleData = {
             type: 'sale',
             total: Number(cartTotal),
             items: itemsWithCost,
@@ -149,60 +115,55 @@ export const useCheckout = ({
             sellerId: user.uid,
             paymentMethod: paymentMethod
         };
-    };
 
-    const saveOffline = (itemsWithCost, offlineSaleData) => {
         const localId = 'offline-' + Date.now();
         addToOfflineQueue({ localId, saleData: offlineSaleData, itemsWithCost });
+
         setLastSale({ ...offlineSaleData, id: localId });
         clearCart();
         setSelectedCustomer?.(null);
+        setShowMobileCart?.(false);
         setPendingSync(true);
         setCheckoutError({
-            message: 'Pedido guardado sin conexión.',
-            items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-            total: cartTotal,
-            time: new Date().toLocaleTimeString(),
+            isPendingSync: true,
             isOffline: true,
             isAdmin: true,
-            isPendingSync: true
+            items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+            total: cartTotal,
+            time: new Date().toLocaleTimeString()
         });
     };
 
+    // ─── Checkout principal ───────────────────────────────────────────────────
     const handleCheckout = async ({ setShowMobileCart, setSelectedCustomer }) => {
         if (!user || cart.length === 0) return;
 
-        const isAdmin = userData?.role === 'admin';
-        const itemsWithCost = buildItemsWithCost();
-        const offlineSaleData = buildOfflineSaleData(itemsWithCost);
+        const isAdmin  = userData?.role === 'admin';
+        const itemsWithCost = cart.map(i => {
+            const p = products.find(prod => prod.id === i.id);
+            return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
+        });
 
         setCheckoutError(null);
 
-        // ✅ PASO 1: Verificamos conectividad real ANTES del spinner
-        // navigator.onLine no es confiable — hacemos un ping real a Firebase (3s timeout)
-        const hasRealConnection = await checkRealConnectivity();
-
-        if (!hasRealConnection) {
+        // ── Sin internet: admin guarda offline al instante, cliente ve error ──
+        if (!navigator.onLine) {
             if (isAdmin) {
-                // Admin sin internet real: guardar en localStorage sin mostrar spinner
-                saveOffline(itemsWithCost, offlineSaleData);
-                setShowMobileCart(false);
+                saveOffline({ itemsWithCost, setShowMobileCart, setSelectedCustomer });
             } else {
-                // Cliente sin internet: bloquear
                 setCheckoutError({
-                    message: 'Sin conexión a internet.',
-                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                    total: cartTotal,
-                    time: new Date().toLocaleTimeString(),
+                    isPendingSync: false,
                     isOffline: true,
                     isAdmin: false,
-                    isPendingSync: false
+                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                    total: cartTotal,
+                    time: new Date().toLocaleTimeString()
                 });
             }
-            return;
+            return; // ← SIN SPINNER, sin espera
         }
 
-        // ✅ PASO 2: Hay conexión real — activamos spinner y procesamos
+        // ── Con internet: spinner + intento real ─────────────────────────────
         setIsProcessing(true);
 
         let finalClient = { id: 'anonimo', name: 'Anónimo', role: 'guest', address: '', phone: '' };
@@ -213,39 +174,32 @@ export const useCheckout = ({
         }
 
         const saleData = {
-            type: 'sale',
-            total: Number(cartTotal),
-            items: itemsWithCost,
-            date: serverTimestamp(),
-            deliveryType: 'delivery',
-            status: 'pending',
+            type: 'sale', total: Number(cartTotal), items: itemsWithCost,
+            date: serverTimestamp(), deliveryType: 'delivery', status: 'pending',
             clientInfo: { name: finalClient.name, address: finalClient.address, phone: finalClient.phone },
-            clientId: finalClient.id,
-            clientName: finalClient.name,
-            clientRole: finalClient.role,
-            paymentStatus: 'pending',
-            fulfillmentStatus: 'pending',
-            sellerId: user.uid,
-            paymentMethod: paymentMethod
-        };
-
-        const attemptTransaction = async () => {
-            const result = await withTimeout(createTransaction(saleData, itemsWithCost), CHECKOUT_TIMEOUT_MS);
-
-            if (saleData.clientRole === 'client') {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 8000);
-                fetch('/api/notify', {
-                    method: 'POST', signal: controller.signal,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactionId: result.id, clientName: saleData.clientName, total: saleData.total, storeId: appId })
-                }).then(() => clearTimeout(timeoutId)).catch(err => { clearTimeout(timeoutId); console.error("Error notificación:", err); });
-            }
-            return result;
+            clientId: finalClient.id, clientName: finalClient.name, clientRole: finalClient.role,
+            paymentStatus: 'pending', fulfillmentStatus: 'pending',
+            sellerId: user.uid, paymentMethod: paymentMethod
         };
 
         try {
-            const result = await attemptTransaction();
+            // Timeout de 8s — si no responde, asumimos sin conexión real
+            const result = await Promise.race([
+                createTransaction(saleData, itemsWithCost),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
+            ]);
+
+            // Notificación al admin si el pedido fue de un cliente
+            if (saleData.clientRole === 'client') {
+                const ctrl = new AbortController();
+                const tid  = setTimeout(() => ctrl.abort(), 8000);
+                fetch('/api/notify', {
+                    method: 'POST', signal: ctrl.signal,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionId: result.id, clientName: saleData.clientName, total: saleData.total, storeId: appId })
+                }).then(() => clearTimeout(tid)).catch(() => clearTimeout(tid));
+            }
+
             setLastSale(result);
             clearCart();
             setSelectedCustomer(null);
@@ -254,45 +208,19 @@ export const useCheckout = ({
             setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
         } catch (e) {
-            console.error("Error en checkout:", e.message);
+            console.error('Error en checkout:', e.message);
 
-            // ✅ Si falló a pesar del ping exitoso (perdió conexión a mitad),
-            // admin va a offline directamente. Cliente reintenta.
             if (isAdmin) {
-                setIsProcessing(false);
-                saveOffline(itemsWithCost, offlineSaleData);
-                setShowMobileCart(false);
-                return;
-            }
-
-            let success = false;
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    showNotification(`⏳ Reintentando pedido (${attempt}/${MAX_RETRIES})...`);
-                    await sleep(RETRY_DELAY_MS);
-                    const result = await attemptTransaction();
-                    setLastSale(result);
-                    clearCart();
-                    setSelectedCustomer(null);
-                    setShowMobileCart(false);
-                    setShowCheckoutSuccess(true);
-                    setTimeout(() => setShowCheckoutSuccess(false), 4000);
-                    success = true;
-                    break;
-                } catch (retryError) {
-                    console.error(`Error en reintento ${attempt}:`, retryError.message);
-                }
-            }
-
-            if (!success) {
+                // Admin: falló estando "online" (señal débil) → guardar offline
+                saveOffline({ itemsWithCost, setShowMobileCart, setSelectedCustomer });
+            } else {
                 setCheckoutError({
-                    message: 'No se pudo enviar el pedido. Verificá tu conexión.',
-                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
-                    total: cartTotal,
-                    time: new Date().toLocaleTimeString(),
+                    isPendingSync: false,
                     isOffline: false,
                     isAdmin: false,
-                    isPendingSync: false
+                    items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                    total: cartTotal,
+                    time: new Date().toLocaleTimeString()
                 });
             }
         } finally {
@@ -304,7 +232,7 @@ export const useCheckout = ({
         isProcessing, setIsProcessing,
         lastSale, showCheckoutSuccess, setShowCheckoutSuccess,
         checkoutError, setCheckoutError,
-        pendingSync,
+        pendingSync, isSyncing,
         handleCheckout
     };
 };

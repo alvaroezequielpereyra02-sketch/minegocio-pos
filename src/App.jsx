@@ -94,9 +94,11 @@ export default function App() {
     const quantityInputRef = useRef(null);
 
     // ── Notificación visual interna ────────────────────────────────────────────
+    const _notifTimer = React.useRef(null);
     const showNotification = (msg) => {
+        if (_notifTimer.current) clearTimeout(_notifTimer.current);
         setNotification(msg);
-        setTimeout(() => setNotification(null), 3000);
+        _notifTimer.current = setTimeout(() => setNotification(null), 5000);
     };
 
     // ── Confirmación reutilizable ──────────────────────────────────────────────
@@ -109,7 +111,7 @@ export default function App() {
     };
 
     // ── Hooks extraídos ────────────────────────────────────────────────────────
-    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, checkoutError, setCheckoutError, pendingSync, handleCheckout } = useCheckout({
+    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, checkoutError, setCheckoutError, pendingSync, isSyncing, handleCheckout } = useCheckout({
         user, userData, cart, products, cartTotal, paymentMethod,
         selectedCustomer, createTransaction, clearCart, showNotification
     });
@@ -322,97 +324,59 @@ export default function App() {
         // ── Pantallas de carga y login ─────────────────────────────────────────────
     if (authLoading) {
         return (
-            <div className="h-screen flex flex-col items-center justify-center login-bg">
-                <div className="w-14 h-14 rounded-2xl overflow-hidden ring-2 ring-orange-500/30 mb-6">
-                    {storeProfile?.logoUrl
-                        ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full bg-orange-500/20 flex items-center justify-center"><Store size={28} className="text-orange-400" /></div>}
-                </div>
-                <div className="flex gap-1.5 mb-3">
-                    {[0,1,2].map(i => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{animationDelay: `${i*0.15}s`}} />
-                    ))}
-                </div>
-                <span className="text-white/50 text-sm font-medium">Cargando sistema...</span>
-                {!isOnline && <span className="text-white/30 text-xs mt-2">Modo offline</span>}
+            <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600 font-bold">
+                <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                Cargando Sistema...
+                {!isOnline && <span className="text-xs text-slate-400 mt-2">Iniciando en modo offline</span>}
             </div>
         );
     }
 
     if (!user || !userData) {
         return (
-            <div className="min-h-screen login-bg flex items-center justify-center p-4">
-                <div className="w-full max-w-sm">
-                    {/* Logo */}
-                    <div className="text-center mb-8">
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto mb-4 ring-2 ring-orange-500/30">
-                            {storeProfile.logoUrl
-                                ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" />
-                                : <div className="w-full h-full bg-orange-500/20 flex items-center justify-center"><Store size={32} className="text-orange-400" /></div>}
-                        </div>
-                        <h1 className="text-white text-2xl font-black tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-white/40 text-sm mt-1">{isRegistering ? 'Crear cuenta' : 'Iniciá sesión para continuar'}</p>
+            <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+                <div className="bg-white p-2 md:p-8 rounded-2xl shadow-xl w-full max-w-md">
+                    <div className="text-center mb-6">
+                        {storeProfile.logoUrl
+                            ? <img src={storeProfile.logoUrl} className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" />
+                            : <Store className="mx-auto text-blue-600 mb-2" size={48} />}
+                        <h1 className="text-2xl font-bold text-slate-800">{storeProfile.name}</h1>
                     </div>
-
-                    {/* Card */}
-                    <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6 border border-white/15 shadow-2xl">
-                        <form onSubmit={handleAuthSubmit} className="space-y-3">
-                            {isRegistering && (
-                                <>
-                                    <input name="name" required
-                                        className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-medium"
-                                        placeholder="Nombre completo" />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input name="phone" required
-                                            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-medium"
-                                            placeholder="Teléfono" />
-                                        <input name="address" required
-                                            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-medium"
-                                            placeholder="Dirección" />
-                                    </div>
-                                    <input name="inviteCode" required
-                                        className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-bold text-center uppercase tracking-widest"
-                                        placeholder="CÓDIGO DE INVITACIÓN" />
-                                </>
-                            )}
-                            <input name="email" type="email" required
-                                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-medium"
-                                placeholder="Correo electrónico" />
-                            <input name="password" type="password" required
-                                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-medium"
-                                placeholder="Contraseña" />
-                            {loginError && <div className="text-red-400 text-xs text-center font-medium py-1">{loginError}</div>}
-                            <button type="submit" className="w-full py-3.5 rounded-xl font-black text-sm btn-accent mt-1">
-                                {isRegistering ? 'Crear cuenta' : 'Ingresar'}
-                            </button>
-                        </form>
-
-                        <div className="flex items-center gap-3 my-4">
-                            <div className="flex-1 h-px bg-white/10" />
-                            <span className="text-white/20 text-xs">o</span>
-                            <div className="flex-1 h-px bg-white/10" />
-                        </div>
-
-                        <button onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
-                            className="w-full py-2.5 rounded-xl border border-white/20 text-white/60 text-sm font-semibold hover:bg-white/10 transition-colors">
-                            {isRegistering ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}
-                        </button>
-
-                        {!isRegistering && (
-                            <button
-                                onClick={() => {
-                                    const emailInput = document.querySelector('input[name="email"]');
-                                    if (!emailInput?.value) { setLoginError("Escribe tu correo primero."); return; }
-                                    resetPassword(emailInput.value)
-                                        .then(() => showNotification("📧 Correo de recuperación enviado"))
-                                        .catch(e => setLoginError(e.message));
-                                }}
-                                className="w-full mt-2 text-white/30 text-xs hover:text-white/50 transition-colors"
-                            >
-                                Olvidé mi contraseña
-                            </button>
+                    <form onSubmit={handleAuthSubmit} className="space-y-4">
+                        {isRegistering && (
+                            <>
+                                <input name="name" required className="w-full p-3 border rounded-lg" placeholder="Nombre" />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input name="phone" required className="w-full p-3 border rounded-lg" placeholder="Teléfono" />
+                                    <input name="address" required className="w-full p-3 border rounded-lg" placeholder="Dirección" />
+                                </div>
+                                <input name="inviteCode" required className="w-full p-2 border rounded-lg text-center font-bold uppercase" placeholder="CÓDIGO INVITACIÓN" />
+                            </>
                         )}
-                    </div>
+                        <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Correo" />
+                        <input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Contraseña" />
+                        {loginError && <div className="text-red-500 text-sm text-center">{loginError}</div>}
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">
+                            {isRegistering ? 'Registrarse' : 'Entrar'}
+                        </button>
+                    </form>
+                    <button onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }} className="w-full mt-4 text-blue-600 text-sm font-medium hover:underline">
+                        {isRegistering ? 'Volver al Login' : 'Crear Cuenta'}
+                    </button>
+                    {!isRegistering && (
+                        <button
+                            onClick={() => {
+                                const emailInput = document.querySelector('input[name="email"]');
+                                if (!emailInput?.value) { setLoginError("Escribe tu correo primero."); return; }
+                                resetPassword(emailInput.value)
+                                    .then(() => showNotification("📧 Correo de recuperación enviado"))
+                                    .catch(e => setLoginError(e.message));
+                            }}
+                            className="w-full mt-2 text-slate-400 text-xs hover:text-slate-600"
+                        >
+                            Olvidé contraseña
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -420,7 +384,7 @@ export default function App() {
 
     // ── UI Principal ───────────────────────────────────────────────────────────
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden relative">
+        <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden relative">
             <Sidebar
                 user={user} userData={userData} storeProfile={storeProfile}
                 activeTab={activeTab} setActiveTab={setActiveTab}
@@ -431,15 +395,14 @@ export default function App() {
             />
 
             {!isOnline && (
-                <div className="fixed bottom-[4.5rem] left-0 right-0 text-white text-[11px] font-bold py-1.5 text-center z-[2000] flex items-center justify-center gap-1.5"
-                    style={{background:'linear-gradient(90deg,#f97316,#ea580c)'}}>
-                    <WifiOff size={11} /> SIN CONEXIÓN — MODO OFFLINE
+                <div className="fixed bottom-24 left-0 right-0 bg-slate-800 text-white text-xs font-bold py-1 text-center z-[2000] animate-pulse opacity-90">
+                    <WifiOff size={12} className="inline mr-1" /> OFFLINE
                 </div>
             )}
 
             {confirmConfig && <ConfirmModal {...confirmConfig} />}
             {notification && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[1000] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[99999] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
                     <Bell size={18} className="text-yellow-400" />
                     <span className="font-bold text-sm">{notification}</span>
                 </div>
@@ -448,14 +411,12 @@ export default function App() {
 
             <div className="flex flex-col flex-1 min-w-0 h-full">
                 {/* Header móvil */}
-                <header className="lg:hidden px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-14 border-b" style={{background:'var(--sidebar-bg)', borderColor:'rgba(255,255,255,0.08)'}}>
-                    <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2.5 truncate">
-                        <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-orange-500/30 flex items-center justify-center bg-orange-500/20 shrink-0">
-                            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" /> : <Store size={14} className="text-orange-400" />}
-                        </div>
-                        <span className="text-white font-bold text-sm truncate">{storeProfile.name}</span>
+                <header className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-16">
+                    <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2 font-bold text-lg text-slate-800 truncate">
+                        {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-8 h-8 object-cover rounded" /> : <Store className="text-blue-600" />}
+                        <span>{storeProfile.name}</span>
                     </button>
-                    <button onClick={() => toggleModal('logout', true)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><LogOut size={17} className="text-white/40" /></button>
+                    <button onClick={() => toggleModal('logout', true)} className="bg-slate-100 p-2 rounded-full"><LogOut size={18} /></button>
                 </header>
 
                 <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
@@ -660,9 +621,26 @@ export default function App() {
                     </div>
                 )}
 
+                {/* ── Bloqueador de sincronización ── */}
+                {isSyncing && (
+                    <div className="fixed inset-0 z-[99998] flex flex-col items-center justify-center" style={{background:'rgba(17,24,39,0.92)', backdropFilter:'blur(6px)'}}>
+                        <div className="bg-white/10 border border-white/20 rounded-3xl p-8 flex flex-col items-center gap-5 max-w-xs mx-4 text-center shadow-2xl">
+                            <div className="relative w-16 h-16">
+                                <div className="absolute inset-0 border-4 border-white/10 rounded-full" />
+                                <div className="absolute inset-0 border-4 border-orange-500 rounded-full border-t-transparent animate-spin" />
+                            </div>
+                            <div>
+                                <p className="text-white font-black text-lg">Sincronizando boletas</p>
+                                <p className="text-white/50 text-sm mt-1">Subiendo pedidos guardados offline...</p>
+                                <p className="text-white/30 text-xs mt-3">No cerrés la app hasta que termine</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
                 {checkoutError && (
-                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[110] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
+                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">
