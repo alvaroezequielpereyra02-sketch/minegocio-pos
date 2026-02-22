@@ -42,9 +42,9 @@ function GpsModal({ address, name, onClose }) {
 
                     <button
                         onClick={openGoogleMaps}
-                        className="w-full flex items-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all active:scale-[0.98]"
+                        className="w-full flex items-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-xl hover:border-orange-300 hover:bg-orange-50 transition-all active:scale-[0.98]"
                     >
-                        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-orange-500">
                             <Map size={20} className="text-white" />
                         </div>
                         <div className="text-left">
@@ -176,7 +176,7 @@ function EditOrderModal({ order, onClose }) {
                     <button
                         onClick={handleSave}
                         disabled={isSaving || localItems.length === 0}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center gap-1.5"
+                        className="btn-accent px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center gap-1.5"
                     >
                         {isSaving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={15} />}
                         Guardar
@@ -188,7 +188,7 @@ function EditOrderModal({ order, onClose }) {
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
                         <input
-                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 bg-white"
                             placeholder="Buscar producto para agregar..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -199,13 +199,13 @@ function EditOrderModal({ order, onClose }) {
                                     <button
                                         key={p.id}
                                         onClick={() => handleAddProduct(p)}
-                                        className="w-full text-left p-3 hover:bg-blue-50 flex justify-between items-center border-b last:border-0"
+                                        className="w-full text-left p-3 hover:bg-orange-50 flex justify-between items-center border-b last:border-0"
                                     >
                                         <div>
                                             <div className="text-sm font-bold text-slate-800">{p.name}</div>
                                             <div className="text-xs text-slate-400">${p.price?.toLocaleString()}</div>
                                         </div>
-                                        <div className="text-xs font-bold text-blue-600 flex items-center gap-1">
+                                        <div className="text-xs font-bold text-orange-500 flex items-center gap-1">
                                             <Plus size={12} /> Agregar
                                         </div>
                                     </button>
@@ -276,7 +276,7 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
 
     const statusConfig = {
         pending:    { label: 'Pendiente',   color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        preparing:  { label: 'Preparando',  color: 'bg-blue-100 text-blue-800 border-blue-200' },
+        preparing:  { label: 'Preparando',  color: 'bg-orange-100 text-orange-800 border-orange-200' },
         ready:      { label: 'Listo',       color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
         delivering: { label: 'En Camino',   color: 'bg-purple-100 text-purple-800 border-purple-200' },
         completed:  { label: 'Entregado',   color: 'bg-green-100 text-green-800 border-green-200' },
@@ -384,7 +384,7 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
                     {displayStatus === 'pending' && (
                         <button
                             onClick={() => onStatusUpdate(order.id, 'preparing')}
-                            className="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
+                            className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-95 btn-accent"
                         >
                             Empezar a Preparar
                         </button>

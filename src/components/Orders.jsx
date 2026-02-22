@@ -173,9 +173,9 @@ function OrderWorkModal({ order, onClose }) {
                         {searchResults.length > 0 && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 max-h-48 overflow-y-auto">
                                 {searchResults.map(p => (
-                                    <button key={p.id} onClick={() => handleAddItem(p)} className="w-full text-left p-3 hover:bg-blue-50 flex justify-between items-center border-b last:border-0 transition-colors">
+                                    <button key={p.id} onClick={() => handleAddItem(p)} className="w-full text-left p-3 hover:bg-orange-50 flex justify-between items-center border-b last:border-0 transition-colors">
                                         <div className="text-sm font-bold text-slate-800">{p.name}</div>
-                                        <div className="text-xs font-bold text-blue-600"><Plus size={14} className="inline" /> Agregar</div>
+                                        <div className="text-xs font-bold text-orange-500"><Plus size={14} className="inline" /> Agregar</div>
                                     </button>
                                 ))}
                             </div>
@@ -214,15 +214,15 @@ function OrderWorkModal({ order, onClose }) {
                                 </div>
 
                                 {isEditing ? (
-                                    <div className="flex items-center bg-white border border-blue-500 rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95">
+                                    <div className="flex items-center bg-white border border-orange-400 rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95">
                                         <button onClick={() => setManualQty(Math.max(0, manualQty - 1))} className="p-3 bg-slate-100 hover:bg-slate-200"><Minus size={16} /></button>
                                         <div className="w-10 text-center font-bold text-lg">{manualQty}</div>
                                         <button onClick={() => setManualQty(manualQty + 1)} className="p-3 bg-slate-100 hover:bg-slate-200"><Plus size={16} /></button>
-                                        <button onClick={() => saveManualEdit(idx)} className="p-3 bg-blue-600 text-white"><Save size={16} /></button>
+                                        <button onClick={() => saveManualEdit(idx)} className="p-3 bg-orange-500 text-white"><Save size={16} /></button>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-1">
-                                        <button onClick={() => { setEditingItemIndex(idx); setManualQty(packed); }} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg">
+                                        <button onClick={() => { setEditingItemIndex(idx); setManualQty(packed); }} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded-lg">
                                             <span className="text-xs font-bold">Editar</span>
                                         </button>
                                         <button onClick={() => handleDeleteItem(idx)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg">
@@ -239,7 +239,7 @@ function OrderWorkModal({ order, onClose }) {
                 <div className="p-4 bg-white border-t z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                     <button
                         onClick={handleConfirmOrder}
-                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        className="w-full py-4 text-white rounded-xl font-black text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 btn-accent"
                     >
                         <Package size={24} /> Confirmar Armado
                     </button>
@@ -291,13 +291,13 @@ export default function Orders() {
 
     return (
         // 👇 PADDING INDEPENDIENTE PARA ESTA VISTA (pb-28 para móvil)
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50 p-4 pb-28 lg:pb-4">
-            <div className="bg-white p-4 sticky top-0 z-10 border-b shadow-sm space-y-3 rounded-xl mb-4">
+        <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+            <div className="bg-white px-4 pt-4 pb-0 sticky top-0 z-10 border-b border-slate-200 shadow-sm space-y-3">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <Package className="text-blue-600" /> Pedidos
+                        <Package className="text-orange-500" /> Pedidos
                     </h2>
-                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold">
+                    <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-xs font-bold">
                         {filteredOrders.length} {statusLabels[filterStatus]}
                     </span>
                 </div>
@@ -311,7 +311,7 @@ export default function Orders() {
                         <button
                             key={t.id}
                             onClick={() => setFilterStatus(t.id)}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}
                         >
                             {t.l}
                         </button>
@@ -321,7 +321,7 @@ export default function Orders() {
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-400 w-5 h-5" />
                     <input
-                        className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:bg-white transition-all"
+                        className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 focus:bg-white transition-all"
                         placeholder="Buscar cliente..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -352,7 +352,7 @@ export default function Orders() {
                             {status === 'partial' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>}
 
                             <div className="pl-2">
-                                <div className="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">
+                                <div className="font-bold text-slate-800 text-lg group-hover:text-orange-500 transition-colors">
                                     {order.clientName}
                                 </div>
                                 <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">

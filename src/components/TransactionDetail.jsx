@@ -444,7 +444,7 @@ export default function TransactionDetail({
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                                <DollarSign size={20} className="text-blue-600" /> Gestionar Pago
+                                <DollarSign size={20} className="text-orange-500" /> Gestionar Pago
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
@@ -453,7 +453,7 @@ export default function TransactionDetail({
                             <div className="grid grid-cols-2 gap-2 mt-2">
                                 <button
                                     onClick={() => setTempFulfillment('pending')}
-                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'pending' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'pending' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}
                                 >
                                     <Box size={14} /> PENDIENTE
                                 </button>
@@ -500,7 +500,7 @@ export default function TransactionDetail({
                             <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
 
-                        <button onClick={handleSavePayment} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg active:scale-[0.98] transition-transform">Guardar Cambios</button>
+                        <button onClick={handleSavePayment} className="w-full py-3 font-black rounded-xl shadow-lg active:scale-[0.98] transition-transform btn-accent">Guardar Cambios</button>
                     </div>
                 </div>
             )}
@@ -518,7 +518,7 @@ export default function TransactionDetail({
                         <div className="p-4 space-y-3 bg-slate-50 relative">
                             {isGenerating && (
                                 <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center">
-                                    <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
+                                    <Loader2 className="animate-spin text-orange-500 mb-2" size={32} />
                                     <span className="text-xs font-bold text-slate-500">Generando PDF...</span>
                                 </div>
                             )}
@@ -536,8 +536,8 @@ export default function TransactionDetail({
 
                             <div className="grid grid-cols-2 gap-3">
                                 {/* Imprimir */}
-                                <button onClick={handleBrowserPrint} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
-                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
+                                <button onClick={handleBrowserPrint} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-orange-50 transition-all shadow-sm group text-center">
+                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-orange-100 group-hover:text-orange-500">
                                         <Printer size={20} />
                                     </div>
                                     <div className="font-bold text-slate-800 text-sm">Imprimir</div>
@@ -545,8 +545,8 @@ export default function TransactionDetail({
                                 </button>
 
                                 {/* Descargar */}
-                                <button onClick={handleDownloadPDF} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm group text-center">
-                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-blue-100 group-hover:text-blue-600">
+                                <button onClick={handleDownloadPDF} className="w-full flex flex-col items-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-orange-50 transition-all shadow-sm group text-center">
+                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-orange-100 group-hover:text-orange-500">
                                         <Download size={20} />
                                     </div>
                                     <div className="font-bold text-slate-800 text-sm">Guardar PDF</div>
@@ -571,7 +571,7 @@ export default function TransactionDetail({
                         <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
                     {isAdmin && (
-                        <button onClick={() => onEditItems(transaction)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95">
+                        <button onClick={() => onEditItems(transaction)} className="p-2 bg-orange-50 text-orange-500 rounded-lg hover:bg-orange-100 transition-colors active:scale-95">
                             <Edit size={22} />
                         </button>
                     )}
@@ -588,7 +588,7 @@ export default function TransactionDetail({
                             </button>
 
                             {/* NUEVO BADGE DE ENTREGA */}
-                            <button onClick={openPaymentModal} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs border ${transaction.fulfillmentStatus === 'delivered' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                            <button onClick={openPaymentModal} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs border ${transaction.fulfillmentStatus === 'delivered' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
                                 <Truck size={14} /> {transaction.fulfillmentStatus === 'delivered' ? 'ENTREGADO' : 'POR ENTREGAR'}
                             </button>
                         </div>
@@ -599,7 +599,7 @@ export default function TransactionDetail({
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors uppercase ${activeTab === tab ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                             >
                                 {tab === 'items' ? 'Items' : 'Detalles'}
                             </button>
@@ -624,15 +624,15 @@ export default function TransactionDetail({
                         {activeTab === 'details' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div onClick={() => isAdmin && openPaymentModal()} className={`p-3 bg-slate-50 rounded-lg border border-slate-100 ${isAdmin ? 'cursor-pointer hover:border-blue-300' : ''}`}>
+                                    <div onClick={() => isAdmin && openPaymentModal()} className={`p-3 bg-slate-50 rounded-lg border border-slate-100 ${isAdmin ? 'cursor-pointer hover:border-orange-300' : ''}`}>
                                         <div className="text-xs text-slate-400 mb-1">Método</div>
                                         <div className={`font-bold text-sm ${transaction.paymentMethod === 'unspecified' ? 'text-orange-600' : 'text-slate-700'}`}>{transaction.paymentMethod === 'transfer' ? 'Transferencia' : transaction.paymentMethod === 'cash' ? 'Efectivo' : '❓ A definir'}</div>
                                     </div>
                                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-xs text-slate-400 mb-1">Fecha</div><div className="font-bold text-slate-700 text-sm">{dateObj.toLocaleDateString()}</div></div>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                                    <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
-                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-blue-600">Cliente</div></div>
+                                <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl">
+                                    <div className="w-10 h-10 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
+                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-orange-500">Cliente</div></div>
                                 </div>
 
                                 {transaction.paymentNote && (
@@ -650,7 +650,7 @@ export default function TransactionDetail({
                                             </a>
                                         )}
                                         {clientData.address && (
-                                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">
+                                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientData.address)}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl font-bold text-sm hover:bg-orange-100 transition-colors">
                                                 <MapPin size={18} /> Mapa
                                             </a>
                                         )}
