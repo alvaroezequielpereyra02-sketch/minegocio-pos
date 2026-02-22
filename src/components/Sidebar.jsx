@@ -4,122 +4,112 @@ import {
   TrendingUp, LogOut, ClipboardList, Truck, Download
 } from 'lucide-react';
 
-// COMPONENTE AUXILIAR PARA BOTONES MÓVILES
 function NavButton({ active, onClick, icon, label, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center w-full h-full min-w-[70px] px-1 transition-all ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+      className={`relative flex flex-col items-center justify-center w-full h-full min-w-[64px] px-1 transition-all ${
+        active ? 'text-orange-500' : 'text-slate-400 hover:text-slate-200'
+      }`}
     >
       <div className="relative">
         {icon}
-        {/* 🔴 Burbuja de notificación para Móvil */}
         {badge > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+          <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-gray-900 animate-pulse">
             {badge}
           </span>
         )}
       </div>
-      <span className="text-[10px] uppercase font-bold mt-1 truncate w-full text-center">
+      <span className={`text-[9px] uppercase font-bold mt-1 truncate w-full text-center tracking-wide ${active ? 'text-orange-500' : ''}`}>
         {label}
       </span>
+      {active && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-orange-500 rounded-full" />}
     </button>
   );
 }
 
-// COMPONENTE SIDEBAR (Escritorio)
 export default function Sidebar({
   user, userData, storeProfile, activeTab, setActiveTab,
-  onLogout, onEditStore, supportsPWA, installApp,
-  pendingCount // 👈 Prop recibida desde App.jsx
+  onLogout, onEditStore, supportsPWA, installApp, pendingCount
 }) {
   if (!userData) return null;
 
+  const navItems = [
+    { id: 'pos', icon: <LayoutDashboard size={18} />, label: 'Vender', adminOnly: false },
+    { id: 'orders', icon: <ClipboardList size={18} />, label: 'Pedidos', adminOnly: true, badge: pendingCount },
+    { id: 'delivery', icon: <Truck size={18} />, label: 'Reparto', adminOnly: true },
+    { id: 'inventory', icon: <Package size={18} />, label: 'Inventario', adminOnly: true },
+    { id: 'customers', icon: <Users size={18} />, label: 'Clientes', adminOnly: true },
+    { id: 'dashboard', icon: <TrendingUp size={18} />, label: 'Balance', adminOnly: true },
+    { id: 'transactions', icon: <History size={18} />, label: 'Historial', adminOnly: false },
+  ].filter(item => !item.adminOnly || userData.role === 'admin');
+
   return (
-    <div className="hidden lg:flex flex-col w-64 bg-white border-r z-20 shrink-0">
+    <div className="hidden lg:flex flex-col w-60 shrink-0 overflow-hidden" style={{ background: 'var(--sidebar-bg)' }}>
+
+      {/* Store header */}
       <button
         onClick={() => userData.role === 'admin' && onEditStore && onEditStore()}
-        className="w-full text-left p-4 border-b flex items-center gap-2 font-bold text-xl text-slate-800 hover:bg-slate-50 transition-colors"
+        className="w-full text-left px-4 py-5 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 transition-colors"
         title="Editar Perfil"
       >
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white overflow-hidden">
-          {storeProfile.logoUrl ? (
-            <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
-          ) : (
-            <Store size={18} />
-          )}
+        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
+          {storeProfile.logoUrl
+            ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
+            : <Store size={18} className="text-orange-400" />}
         </div>
-        <span className="truncate">{storeProfile.name}</span>
+        <div className="overflow-hidden">
+          <div className="text-white font-bold text-sm truncate">{storeProfile.name}</div>
+          <div className="text-white/40 text-xs">Sistema POS</div>
+        </div>
       </button>
 
-      <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-        <button
-          onClick={() => setActiveTab('pos')}
-          className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'pos' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
-        >
-          <LayoutDashboard size={20} /> Vender
-        </button>
-
-        {userData.role === 'admin' && (
-          <>
-            {/* BOTÓN PEDIDOS CON NOTIFICACIÓN */}
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`relative w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
-            >
-              <ClipboardList size={20} />
-              <span>Pedidos</span>
-
-              {/* 🔴 Burbuja de notificación para Escritorio */}
-              {pendingCount > 0 && (
-                <span className="absolute right-3 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-bounce shadow-sm">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-
-            <button onClick={() => setActiveTab('delivery')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'delivery' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Truck size={20} /> Reparto
-            </button>
-            <button onClick={() => setActiveTab('inventory')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'inventory' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Package size={20} /> Inventario
-            </button>
-            <button onClick={() => setActiveTab('customers')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'customers' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Users size={20} /> Clientes
-            </button>
-            <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <TrendingUp size={20} /> Balance
-            </button>
-          </>
-        )}
-
-        <button onClick={() => setActiveTab('transactions')} className={`w-full text-left p-3 rounded-lg flex gap-3 items-center font-medium ${activeTab === 'transactions' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-          <History size={20} /> Transacciones
-        </button>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={`sidebar-nav-item ${activeTab === item.id ? 'active' : ''}`}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+            {item.badge > 0 && (
+              <span className="ml-auto bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                {item.badge}
+              </span>
+            )}
+          </button>
+        ))}
       </nav>
 
-      <div className="p-4 border-t space-y-2">
+      {/* Footer */}
+      <div className="px-3 py-4 border-t border-white/10 space-y-3">
         {supportsPWA && (
           <button
             onClick={installApp}
-            className="w-full p-3 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-2 text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all"
+            className="w-full py-2.5 btn-accent rounded-xl flex items-center justify-center gap-2 text-sm"
           >
-            <Download size={18} /> Instalar App
+            <Download size={16} /> Instalar App
           </button>
         )}
 
-        <div className="flex items-center gap-3 pt-2">
-          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold shrink-0">
-            {userData.name.charAt(0)}
+        <div className="flex items-center gap-3 px-1">
+          <div className="w-8 h-8 rounded-full bg-orange-500/20 ring-1 ring-orange-500/40 flex items-center justify-center text-orange-400 font-bold text-sm shrink-0">
+            {userData.name.charAt(0).toUpperCase()}
           </div>
-          <div className="overflow-hidden">
-            <div className="text-sm font-bold truncate">{userData.name}</div>
-            <div className="text-xs text-slate-500 capitalize">{userData.role === 'admin' ? 'Admin' : 'Cliente'}</div>
+          <div className="flex-1 overflow-hidden">
+            <div className="text-white/90 text-sm font-semibold truncate">{userData.name}</div>
+            <div className="text-white/30 text-xs">{userData.role === 'admin' ? 'Administrador' : 'Cliente'}</div>
           </div>
+          <button
+            onClick={onLogout}
+            className="p-1.5 text-white/30 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
+            title="Salir"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
-        <button onClick={onLogout} className="w-full p-2 border rounded-lg flex items-center justify-center gap-2 text-sm text-red-600 hover:bg-red-50">
-          <LogOut size={16} /> Salir
-        </button>
       </div>
     </div>
   );
@@ -128,40 +118,31 @@ export default function Sidebar({
 // NAV MÓVIL
 export function MobileNav({
   activeTab, setActiveTab, userData,
-  onLogout, supportsPWA, installApp,
-  pendingCount // 👈 Prop recibida desde App.jsx
+  onLogout, supportsPWA, installApp, pendingCount
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-[50] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-between pr-2 pb-1">
-      <div className="flex items-center h-full overflow-x-auto px-2 gap-1 no-scrollbar flex-1">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={26} />} label="Vender" />
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-[4.5rem] z-[50] flex"
+      style={{ background: 'var(--sidebar-bg)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center h-full overflow-x-auto px-1 gap-0.5 no-scrollbar flex-1">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={22} />} label="Vender" />
 
         {userData.role === 'admin' && (
-          <NavButton
-            active={activeTab === 'orders'}
-            onClick={() => setActiveTab('orders')}
-            icon={<ClipboardList size={26} />}
-            label="Pedidos"
-            badge={pendingCount} // 👈 Pasamos el número a la burbuja
-          />
+          <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={22} />} label="Pedidos" badge={pendingCount} />
         )}
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={26} />} label="Reparto" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={22} />} label="Reparto" />}
 
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={26} />} label="Historial" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={22} />} label="Historial" />
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={26} />} label="Stock" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={26} />} label="Clientes" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={26} />} label="Balance" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={22} />} label="Stock" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={22} />} label="Clientes" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={22} />} label="Balance" />}
       </div>
 
       {supportsPWA && (
-        <button
-          onClick={installApp}
-          className="h-full px-4 bg-blue-50 text-blue-600 flex flex-col items-center justify-center border-l border-slate-100"
-        >
-          <Download size={22} />
-          <span className="text-[9px] font-bold uppercase mt-1">App</span>
+        <button onClick={installApp} className="h-full px-3 flex flex-col items-center justify-center border-l border-white/10 text-orange-400">
+          <Download size={20} />
+          <span className="text-[9px] font-bold uppercase mt-1 tracking-wide">App</span>
         </button>
       )}
     </nav>

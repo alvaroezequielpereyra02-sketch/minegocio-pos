@@ -1,63 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* */
-
 :root {
-    /* Cambia height: 100% por esto para móviles */
     min-height: 100dvh;
     height: 100dvh;
+    --accent: #f97316;
+    --accent-dark: #ea580c;
+    --sidebar-bg: #111827;
+    --sidebar-hover: rgba(255,255,255,0.06);
+    --sidebar-active: rgba(249,115,22,0.15);
 }
 
 html {
     height: 100dvh;
-    /* IMPORTANTE: El color de fondo debe estar en HTML para cubrir "rebotes" */
-    background-color: #f1f5f9;
+    background-color: #f8fafc;
 }
 
 body {
     margin: 0;
     min-height: 100dvh;
-    /* Padding para iPhone con barra inferior (Home Indicator) */
     padding-bottom: env(safe-area-inset-bottom);
-    background-color: #f1f5f9;
-    /* ... resto de estilos ... */
+    background-color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 #root {
-    /* Asegura que el contenedor React ocupe todo */
     height: 100dvh;
     display: flex;
     flex-direction: column;
 }
 
-/* Permitir selección solo en campos de texto */
-input,
-textarea {
+input, textarea {
     -webkit-user-select: text;
     user-select: text;
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* Ocultar barras de desplazamiento (estética limpia) */
-::-webkit-scrollbar {
-    display: none;
-}
-
+::-webkit-scrollbar { display: none; }
 * {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
 
-/* Clases de utilidad para animaciones */
-.animate-in {
-    animation-fill-mode: forwards;
-}
+.animate-in { animation-fill-mode: forwards; }
 
-/* Previene parpadeos blancos en transiciones 3D */
 * {
     -webkit-backface-visibility: hidden;
-    /* Para compatibilidad antigua */
     backface-visibility: hidden;
-    /* Estándar moderno */
+}
+
+/* ── Clases de acento reutilizables ────────────────────────── */
+.btn-accent {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    font-weight: 700;
+    border-radius: 0.75rem;
+    transition: all 0.15s;
+    box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+}
+.btn-accent:hover { filter: brightness(1.08); box-shadow: 0 6px 20px rgba(249,115,22,0.45); }
+.btn-accent:active { transform: scale(0.97); }
+
+/* ── Sidebar dark ────────────────────────────────────────── */
+.sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.625rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: rgba(255,255,255,0.55);
+    transition: all 0.15s;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+}
+.sidebar-nav-item:hover {
+    background: var(--sidebar-hover);
+    color: rgba(255,255,255,0.85);
+}
+.sidebar-nav-item.active {
+    background: var(--sidebar-active);
+    color: #f97316;
+}
+.sidebar-nav-item.active svg { color: #f97316; }
+
+/* ── Product card shine effect ───────────────────────────── */
+.product-card {
+    position: relative;
+    overflow: hidden;
+}
+.product-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.product-card:active::after { opacity: 1; }
+
+/* ── Login background ────────────────────────────────────── */
+.login-bg {
+    background: linear-gradient(135deg, #111827 0%, #1f2937 50%, #111827 100%);
+    position: relative;
+    overflow: hidden;
+}
+.login-bg::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%);
+    top: -200px; left: -200px;
+    pointer-events: none;
+}
+.login-bg::after {
+    content: '';
+    position: absolute;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%);
+    bottom: -100px; right: -100px;
+    pointer-events: none;
 }
