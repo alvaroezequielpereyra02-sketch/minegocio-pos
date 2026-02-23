@@ -8,13 +8,15 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
+// Todas las credenciales se leen exclusivamente desde variables de entorno.
+// Copiá .env.example a .env y completá los valores antes de correr el proyecto.
 const firebaseConfig = {
-    apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            || 'AIzaSyCo69kQNCYjROXTKlu9SotNuy-QeKdWXYM',
-    authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN        || 'minegocio-pos-e35bf.firebaseapp.com',
-    projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID         || 'minegocio-pos-e35bf',
-    storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET     || 'minegocio-pos-e35bf.firebasestorage.app',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '613903188094',
-    appId:             import.meta.env.VITE_FIREBASE_APP_ID             || '1:613903188094:web:2ed15b6fb6ff5be6fd582f' // ✅ corregido
+    apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 export const app = initializeApp(firebaseConfig);
