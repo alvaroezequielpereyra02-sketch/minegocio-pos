@@ -8,22 +8,22 @@ function NavButton({ active, onClick, icon, label, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center w-full h-full min-w-[58px] px-0.5 transition-all active:scale-95 ${
-        active ? 'text-orange-500' : 'text-white/35 hover:text-white/70'
+      className={`relative flex flex-col items-center justify-center w-full h-full min-w-[64px] px-1 transition-all ${
+        active ? 'text-orange-500' : 'text-slate-400 hover:text-slate-200'
       }`}
     >
-      {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-0.5 bg-orange-500 rounded-full" />}
-      <div className="relative mb-1">
+      <div className="relative">
         {icon}
         {badge > 0 && (
-          <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-gray-900">
-            {badge > 9 ? '9+' : badge}
+          <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-gray-900 animate-pulse">
+            {badge}
           </span>
         )}
       </div>
-      <span className={`text-[10px] font-bold leading-none tracking-wide ${active ? 'text-orange-500' : 'text-white/35'}`}>
+      <span className={`text-[9px] uppercase font-bold mt-1 truncate w-full text-center tracking-wide ${active ? 'text-orange-500' : ''}`}>
         {label}
       </span>
+      {active && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-orange-500 rounded-full" />}
     </button>
   );
 }
@@ -35,13 +35,13 @@ export default function Sidebar({
   if (!userData) return null;
 
   const navItems = [
-    { id: 'pos', icon: <LayoutDashboard size={20} />, label: 'Vender', adminOnly: false },
-    { id: 'orders', icon: <ClipboardList size={20} />, label: 'Pedidos', adminOnly: true, badge: pendingCount },
-    { id: 'delivery', icon: <Truck size={20} />, label: 'Reparto', adminOnly: true },
-    { id: 'inventory', icon: <Package size={20} />, label: 'Inventario', adminOnly: true },
-    { id: 'customers', icon: <Users size={20} />, label: 'Clientes', adminOnly: true },
-    { id: 'dashboard', icon: <TrendingUp size={20} />, label: 'Balance', adminOnly: true },
-    { id: 'transactions', icon: <History size={20} />, label: 'Historial', adminOnly: false },
+    { id: 'pos', icon: <LayoutDashboard size={18} />, label: 'Vender', adminOnly: false },
+    { id: 'orders', icon: <ClipboardList size={18} />, label: 'Pedidos', adminOnly: true, badge: pendingCount },
+    { id: 'delivery', icon: <Truck size={18} />, label: 'Reparto', adminOnly: true },
+    { id: 'inventory', icon: <Package size={18} />, label: 'Inventario', adminOnly: true },
+    { id: 'customers', icon: <Users size={18} />, label: 'Clientes', adminOnly: true },
+    { id: 'dashboard', icon: <TrendingUp size={18} />, label: 'Balance', adminOnly: true },
+    { id: 'transactions', icon: <History size={18} />, label: 'Historial', adminOnly: false },
   ].filter(item => !item.adminOnly || userData.role === 'admin');
 
   return (
@@ -53,14 +53,14 @@ export default function Sidebar({
         className="w-full text-left px-4 py-5 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 transition-colors"
         title="Editar Perfil"
       >
-        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
+        <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
           {storeProfile.logoUrl
             ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
-            : <Store size={20} className="text-orange-400" />}
+            : <Store size={22} className="text-orange-400" />}
         </div>
         <div className="overflow-hidden">
-          <div className="text-white font-bold text-sm truncate">{storeProfile.name}</div>
-          <div className="text-white/40 text-xs">Sistema POS</div>
+          <div className="text-white font-black text-base truncate">{storeProfile.name}</div>
+          <div className="text-white/40 text-xs font-medium">Sistema POS</div>
         </div>
       </button>
 
@@ -121,26 +121,22 @@ export function MobileNav({
   onLogout, supportsPWA, installApp, pendingCount
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] flex" style={{
-        height: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        background: 'var(--sidebar-bg)',
-        borderTop: '1px solid rgba(255,255,255,0.08)'
-      }}>
-      <div className="flex items-start pt-2 h-full overflow-x-auto px-1 gap-0 no-scrollbar flex-1">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={26} />} label="Vender" />
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] flex" style={{height: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)'}}
+      style={{ background: 'var(--sidebar-bg)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center h-full overflow-x-auto px-1 gap-0.5 no-scrollbar flex-1">
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={22} />} label="Vender" />
 
         {userData.role === 'admin' && (
-          <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={26} />} label="Pedidos" badge={pendingCount} />
+          <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={22} />} label="Pedidos" badge={pendingCount} />
         )}
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={26} />} label="Reparto" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'delivery'} onClick={() => setActiveTab('delivery')} icon={<Truck size={22} />} label="Reparto" />}
 
-        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={26} />} label="Historial" />
+        <NavButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<History size={22} />} label="Historial" />
 
-        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={26} />} label="Stock" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={26} />} label="Clientes" />}
-        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={26} />} label="Balance" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={22} />} label="Stock" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={22} />} label="Clientes" />}
+        {userData.role === 'admin' && <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={22} />} label="Balance" />}
       </div>
 
       {supportsPWA && (

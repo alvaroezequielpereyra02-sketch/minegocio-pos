@@ -106,12 +106,7 @@ const ProductGrid = ({
                                         </div>
                                     )}
 
-                                    {/* Sin stock overlay */}
-                                    {outOfStock && (
-                                        <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
-                                            <span className="bg-slate-800/80 text-white text-[10px] font-black px-2 py-1 rounded-full">SIN STOCK</span>
-                                        </div>
-                                    )}
+
 
                                     {/* Admin buttons */}
                                     {isAdmin && (
