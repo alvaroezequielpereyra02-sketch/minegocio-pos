@@ -35,17 +35,17 @@ export default function Sidebar({
   if (!userData) return null;
 
   const navItems = [
-    { id: 'pos', icon: <LayoutDashboard size={18} />, label: 'Vender', adminOnly: false },
-    { id: 'orders', icon: <ClipboardList size={18} />, label: 'Pedidos', adminOnly: true, badge: pendingCount },
-    { id: 'delivery', icon: <Truck size={18} />, label: 'Reparto', adminOnly: true },
-    { id: 'inventory', icon: <Package size={18} />, label: 'Inventario', adminOnly: true },
-    { id: 'customers', icon: <Users size={18} />, label: 'Clientes', adminOnly: true },
-    { id: 'dashboard', icon: <TrendingUp size={18} />, label: 'Balance', adminOnly: true },
-    { id: 'transactions', icon: <History size={18} />, label: 'Historial', adminOnly: false },
+    { id: 'pos', icon: <LayoutDashboard size={22} />, label: 'Vender', adminOnly: false },
+    { id: 'orders', icon: <ClipboardList size={22} />, label: 'Pedidos', adminOnly: true, badge: pendingCount },
+    { id: 'delivery', icon: <Truck size={22} />, label: 'Reparto', adminOnly: true },
+    { id: 'inventory', icon: <Package size={22} />, label: 'Inventario', adminOnly: true },
+    { id: 'customers', icon: <Users size={22} />, label: 'Clientes', adminOnly: true },
+    { id: 'dashboard', icon: <TrendingUp size={22} />, label: 'Balance', adminOnly: true },
+    { id: 'transactions', icon: <History size={22} />, label: 'Historial', adminOnly: false },
   ].filter(item => !item.adminOnly || userData.role === 'admin');
 
   return (
-    <div className="hidden lg:flex flex-col w-60 shrink-0 overflow-hidden" style={{ background: 'var(--sidebar-bg)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div className="hidden lg:flex flex-col w-64 shrink-0 overflow-hidden" style={{ background: 'var(--sidebar-bg)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
 
       {/* Store header */}
       <button
@@ -53,14 +53,14 @@ export default function Sidebar({
         className="w-full text-left px-4 py-5 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 transition-colors"
         title="Editar Perfil"
       >
-        <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
+        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
           {storeProfile.logoUrl
             ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
-            : <Store size={22} className="text-orange-400" />}
+            : <Store size={18} className="text-orange-400" />}
         </div>
         <div className="overflow-hidden">
-          <div className="text-white font-black text-base truncate">{storeProfile.name}</div>
-          <div className="text-white/40 text-xs font-medium">Sistema POS</div>
+          <div className="text-white font-bold text-sm truncate">{storeProfile.name}</div>
+          <div className="text-white/40 text-xs">Sistema POS</div>
         </div>
       </button>
 
@@ -70,7 +70,7 @@ export default function Sidebar({
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`sidebar-nav-item ${activeTab === item.id ? 'active' : ''}`}
+            className={`sidebar-nav-item text-sm ${activeTab === item.id ? 'active' : ''}`}
           >
             {item.icon}
             <span>{item.label}</span>
@@ -90,7 +90,7 @@ export default function Sidebar({
             onClick={installApp}
             className="w-full py-2.5 btn-accent rounded-xl flex items-center justify-center gap-2 text-sm"
           >
-            <Download size={16} /> Instalar App
+            <Download size={18} /> Instalar App
           </button>
         )}
 
@@ -107,7 +107,7 @@ export default function Sidebar({
             className="p-1.5 text-white/30 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
             title="Salir"
           >
-            <LogOut size={16} />
+            <LogOut size={18} />
           </button>
         </div>
       </div>
