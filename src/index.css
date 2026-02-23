@@ -23,8 +23,8 @@ html {
 body {
     margin: 0;
     min-height: 100dvh;
-    /* safe-area-inset-bottom: espacio para iPhone con home indicator */
-    padding-bottom: env(safe-area-inset-bottom);
+    /* SIN padding-bottom: el nav fixed gestiona su propio safe-area.
+       Ponerlo en body crea un hueco visible debajo del nav fijo. */
     background-color: #111827;
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
@@ -37,8 +37,17 @@ body {
 
 /* ── Edge-to-edge: el header móvil absorbe la barra de estado del sistema ──── */
 .mobile-header-safe {
-    /* Suma la altura natural del header + el espacio de la barra de estado */
+    /* Empuja el contenido del header hacia abajo exactamente
+       la altura de la barra de estado del sistema.
+       Con viewport-fit=cover en index.html, el fondo del header
+       se extiende detrás de la barra (hora, batería, etc.) */
     padding-top: env(safe-area-inset-top, 0px);
+    background: var(--sidebar-bg);
+}
+
+/* Espacio para que el contenido de las vistas no quede tapado por el nav */
+.content-with-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 input, textarea {

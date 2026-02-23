@@ -4,11 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/logo192.png" />
-  <!-- viewport-fit=cover: extiende la app detrás de la notch y barra de estado -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <!-- theme-color naranja oscuro — pinta la barra de estado del sistema -->
   <meta name="theme-color" content="#111827" />
-  <!-- iOS: barra de estado translúcida para que el fondo de la app aparezca detrás -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="description" content="Sistema de Punto de Venta (POS)" />
@@ -20,7 +17,9 @@
   <div id="root"></div>
 
   <script>
+    // 1. DETECTOR DE ERRORES DE CARGA (Cuando Vercel borra archivos viejos)
     window.addEventListener('error', function (e) {
+      // Filtramos errores típicos de cuando una versión deja de existir
       if (e.message && (
         e.message.includes('Loading chunk') ||
         e.message.includes('import') ||
@@ -33,14 +32,18 @@
       }
     }, true);
 
+    // 2. FUNCIÓN NUCLEAR: Borra Service Worker y Caché
     async function nukeCacheAndReload() {
       try {
+        // A. Desregistrar Service Worker
         if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (let registration of registrations) {
             await registration.unregister();
           }
         }
+
+        // B. Borrar Almacenamiento Caché
         if ('caches' in window) {
           const keys = await caches.keys();
           for (let key of keys) {
@@ -50,19 +53,25 @@
       } catch (err) {
         console.error("Error al limpiar caché:", err);
       } finally {
+        // C. Recarga forzada desde el servidor
         window.location.reload(true);
       }
     }
 
+    // 3. CENTINELA DE TIEMPO (Pantalla Blanca)
+    // Si React no ha logrado poner nada en el div "root" después de 4 segundos...
     setTimeout(() => {
       const root = document.getElementById('root');
+      // Verificamos si está vacío
       if (root && root.innerHTML.trim() === '') {
         console.warn('⚠️ La app tardó demasiado en arrancar. Posible error de caché.');
+
+        // Evitamos que esto pase en tu computadora mientras programas (localhost)
         if (!window.location.hostname.includes('localhost')) {
           nukeCacheAndReload();
         }
       }
-    }, 4000);
+    }, 4000); // 4 segundos de tolerancia
   </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>

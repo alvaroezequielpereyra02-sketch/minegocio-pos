@@ -489,7 +489,7 @@ export default function App() {
                                 </div>
                             )}
                             {cart.length > 0 && !showMobileCart && (
-                                <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in btn-accent">
+                                <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute left-4 right-4 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in btn-accent" style={{bottom:`calc(4.5rem + env(safe-area-inset-bottom,0px) + 1rem)`}}>
                                     <div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div>
                                     <div className="font-bold text-lg">${cartTotal.toLocaleString()}</div>
                                 </button>
@@ -522,7 +522,7 @@ export default function App() {
 
                     {/* Reparto */}
                     {activeTab === 'delivery' && userData.role === 'admin' && (
-                        <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+                        <div className="flex-1 overflow-hidden p-4 lg:pb-4" style={{paddingBottom:'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem)'}}>
                             <Suspense fallback={<TabLoader />}>
                                 <Delivery
                                     transactions={transactions} customers={customers}
@@ -536,7 +536,7 @@ export default function App() {
 
                     {/* Inventario */}
                     {activeTab === 'inventory' && userData.role === 'admin' && (
-                        <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+                        <div className="flex flex-col h-full overflow-hidden p-4 lg:pb-4" style={{paddingBottom:'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem)'}}>
                             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                                 <div className="flex gap-2">
@@ -560,7 +560,7 @@ export default function App() {
 
                     {/* Clientes */}
                     {activeTab === 'customers' && userData.role === 'admin' && (
-                        <div className="flex flex-col h-full overflow-hidden p-4 pb-24 lg:pb-4">
+                        <div className="flex flex-col h-full overflow-hidden p-4 lg:pb-4" style={{paddingBottom:'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem)'}}>
                             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                                 <h2 className="text-xl font-bold">Clientes</h2>
                                 <div className="flex gap-2">
@@ -587,7 +587,7 @@ export default function App() {
 
                     {/* Historial */}
                     {activeTab === 'transactions' && (
-                        <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
+                        <div className="flex-1 overflow-hidden p-4 lg:pb-4" style={{paddingBottom:'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem)'}}>
                             <Suspense fallback={<TabLoader />}>
                                 <History
                                     transactions={transactions} userData={userData}
@@ -660,7 +660,7 @@ export default function App() {
 
                 {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
                 {checkoutError && (
-                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
+                    <div className={`fixed inset-x-4 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`} style={{bottom:`calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem)`}}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">
