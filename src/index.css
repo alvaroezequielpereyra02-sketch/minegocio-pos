@@ -108,6 +108,27 @@ input, textarea {
 }
 .sidebar-nav-item.active svg { color: #f97316; }
 
+/* ── Sidebar nav items GRANDES (desktop +40%) ────────────────────────────── */
+.sidebar-nav-item-lg {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    font-size: 1rem;
+    color: rgba(255,255,255,0.55);
+    transition: all 0.15s;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+}
+.sidebar-nav-item-lg:hover  { background: var(--sidebar-hover); color: rgba(255,255,255,0.85); }
+.sidebar-nav-item-lg.active { background: var(--sidebar-active); color: #f97316; }
+.sidebar-nav-item-lg.active svg { color: #f97316; }
+
 /* ── Product card shine effect ───────────────────────────── */
 .product-card {
     position: relative;

@@ -497,7 +497,7 @@ export default function App() {
                                 </div>
                             )}
                             {cart.length > 0 && !showMobileCart && (
-                                <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-24 left-4 right-4 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in btn-accent">
+                                <button onClick={() => setShowMobileCart(true)} className="lg:hidden absolute bottom-[5.5rem] left-4 right-4 text-white p-4 rounded-xl shadow-2xl flex justify-between items-center z-[55] animate-in fade-in zoom-in btn-accent">
                                     <div className="flex items-center gap-2 font-bold"><ShoppingCart size={20} /> Ver Pedido ({cart.reduce((a, b) => a + b.qty, 0)})</div>
                                     <div className="font-bold text-lg">${cartTotal.toLocaleString()}</div>
                                 </button>
@@ -668,7 +668,7 @@ export default function App() {
 
                 {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
                 {checkoutError && (
-                    <div className={`fixed inset-x-4 bottom-24 lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
+                    <div className={`fixed inset-x-4 bottom-[5.5rem] lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">
