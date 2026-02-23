@@ -1,6 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
-import { serverTimestamp } from 'firebase/firestore';
 
 // Contextos
 import { useAuthContext }         from './context/AuthContext';
@@ -15,18 +14,18 @@ import { useCheckout }      from './hooks/useCheckout';
 import { useSyncManager }   from './hooks/useSyncManager';
 import { useExports }       from './hooks/useExports';
 import { useNotifications } from './hooks/useNotifications';
-import { uploadImage }      from './config/uploadImage';
-import { compressImage }    from './utils/imageHelpers';
+import { useModals }        from './hooks/useModals';
+import { useOnlineStatus }  from './hooks/useOnlineStatus';
+import { useProductForm }   from './hooks/useProductForm';
 
 // Componentes
 import Sidebar, { MobileNav } from './components/Sidebar';
-import Cart           from './components/Cart';
-import ProductGrid    from './components/ProductGrid';
-import {
-    ExpenseModal, ProductModal, CategoryModal, CustomerModal,
-    StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal,
-    InvitationModal, ProcessingModal, ConfirmModal, FaultyProductModal
-} from './components/Modals';
+import Cart                   from './components/Cart';
+import ProductGrid            from './components/ProductGrid';
+import LoadingScreen          from './components/LoadingScreen';
+import LoginScreen            from './components/LoginScreen';
+import AppModals              from './components/AppModals';
+import { ProcessingModal }    from './components/Modals';
 
 // Lazy Loading
 const Dashboard         = lazy(() => import('./components/Dashboard'));
@@ -37,65 +36,19 @@ const Delivery          = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
-        <div className="w-8 h-8 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin" />
         <span className="text-xs font-bold">Cargando...</span>
     </div>
 );
 
 export default function App() {
     const [activeTab, setActiveTab]           = useState('pos');
-    const [isOnline, setIsOnline]             = useState(navigator.onLine);
-    const [showMobileCart, setShowMobileCart] = useState(false);
     const [notification, setNotification]     = useState(null);
     const [confirmConfig, setConfirmConfig]   = useState(null);
-    // ✅ dashboardDateRange eliminado — se usa dateRange/setDateRange del TransactionsContext
-
-    const { supportsPWA, installApp, updateAvailable } = usePWA();
-
-    const [modals, setModals] = useState({
-        product: false, category: false, customer: false, transaction: false,
-        store: false, stock: false, expense: false, logout: false,
-        invitation: false, faulty: false
-    });
-    const toggleModal = (name, value) => setModals(prev => ({ ...prev, [name]: value }));
-
-    // Contextos
-    const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
-    const {
-        products, categories, subcategories, customers, expenses, storeProfile,
-        addProduct, updateProduct, deleteProduct, addStock,
-        addCategory, deleteCategory, updateCategory,
-        addSubCategory, deleteSubCategory,
-        addCustomer, updateCustomer, deleteCustomer,
-        addExpense, deleteExpense,
-        updateStoreProfile, generateInvitationCode, registerFaultyProduct
-    } = useInventoryContext();
-    const { transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
-    const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
-    const printer = usePrinter();
-
-    // Estados UI locales
-    const [selectedTransaction, setSelectedTransaction]   = useState(null);
-    const [editingTransaction, setEditingTransaction]     = useState(null);
-    const [faultyProduct, setFaultyProduct]               = useState(null);
-    const [editingProduct, setEditingProduct]             = useState(null);
-    const [editingCustomer, setEditingCustomer]           = useState(null);
-    const [selectedCustomer, setSelectedCustomer]         = useState(null);
-    const [scannedProduct, setScannedProduct]             = useState(null);
-    const [searchTerm, setSearchTerm]                     = useState('');
-    const [selectedCategory, setSelectedCategory]         = useState('all');
-    const [customerSearch, setCustomerSearch]             = useState('');
-    const [barcodeInput, setBarcodeInput]                 = useState('');
-    const [inventoryBarcodeInput, setInventoryBarcodeInput] = useState('');
-    const [imageMode, setImageMode]                       = useState('link');
-    const [previewImage, setPreviewImage]                 = useState('');
-    const [isRegistering, setIsRegistering]               = useState(false);
-    const [historySection, setHistorySection]             = useState('menu');
-
-    const quantityInputRef = useRef(null);
+    const [showMobileCart, setShowMobileCart] = useState(false);
 
     // ── Notificación visual interna ────────────────────────────────────────────
-    const _notifTimer = React.useRef(null);
+    const _notifTimer = useRef(null);
     const showNotification = (msg) => {
         if (_notifTimer.current) clearTimeout(_notifTimer.current);
         setNotification(msg);
@@ -107,28 +60,81 @@ export default function App() {
         setConfirmConfig({
             title, message, isDanger,
             onConfirm: async () => { setConfirmConfig(null); await action(); },
-            onCancel:  () => setConfirmConfig(null)
+            onCancel:  () => setConfirmConfig(null),
         });
     };
 
-    // ── Hooks extraídos ────────────────────────────────────────────────────────
-    const { isSyncing, setPendingCount, syncQueue } = useSyncManager({
-        user, createTransaction, showNotification
+    // ── Hooks ──────────────────────────────────────────────────────────────────
+    const { modals, toggleModal } = useModals();
+    const { isOnline }            = useOnlineStatus(showNotification);
+    const { supportsPWA, installApp, updateAvailable } = usePWA();
+
+    // Contextos
+    const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
+    const {
+        products, categories, subcategories, customers, expenses, storeProfile,
+        addProduct, updateProduct, deleteProduct, addStock,
+        addCategory, deleteCategory, updateCategory,
+        addSubCategory, deleteSubCategory,
+        addCustomer, updateCustomer, deleteCustomer,
+        addExpense, deleteExpense,
+        updateStoreProfile, generateInvitationCode, registerFaultyProduct,
+    } = useInventoryContext();
+    const { transactions, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
+    const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
+    const printer = usePrinter();
+
+    // ── Estados UI locales ─────────────────────────────────────────────────────
+    const [selectedTransaction, setSelectedTransaction] = useState(null);
+    const [editingTransaction, setEditingTransaction]   = useState(null);
+    const [faultyProduct, setFaultyProduct]             = useState(null);
+    const [editingProduct, setEditingProduct]           = useState(null);
+    const [editingCustomer, setEditingCustomer]         = useState(null);
+    const [selectedCustomer, setSelectedCustomer]       = useState(null);
+    const [scannedProduct, setScannedProduct]           = useState(null);
+    const [searchTerm, setSearchTerm]                   = useState('');
+    const [selectedCategory, setSelectedCategory]       = useState('all');
+    const [customerSearch, setCustomerSearch]           = useState('');
+    const [barcodeInput, setBarcodeInput]               = useState('');
+    const [historySection, setHistorySection]           = useState('menu');
+
+    // ── Hooks funcionales ──────────────────────────────────────────────────────
+    const { isSyncing, setPendingCount } = useSyncManager({
+        user, createTransaction, showNotification,
     });
 
-    const { isProcessing, setIsProcessing, lastSale, showCheckoutSuccess, setShowCheckoutSuccess, checkoutError, setCheckoutError, handleCheckout } = useCheckout({
+    const {
+        isProcessing, setIsProcessing,
+        lastSale, showCheckoutSuccess, setShowCheckoutSuccess,
+        checkoutError, setCheckoutError,
+        handleCheckout,
+    } = useCheckout({
         user, userData, cart, products, cartTotal, paymentMethod,
         selectedCustomer, createTransaction, clearCart,
-        onOfflineSaved: () => setPendingCount(n => n + 1)
+        onOfflineSaved: () => setPendingCount(n => n + 1),
     });
 
     const { handlePrintShoppingList, handleExportData } = useExports({
         products, transactions, expenses, balance, storeProfile,
         dashboardDateRange: dateRange, purgeTransactions, showNotification,
-        requestConfirm, setIsProcessing
+        requestConfirm, setIsProcessing,
     });
 
-    // ── Notificaciones push (FCM, funciona con app cerrada) ───────────────────
+    const {
+        imageMode,    setImageMode,
+        previewImage, setPreviewImage,
+        inventoryBarcodeInput, setInventoryBarcodeInput,
+        quantityInputRef,
+        handleSaveProductWrapper,
+        handleFileChange,
+        handleInventoryBarcodeSubmit,
+    } = useProductForm({
+        products, editingProduct,
+        addProduct, updateProduct, addStock,
+        toggleModal, showNotification, requestConfirm,
+        setIsProcessing, setEditingProduct,
+    });
+
     useNotifications(user, userData);
 
     // ── Pedidos pendientes para badge ──────────────────────────────────────────
@@ -136,11 +142,9 @@ export default function App() {
         t.clientRole === 'client' && t.fulfillmentStatus === 'pending'
     );
     const prevOrdersCount = useRef(pendingOrders.length);
-
     useEffect(() => {
         if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
             showNotification("🔔 ¡Nuevo pedido de cliente!");
-            // El push a dispositivo lo maneja la Cloud Function via FCM
         }
         prevOrdersCount.current = pendingOrders.length;
     }, [pendingOrders.length, userData?.role]);
@@ -152,121 +156,21 @@ export default function App() {
         return () => window.removeEventListener('popstate', handler);
     }, [selectedTransaction]);
 
-    // ── Estado de conexión ─────────────────────────────────────────────────────
-    useEffect(() => {
-        const handler = () => {
-            setIsOnline(navigator.onLine);
-            showNotification(navigator.onLine ? "🟢 Conexión restaurada" : "🔴 Sin conexión (Modo Offline)");
-        };
-        window.addEventListener('online',  handler);
-        window.addEventListener('offline', handler);
-        return () => { window.removeEventListener('online', handler); window.removeEventListener('offline', handler); };
-    }, []);
-
-    // ── Handlers de formularios ────────────────────────────────────────────────
-    const handleAuthSubmit = async (e) => {
-        e.preventDefault();
-        const form = e.target;
-        try {
-            if (isRegistering) {
-                await register({
-                    name: form.name.value, phone: form.phone.value,
-                    address: form.address.value, email: form.email.value,
-                    password: form.password.value,
-                    inviteCode: form.inviteCode?.value || ''
-                });
-            } else {
-                await login(form.email.value, form.password.value);
-            }
-        } catch (e) { /* el error ya se setea en loginError */ }
-    };
-
-    const handleSaveProductWrapper = async (e) => {
-        e.preventDefault();
-        const f = e.target;
-        const rawImage = imageMode === 'file' ? previewImage : (f.imageUrlLink?.value || '');
-        setIsProcessing(true);
-        try {
-            const finalImageUrl = await uploadImage(rawImage, f.name.value);
-            const data = {
-                name: f.name.value, barcode: f.barcode.value,
-                price: parseFloat(f.price.value),
-                cost: parseFloat(f.cost.value || 0),
-                stock: parseInt(f.stock.value),
-                categoryId: f.category.value,
-                subCategoryId: f.subcategory.value,
-                imageUrl: finalImageUrl || ''
-            };
-            if (editingProduct) await updateProduct(editingProduct.id, data);
-            else                await addProduct(data);
-            toggleModal('product', false);
-            showNotification("✅ Producto guardado");
-        } catch (e) {
-            showNotification("❌ Error: " + e.message);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleInventoryBarcodeSubmit = (e) => {
-        e.preventDefault();
-        if (!inventoryBarcodeInput) return;
-        const p = products.find(p => p.barcode === inventoryBarcodeInput);
-        if (p) {
-            setScannedProduct(p);
-            toggleModal('stock', true);
-            setTimeout(() => quantityInputRef.current?.focus(), 100);
-        } else {
-            requestConfirm("Producto no existe", "¿Crear nuevo?", () => {
-                setEditingProduct({ barcode: inventoryBarcodeInput });
-                toggleModal('product', true);
-            });
-        }
-        setInventoryBarcodeInput('');
-    };
-
-    const handleFileChange = async (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
-        if (f.size > 5 * 1024 * 1024) { showNotification("⚠️ Imagen muy pesada (Máx 5MB)"); return; }
-        setIsProcessing(true);
-        const base64 = await compressImage(f);
-        setPreviewImage(base64);
-        setIsProcessing(false);
-    };
-
-    // ── Handlers de modales (extraídos para legibilidad y debugging) ────────────
-
+    // ── Handlers de modales ────────────────────────────────────────────────────
     const handleSaveExpense = async (e) => {
         e.preventDefault();
         try {
-            await addExpense({
-                description: e.target.description.value,
-                amount: parseFloat(e.target.amount.value)
-            });
+            await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) });
             toggleModal('expense', false);
         } catch { showNotification("❌ Error al guardar gasto"); }
     };
 
-    const handleSaveCategory = async (e) => {
-        e.preventDefault();
-        if (e.target.catName.value) {
-            await addCategory(e.target.catName.value);
-            toggleModal('category', false);
-        }
-    };
-
     const handleSaveCustomer = async (e) => {
         e.preventDefault();
-        const d = {
-            name: e.target.name.value,
-            phone: e.target.phone.value,
-            address: e.target.address.value,
-            email: e.target.email.value
-        };
+        const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value };
         try {
             if (editingCustomer) await updateCustomer(editingCustomer.id, d);
-            else await addCustomer(d);
+            else                 await addCustomer(d);
             toggleModal('customer', false);
         } catch { showNotification("❌ Error al guardar cliente"); }
     };
@@ -274,20 +178,14 @@ export default function App() {
     const handleSaveStore = async (e) => {
         e.preventDefault();
         const form = e.target;
-        const newName = form.storeName.value;
         let newLogo = storeProfile.logoUrl;
-        if (imageMode === 'file') {
-            if (previewImage) newLogo = previewImage;
-        } else {
-            if (form.logoUrlLink) newLogo = form.logoUrlLink.value;
-        }
+        if (imageMode === 'file') { if (previewImage) newLogo = previewImage; }
+        else { if (form.logoUrlLink) newLogo = form.logoUrlLink.value; }
         try {
-            await updateStoreProfile({ name: newName, logoUrl: newLogo });
+            await updateStoreProfile({ name: form.storeName.value, logoUrl: newLogo });
             toggleModal('store', false);
             showNotification("✅ Perfil actualizado");
-        } catch (error) {
-            showNotification("❌ Error al guardar: " + error.message);
-        }
+        } catch (err) { showNotification("❌ Error al guardar: " + err.message); }
     };
 
     const handleAddStock = async (e) => {
@@ -298,28 +196,19 @@ export default function App() {
     };
 
     const handleSaveTransaction = async (d) => {
-        if (!d.items || d.items.length === 0 || d.total === 0) {
-            showNotification("⚠️ Los datos de la boleta aún no han cargado.");
-            return;
-        }
+        if (!d.items || d.items.length === 0 || d.total === 0) { showNotification("⚠️ Los datos de la boleta aún no han cargado."); return; }
         setIsProcessing(true);
         try {
             await updateTransaction(editingTransaction.id, d);
             toggleModal('transaction', false);
             showNotification("✅ Boleta actualizada");
-            if (selectedTransaction?.id === editingTransaction.id) {
-                setSelectedTransaction(prev => ({ ...prev, ...d }));
-            }
+            if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d }));
         } catch { showNotification("❌ No se pudieron guardar los cambios."); }
-        finally { setIsProcessing(false); }
+        finally   { setIsProcessing(false); }
     };
 
-    const handleConfirmLogout = async () => {
-        await logout();
-        toggleModal('logout', false);
-    };
-
-    const handleConfirmFaulty = async (p, q, r) => {
+    const handleConfirmLogout  = async () => { await logout(); toggleModal('logout', false); };
+    const handleConfirmFaulty  = async (p, q, r) => {
         setIsProcessing(true);
         await registerFaultyProduct(p, q, r);
         toggleModal('faulty', false);
@@ -327,78 +216,17 @@ export default function App() {
         showNotification("✅ Falla registrada como gasto");
     };
 
-        // ── Pantallas de carga y login ─────────────────────────────────────────────
-    if (authLoading) {
-        return (
-            <div className="h-screen flex flex-col items-center justify-center login-bg">
-                <div className="w-12 h-12 rounded-2xl overflow-hidden ring-2 ring-orange-500/30 mb-6 flex items-center justify-center bg-orange-500/20">
-                    {storeProfile?.logoUrl
-                        ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" />
-                        : <Store size={24} className="text-orange-400" />}
-                </div>
-                <div className="flex gap-1.5 mb-3">
-                    {[0,1,2].map(i => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{animationDelay:`${i*0.15}s`}} />
-                    ))}
-                </div>
-                <span className="text-white/40 text-sm">Cargando...</span>
-                {!isOnline && <span className="text-orange-400/60 text-xs mt-2">Modo offline</span>}
-            </div>
-        );
-    }
-
-    if (!user || !userData) {
-        return (
-            <div className="min-h-screen login-bg flex items-center justify-center p-4">
-                <div className="w-full max-w-sm">
-                    <div className="text-center mb-8">
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto mb-4 ring-2 ring-orange-500/30 flex items-center justify-center bg-orange-500/20">
-                            {storeProfile.logoUrl
-                                ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" />
-                                : <Store size={32} className="text-orange-400" />}
-                        </div>
-                        <h1 className="text-white text-2xl font-black">{storeProfile.name}</h1>
-                        <p className="text-white/40 text-sm mt-1">{isRegistering ? 'Crear cuenta' : 'Iniciá sesión para continuar'}</p>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6 border border-white/15 shadow-2xl">
-                        <form onSubmit={handleAuthSubmit} className="space-y-3">
-                            {isRegistering && (
-                                <>
-                                    <input name="name" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm" placeholder="Nombre completo" />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input name="phone" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm" placeholder="Teléfono" />
-                                        <input name="address" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm" placeholder="Dirección" />
-                                    </div>
-                                    <input name="inviteCode" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-bold text-center uppercase tracking-widest" placeholder="CÓDIGO DE INVITACIÓN" />
-                                </>
-                            )}
-                            <input name="email" type="email" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm" placeholder="Correo electrónico" />
-                            <input name="password" type="password" required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm" placeholder="Contraseña" />
-                            {loginError && <div className="text-red-400 text-xs text-center font-medium py-1">{loginError}</div>}
-                            <button type="submit" className="w-full py-3.5 rounded-xl font-black text-sm btn-accent mt-1">
-                                {isRegistering ? 'Crear cuenta' : 'Ingresar'}
-                            </button>
-                        </form>
-                        <div className="flex items-center gap-3 my-4">
-                            <div className="flex-1 h-px bg-white/10" /><span className="text-white/20 text-xs">o</span><div className="flex-1 h-px bg-white/10" />
-                        </div>
-                        <button onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }} className="w-full py-2.5 rounded-xl border border-white/20 text-white/60 text-sm font-semibold hover:bg-white/10 transition-colors">
-                            {isRegistering ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}
-                        </button>
-                        {!isRegistering && (
-                            <button onClick={() => {
-                                const emailInput = document.querySelector('input[name="email"]');
-                                if (!emailInput?.value) { setLoginError("Escribe tu correo primero."); return; }
-                                resetPassword(emailInput.value).then(() => showNotification("📧 Correo de recuperación enviado")).catch(e => setLoginError(e.message));
-                            }} className="w-full mt-2 text-white/30 text-xs hover:text-white/50 transition-colors">
-                                Olvidé mi contraseña
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // ── Pantallas de carga y login ─────────────────────────────────────────────
+    if (authLoading) return <LoadingScreen storeProfile={storeProfile} isOnline={isOnline} />;
+    if (!user || !userData) return (
+        <LoginScreen
+            storeProfile={storeProfile}
+            login={login} register={register}
+            resetPassword={resetPassword}
+            loginError={loginError} setLoginError={setLoginError}
+            showNotification={showNotification}
+        />
+    );
 
     // ── UI Principal ───────────────────────────────────────────────────────────
     return (
@@ -413,12 +241,11 @@ export default function App() {
             />
 
             {!isOnline && (
-                <div className="fixed bottom-[4.5rem] left-0 right-0 text-white text-[11px] font-black py-1.5 text-center z-[2000] flex items-center justify-center gap-1.5" style={{background:'linear-gradient(90deg,#f97316,#ea580c)'}}>
+                <div className="fixed bottom-[4.5rem] left-0 right-0 text-white text-[11px] font-black py-1.5 text-center z-[2000] flex items-center justify-center gap-1.5" style={{ background: 'linear-gradient(90deg,#f97316,#ea580c)' }}>
                     <WifiOff size={11} /> SIN CONEXIÓN — MODO OFFLINE
                 </div>
             )}
 
-            {confirmConfig && <ConfirmModal {...confirmConfig} />}
             {notification && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[99999] animate-in slide-in-from-top-10 fade-in flex items-center gap-3">
                     <Bell size={18} className="text-yellow-400" />
@@ -426,25 +253,26 @@ export default function App() {
                 </div>
             )}
 
-            {/* ── Banner de actualización automática ── */}
             {updateAvailable && (
-                <div className="fixed top-0 left-0 right-0 z-[99999] flex items-center justify-center gap-3 py-3 px-4 text-white text-sm font-bold animate-in slide-in-from-top" style={{background:'linear-gradient(90deg,#f97316,#ea580c)'}}>
+                <div className="fixed top-0 left-0 right-0 z-[99999] flex items-center justify-center gap-3 py-3 px-4 text-white text-sm font-bold animate-in slide-in-from-top" style={{ background: 'linear-gradient(90deg,#f97316,#ea580c)' }}>
                     <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin shrink-0" />
                     Actualizando app a la nueva versión...
                 </div>
             )}
+
             {isProcessing && <ProcessingModal />}
 
             <div className="flex flex-col flex-1 min-w-0 h-full">
-                {/* Header móvil */}
-                <header className="mobile-header-safe lg:hidden px-4 pb-3 pt-3 flex justify-between items-center z-[50] shrink-0 border-b" style={{background:'var(--sidebar-bg)',borderColor:'rgba(255,255,255,0.08)'}}>
+                <header className="mobile-header-safe lg:hidden px-4 pb-3 pt-3 flex justify-between items-center z-[50] shrink-0 border-b" style={{ background: 'var(--sidebar-bg)', borderColor: 'rgba(255,255,255,0.08)' }}>
                     <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2.5 truncate">
                         <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-orange-500/30 flex items-center justify-center bg-orange-500/20 shrink-0">
-                            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" /> : <Store size={14} className="text-orange-400" />}
+                            {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="logo" /> : <Store size={14} className="text-orange-400" />}
                         </div>
                         <span className="text-white font-bold text-sm truncate">{storeProfile.name}</span>
                     </button>
-                    <button onClick={() => toggleModal('logout', true)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><LogOut size={17} className="text-white/40" /></button>
+                    <button onClick={() => toggleModal('logout', true)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                        <LogOut size={17} className="text-white/40" />
+                    </button>
                 </header>
 
                 <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-50">
@@ -617,7 +445,6 @@ export default function App() {
                     />
                 )}
 
-                {/* Detalle de transacción */}
                 {selectedTransaction && (
                     <Suspense fallback={<ProcessingModal />}>
                         <TransactionDetail
@@ -630,7 +457,6 @@ export default function App() {
                     </Suspense>
                 )}
 
-                {/* Checkout success banner */}
                 {showCheckoutSuccess && (
                     <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
                         <div className="flex flex-col">
@@ -643,15 +469,12 @@ export default function App() {
                                 setShowCheckoutSuccess(false);
                             }}
                             className="bg-white text-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-50"
-                        >
-                            Ver Boleta
-                        </button>
+                        >Ver Boleta</button>
                     </div>
                 )}
 
-                {/* ── Bloqueador de sincronización ── */}
                 {isSyncing && (
-                    <div className="fixed inset-0 z-[99998] flex flex-col items-center justify-center" style={{background:'rgba(17,24,39,0.92)', backdropFilter:'blur(6px)'}}>
+                    <div className="fixed inset-0 z-[99998] flex flex-col items-center justify-center" style={{ background: 'rgba(17,24,39,0.92)', backdropFilter: 'blur(6px)' }}>
                         <div className="bg-white/10 border border-white/20 rounded-3xl p-8 flex flex-col items-center gap-5 max-w-xs mx-4 text-center shadow-2xl">
                             <div className="relative w-16 h-16">
                                 <div className="absolute inset-0 border-4 border-white/10 rounded-full" />
@@ -666,15 +489,12 @@ export default function App() {
                     </div>
                 )}
 
-                {/* ✅ Banner persistente: error de checkout o pedido offline pendiente */}
                 {checkoutError && (
                     <div className={`fixed inset-x-4 bottom-[5.5rem] lg:inset-x-auto lg:right-4 lg:bottom-6 lg:w-96 text-white px-5 py-4 rounded-xl shadow-2xl z-[99997] border-2 ${checkoutError.isPendingSync ? 'bg-amber-600 border-amber-400' : 'bg-red-600 border-red-400'}`}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">
-                                    {checkoutError.isPendingSync
-                                        ? '⏳ Pedido guardado — sin sincronizar'
-                                        : checkoutError.isOffline ? '📶 Sin conexión' : '⚠️ Error al registrar pedido'}
+                                    {checkoutError.isPendingSync ? '⏳ Pedido guardado — sin sincronizar' : checkoutError.isOffline ? '📶 Sin conexión' : '⚠️ Error al registrar pedido'}
                                 </p>
                                 <p className="text-xs opacity-80 mt-1">Ocurrió a las {checkoutError.time}</p>
                             </div>
@@ -696,89 +516,37 @@ export default function App() {
                         </p>
                     </div>
                 )}
-
-                {/* Modales */}
-                {modals.expense && (
-                    <ExpenseModal
-                        onClose={() => toggleModal('expense', false)}
-                        onSave={handleSaveExpense}
-                    />
-                )}
-                {modals.product && (
-                    <ProductModal
-                        onClose={() => toggleModal('product', false)}
-                        onSave={handleSaveProductWrapper}
-                        onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteProduct(id), true)}
-                        editingProduct={editingProduct}
-                        imageMode={imageMode} setImageMode={setImageMode}
-                        previewImage={previewImage} setPreviewImage={setPreviewImage}
-                        handleFileChange={handleFileChange}
-                        categories={categories} subcategories={subcategories}
-                        onRegisterFaulty={(p) => { setFaultyProduct(p); toggleModal('faulty', true); }}
-                    />
-                )}
-                {modals.category && (
-                    <CategoryModal
-                        onClose={() => toggleModal('category', false)}
-                        onSave={handleSaveCategory}
-                        onDelete={(id) => requestConfirm("Borrar", "¿Seguro?", () => deleteCategory(id), true)}
-                        categories={categories} subcategories={subcategories}
-                        onSaveSub={addSubCategory} onDeleteSub={deleteSubCategory}
-                        onUpdate={updateCategory}
-                    />
-                )}
-                {modals.customer && (
-                    <CustomerModal
-                        onClose={() => toggleModal('customer', false)}
-                        onSave={handleSaveCustomer}
-                        editingCustomer={editingCustomer}
-                    />
-                )}
-                {modals.store && (
-                    <StoreModal
-                        onClose={() => toggleModal('store', false)}
-                        storeProfile={storeProfile}
-                        imageMode={imageMode} setImageMode={setImageMode}
-                        previewImage={previewImage} setPreviewImage={setPreviewImage}
-                        handleFileChange={handleFileChange}
-                        onSave={handleSaveStore}
-                    />
-                )}
-                {modals.stock && scannedProduct && (
-                    <AddStockModal
-                        onClose={() => { toggleModal('stock', false); setScannedProduct(null); }}
-                        onConfirm={handleAddStock}
-                        scannedProduct={scannedProduct}
-                        quantityInputRef={quantityInputRef}
-                    />
-                )}
-                {modals.transaction && editingTransaction && (
-                    <TransactionModal
-                        onClose={() => toggleModal('transaction', false)}
-                        onSave={handleSaveTransaction}
-                        editingTransaction={editingTransaction}
-                    />
-                )}
-                {modals.logout && (
-                    <LogoutConfirmModal
-                        onClose={() => toggleModal('logout', false)}
-                        onConfirm={handleConfirmLogout}
-                    />
-                )}
-                {modals.invitation && (
-                    <InvitationModal
-                        onClose={() => toggleModal('invitation', false)}
-                        onGenerate={generateInvitationCode}
-                    />
-                )}
-                {modals.faulty && faultyProduct && (
-                    <FaultyProductModal
-                        product={faultyProduct}
-                        onClose={() => toggleModal('faulty', false)}
-                        onConfirm={handleConfirmFaulty}
-                    />
-                )}
             </div>
+
+            <AppModals
+                modals={modals}             toggleModal={toggleModal}
+                confirmConfig={confirmConfig}
+                editingProduct={editingProduct}
+                imageMode={imageMode}       setImageMode={setImageMode}
+                previewImage={previewImage} setPreviewImage={setPreviewImage}
+                handleFileChange={handleFileChange}
+                handleSaveProductWrapper={handleSaveProductWrapper}
+                categories={categories}    subcategories={subcategories}
+                setFaultyProduct={setFaultyProduct}
+                deleteProduct={deleteProduct}
+                requestConfirm={requestConfirm}
+                addSubCategory={addSubCategory}   deleteSubCategory={deleteSubCategory}
+                updateCategory={updateCategory}   deleteCategory={deleteCategory}
+                addCategory={addCategory}
+                editingCustomer={editingCustomer}
+                handleSaveCustomer={handleSaveCustomer}
+                storeProfile={storeProfile}
+                handleSaveStore={handleSaveStore}
+                scannedProduct={scannedProduct}   setScannedProduct={setScannedProduct}
+                handleAddStock={handleAddStock}   quantityInputRef={quantityInputRef}
+                editingTransaction={editingTransaction}
+                handleSaveTransaction={handleSaveTransaction}
+                handleConfirmLogout={handleConfirmLogout}
+                generateInvitationCode={generateInvitationCode}
+                faultyProduct={faultyProduct}
+                handleConfirmFaulty={handleConfirmFaulty}
+                handleSaveExpense={handleSaveExpense}
+            />
         </div>
     );
 }
