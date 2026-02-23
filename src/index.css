@@ -16,14 +16,16 @@
 
 html {
     height: 100dvh;
-    background-color: #f8fafc;
+    /* Fondo oscuro para que la zona de la barra de estado sea coherente con el header */
+    background-color: #111827;
 }
 
 body {
     margin: 0;
     min-height: 100dvh;
+    /* safe-area-inset-bottom: espacio para iPhone con home indicator */
     padding-bottom: env(safe-area-inset-bottom);
-    background-color: #f8fafc;
+    background-color: #111827;
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
@@ -31,6 +33,12 @@ body {
     height: 100dvh;
     display: flex;
     flex-direction: column;
+}
+
+/* ── Edge-to-edge: el header móvil absorbe la barra de estado del sistema ──── */
+.mobile-header-safe {
+    /* Suma la altura natural del header + el espacio de la barra de estado */
+    padding-top: env(safe-area-inset-top, 0px);
 }
 
 input, textarea {

@@ -429,7 +429,7 @@ export default function App() {
 
             <div className="flex flex-col flex-1 min-w-0 h-full">
                 {/* Header móvil */}
-                <header className="lg:hidden px-4 py-3 flex justify-between items-center z-[50] shrink-0 h-14 border-b" style={{background:'var(--sidebar-bg)',borderColor:'rgba(255,255,255,0.08)'}}>
+                <header className="mobile-header-safe lg:hidden px-4 pb-3 pt-3 flex justify-between items-center z-[50] shrink-0 border-b" style={{background:'var(--sidebar-bg)',borderColor:'rgba(255,255,255,0.08)'}}>
                     <button onClick={() => userData.role === 'admin' && toggleModal('store', true)} className="flex items-center gap-2.5 truncate">
                         <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-orange-500/30 flex items-center justify-center bg-orange-500/20 shrink-0">
                             {storeProfile.logoUrl ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" /> : <Store size={14} className="text-orange-400" />}
@@ -439,7 +439,7 @@ export default function App() {
                     <button onClick={() => toggleModal('logout', true)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><LogOut size={17} className="text-white/40" /></button>
                 </header>
 
-                <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-100">
+                <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-50">
 
                     {/* POS */}
                     {activeTab === 'pos' && (

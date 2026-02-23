@@ -45,7 +45,7 @@ export default function Sidebar({
   ].filter(item => !item.adminOnly || userData.role === 'admin');
 
   return (
-    <div className="hidden lg:flex flex-col w-60 shrink-0 overflow-hidden" style={{ background: 'var(--sidebar-bg)' }}>
+    <div className="hidden lg:flex flex-col w-60 shrink-0 overflow-hidden" style={{ background: 'var(--sidebar-bg)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
 
       {/* Store header */}
       <button
@@ -121,7 +121,7 @@ export function MobileNav({
   onLogout, supportsPWA, installApp, pendingCount
 }) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-[4.5rem] z-[50] flex"
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[50] flex" style={{height: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)'}}
       style={{ background: 'var(--sidebar-bg)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
       <div className="flex items-center h-full overflow-x-auto px-1 gap-0.5 no-scrollbar flex-1">
         <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={22} />} label="Vender" />
