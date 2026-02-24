@@ -1,27 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useSyncManager, addToOfflineQueue, getOfflineQueue, OFFLINE_QUEUE_KEY } from '../hooks/useSyncManager';
+import { useSyncManager, addToOfflineQueue, getOfflineQueue } from '../hooks/useSyncManager';
 
-// ── Mock de checkRealInternet dentro del mismo módulo ─────────────────────────
-vi.mock('../hooks/useSyncManager', async (importOriginal) => {
-    const original = await importOriginal();
-    return {
-        ...original,
-        checkRealInternet: vi.fn(),
-    };
-});
+// ── Mockeamos fetch globalmente ───────────────────────────────────────────────
+// checkRealInternet usa fetch internamente. Mockeando fetch controlamos
+// si el ping a google retorna éxito (online) o falla (offline).
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
 
-import { checkRealInternet } from '../hooks/useSyncManager';
+const simulateOnline  = () => mockFetch.mockResolvedValue({ status: 204 });
+const simulateOffline = () => mockFetch.mockRejectedValue(new Error('Network error'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
-const mockUser             = { uid: 'user-123' };
+const mockUser              = { uid: 'user-123' };
 const mockCreateTransaction = vi.fn();
 const mockShowNotification  = vi.fn();
 
 const makeEntry = (id, total = 1000) => ({
-    localId:      `offline-${id}`,
+    localId:       `offline-${id}`,
     itemsWithCost: [{ id: 'prod-1', name: 'Test', qty: 1, price: total, cost: 0 }],
     saleData:      { type: 'sale', total, date: { seconds: 1700000000 } },
 });
@@ -56,7 +54,7 @@ describe('useSyncManager — estado inicial', () => {
 
 describe('useSyncManager — syncQueue sin conexión', () => {
     it('no llama a createTransaction si no hay internet', async () => {
-        checkRealInternet.mockResolvedValue(false);
+        simulateOffline();
         addToOfflineQueue(makeEntry(1));
 
         const { result } = renderHook(() =>
@@ -69,7 +67,7 @@ describe('useSyncManager — syncQueue sin conexión', () => {
     });
 
     it('no modifica la cola si no hay internet', async () => {
-        checkRealInternet.mockResolvedValue(false);
+        simulateOffline();
         addToOfflineQueue(makeEntry(1));
         addToOfflineQueue(makeEntry(2));
 
@@ -85,7 +83,7 @@ describe('useSyncManager — syncQueue sin conexión', () => {
 
 describe('useSyncManager — syncQueue con conexión', () => {
     beforeEach(() => {
-        checkRealInternet.mockResolvedValue(true);
+        simulateOnline();
         mockCreateTransaction.mockResolvedValue({ id: 'tx-synced' });
     });
 
@@ -137,14 +135,13 @@ describe('useSyncManager — syncQueue con conexión', () => {
 
         await act(async () => { await result.current.syncQueue(); });
 
-        expect(checkRealInternet).not.toHaveBeenCalled();
         expect(mockCreateTransaction).not.toHaveBeenCalled();
     });
 });
 
 describe('useSyncManager — fallo parcial en sincronización', () => {
     beforeEach(() => {
-        checkRealInternet.mockResolvedValue(true);
+        simulateOnline();
     });
 
     it('continúa con las demás boletas si una falla', async () => {
@@ -152,7 +149,6 @@ describe('useSyncManager — fallo parcial en sincronización', () => {
         addToOfflineQueue(makeEntry(2));
         addToOfflineQueue(makeEntry(3));
 
-        // La segunda boleta falla
         mockCreateTransaction
             .mockResolvedValueOnce({ id: 'tx-1' })
             .mockRejectedValueOnce(new Error('Firestore error'))
@@ -181,7 +177,6 @@ describe('useSyncManager — fallo parcial en sincronización', () => {
 
         await act(async () => { await result.current.syncQueue(); });
 
-        // La boleta 1 se sincronizó, la 2 falló y quedó pendiente
         expect(getOfflineQueue()).toHaveLength(1);
         expect(result.current.pendingCount).toBe(1);
     });
