@@ -70,7 +70,7 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         <h3 className="font-bold text-slate-700 mb-4 text-xs uppercase tracking-wide">Evolución de Ventas</h3>
                         {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={balance.chartData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
@@ -94,7 +94,7 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px] relative">
                             {balance.salesByCategory.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height={300}>
                                     <PieChart>
                                         <Pie
                                             data={balance.salesByCategory}
