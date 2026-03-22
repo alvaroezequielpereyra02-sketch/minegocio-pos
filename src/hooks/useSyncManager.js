@@ -30,7 +30,9 @@ const removeFromOfflineQueue = (id) => {
 export const checkRealInternet = () =>
     new Promise(resolve => {
         const ctrl = new AbortController();
-        const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 1500);
+        // Chequeo rápido primero — si el navegador ya sabe que está offline, no pinguea
+        if (!navigator.onLine) { resolve(false); return; }
+        const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 4000);
         fetch('https://www.google.com/generate_204', {
             method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal
         })
