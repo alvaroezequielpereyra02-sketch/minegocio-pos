@@ -18,7 +18,7 @@
     "react-dom": "^19.2.4",
     "react-virtualized-auto-sizer": "^1.0.24",
     "react-window": "^1.8.10",
-    "recharts": "^2.10.3"
+    "recharts": "^3.8.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
