@@ -2,7 +2,6 @@ import { initializeApp } from "firebase/app";
 import {
     initializeFirestore,
     persistentLocalCache,
-    persistentMultipleTabManager
 } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -21,10 +20,10 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
+// En Firebase 12 el soporte multi-tab es automático.
+// persistentMultipleTabManager fue eliminado — ya no es necesario.
 export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-    })
+    localCache: persistentLocalCache()
 });
 
 export const auth = getAuth(app);
