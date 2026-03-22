@@ -1,8 +1,5 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 :root {
     min-height: 100dvh;
@@ -16,15 +13,12 @@
 
 html {
     height: 100dvh;
-    /* Fondo oscuro para que la zona de la barra de estado sea coherente con el header */
     background-color: #111827;
 }
 
 body {
     margin: 0;
     min-height: 100dvh;
-    /* SIN padding-bottom: el nav fixed gestiona su propio safe-area.
-       Ponerlo en body crea un hueco visible debajo del nav fijo. */
     background-color: #111827;
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
@@ -37,10 +31,6 @@ body {
 
 /* ── Edge-to-edge: el header móvil absorbe la barra de estado del sistema ──── */
 .mobile-header-safe {
-    /* Empuja el contenido del header hacia abajo exactamente
-       la altura de la barra de estado del sistema.
-       Con viewport-fit=cover en index.html, el fondo del header
-       se extiende detrás de la barra (hora, batería, etc.) */
     padding-top: env(safe-area-inset-top, 0px);
     background: var(--sidebar-bg);
 }
