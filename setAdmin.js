@@ -16,7 +16,6 @@ const ADMIN_EMAILS = [
     'fepereyra75@gmail.com',
     'silviagabriela70@gmail.com',
     'pereyrapereirad@gmail.com',
-    'lordgamer8858@gmail.com',
 ];
 
 async function grantAdminRoles() {
