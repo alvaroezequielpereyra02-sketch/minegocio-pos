@@ -36,15 +36,19 @@ export const useProductForm = ({
         setIsProcessing(true);
         try {
             const finalImageUrl = await uploadImage(rawImage, f.name.value);
+            const wholesalePrice = parseFloat(f.wholesalePrice?.value || 0);
+            const wholesaleMinQty = parseInt(f.wholesaleMinQty?.value || 0);
             const data = {
-                name:          f.name.value,
-                barcode:       f.barcode.value,
-                price:         parseFloat(f.price.value),
-                cost:          parseFloat(f.cost.value || 0),
-                stock:         parseInt(f.stock.value),
-                categoryId:    f.category.value,
-                subCategoryId: f.subcategory.value,
-                imageUrl:      finalImageUrl || '',
+                name:             f.name.value,
+                barcode:          f.barcode.value,
+                price:            parseFloat(f.price.value),
+                cost:             parseFloat(f.cost.value || 0),
+                stock:            parseInt(f.stock.value),
+                categoryId:       f.category.value,
+                subCategoryId:    f.subcategory.value,
+                imageUrl:         finalImageUrl || '',
+                wholesalePrice:   wholesalePrice || 0,
+                wholesaleMinQty:  wholesaleMinQty || 0,
             };
             if (editingProduct?.id) await updateProduct(editingProduct.id, data);
             else                    await addProduct(data);

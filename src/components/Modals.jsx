@@ -127,6 +127,14 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                         <input required name="price" type="number" step="any" defaultValue={editingProduct?.price} className="p-2 border rounded" placeholder="Precio Venta" />
                         <input name="cost" type="number" step="any" defaultValue={editingProduct?.cost} className="p-2 border rounded" placeholder="Costo" />
                     </div>
+                    <div className="border rounded p-3 space-y-2 bg-amber-50 border-amber-200">
+                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Precio Mayorista (opcional)</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <input name="wholesalePrice" type="number" step="any" defaultValue={editingProduct?.wholesalePrice || ''} className="p-2 border rounded text-sm" placeholder="Precio mayorista" />
+                            <input name="wholesaleMinQty" type="number" defaultValue={editingProduct?.wholesaleMinQty || ''} className="p-2 border rounded text-sm" placeholder="Cantidad mínima" />
+                        </div>
+                        <p className="text-[10px] text-amber-600">Si el cliente compra la cantidad mínima o más, se aplica el precio mayorista automáticamente.</p>
+                    </div>
                     <input required name="stock" type="number" defaultValue={editingProduct?.stock} className="w-full p-2 border rounded" placeholder="Stock Inicial" />
 
                     <div className="grid grid-cols-2 gap-2">

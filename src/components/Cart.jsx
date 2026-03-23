@@ -43,8 +43,15 @@ const Cart = memo(function Cart({
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-800 text-sm truncate leading-tight">{item.name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">${item.price?.toLocaleString()} c/u</div>
+                  <div className="font-semibold text-slate-800 text-sm truncate leading-tight flex items-center gap-1.5">
+                    {item.name}
+                    {item.isWholesale && (
+                      <span className="text-[9px] font-black bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0">Mayor</span>
+                    )}
+                  </div>
+                  <div className="text-xs mt-0.5 flex items-center gap-1">
+                    <span className={item.isWholesale ? 'text-amber-600 font-bold' : 'text-slate-400'}>${item.price?.toLocaleString()} c/u</span>
+                  </div>
                 </div>
 
                 <div className="flex items-center rounded-xl border border-slate-200 overflow-hidden shrink-0">
