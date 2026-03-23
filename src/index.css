@@ -4,22 +4,22 @@
 :root {
     min-height: 100dvh;
     height: 100dvh;
-    --accent: #f97316;
-    --accent-dark: #ea580c;
-    --sidebar-bg: #111827;
+    --accent: #8B6914;
+    --accent-dark: #6B4F0F;
+    --sidebar-bg: #2C1810;
     --sidebar-hover: rgba(255,255,255,0.06);
-    --sidebar-active: rgba(249,115,22,0.15);
+    --sidebar-active: rgba(139,105,20,0.20);
 }
 
 html {
     height: 100dvh;
-    background-color: #111827;
+    background-color: #2C1810;
 }
 
 body {
     margin: 0;
     min-height: 100dvh;
-    background-color: #111827;
+    background-color: #F5F0E8;
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
@@ -73,14 +73,14 @@ input, textarea {
 
 /* ── Clases de acento reutilizables ────────────────────────── */
 .btn-accent {
-    background: linear-gradient(135deg, #f97316, #ea580c);
+    background: linear-gradient(135deg, #8B6914, #6B4F0F);
     color: white;
     font-weight: 700;
     border-radius: 0.75rem;
     transition: all 0.15s;
-    box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+    box-shadow: 0 4px 14px rgba(139,105,20,0.35);
 }
-.btn-accent:hover { filter: brightness(1.08); box-shadow: 0 6px 20px rgba(249,115,22,0.45); }
+.btn-accent:hover { filter: brightness(1.08); box-shadow: 0 6px 20px rgba(139,105,20,0.45); }
 .btn-accent:active { transform: scale(0.97); }
 
 /* ── Sidebar dark ────────────────────────────────────────── */
@@ -149,7 +149,7 @@ input, textarea {
 
 /* ── Login background ────────────────────────────────────── */
 .login-bg {
-    background: linear-gradient(135deg, #111827 0%, #1f2937 50%, #111827 100%);
+    background: linear-gradient(135deg, #2C1810 0%, #3D2418 50%, #2C1810 100%);
     position: relative;
     overflow: hidden;
 }
@@ -157,7 +157,7 @@ input, textarea {
     content: '';
     position: absolute;
     width: 600px; height: 600px;
-    background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(139,105,20,0.20) 0%, transparent 70%);
     top: -200px; left: -200px;
     pointer-events: none;
 }
@@ -165,7 +165,7 @@ input, textarea {
     content: '';
     position: absolute;
     width: 400px; height: 400px;
-    background: radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(139,105,20,0.10) 0%, transparent 70%);
     bottom: -100px; right: -100px;
     pointer-events: none;
 }

@@ -230,7 +230,7 @@ export default function App() {
 
     // ── UI Principal ───────────────────────────────────────────────────────────
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden relative">
+        <div className="flex h-screen bg-[#F5F0E8] overflow-hidden relative">
             <Sidebar
                 user={user} userData={userData} storeProfile={storeProfile}
                 activeTab={activeTab} setActiveTab={setActiveTab}
@@ -275,7 +275,7 @@ export default function App() {
                     </button>
                 </header>
 
-                <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-slate-50">
+                <main className="flex-1 overflow-hidden relative z-0 flex flex-col bg-[#F5F0E8]">
 
                     {/* POS */}
                     {activeTab === 'pos' && (

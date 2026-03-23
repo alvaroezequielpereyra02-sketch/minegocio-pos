@@ -32,7 +32,7 @@ const ProductGrid = ({
         <div className="flex-1 flex flex-col min-w-0 h-full">
 
             {/* Barra de búsqueda + categorías */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 mb-3 overflow-hidden">
+            <div className="bg-[#EDE8DC] rounded-2xl shadow-sm border border-[#D4C9B0] mb-3 overflow-hidden">
                 <form onSubmit={handleBarcodeSubmit} className="relative">
                     <ScanBarcode className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                     <input
@@ -56,7 +56,7 @@ const ProductGrid = ({
                             className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
                                 selectedCategory === cat.id
                                     ? 'text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    : 'bg-[#E8E0CC] text-[#5C4A2A] hover:bg-[#D4C9B0]'
                             }`}
                             style={selectedCategory === cat.id ? { background: 'linear-gradient(135deg, #f97316, #ea580c)' } : {}}
                         >
@@ -77,10 +77,10 @@ const ProductGrid = ({
                             <div
                                 key={product.id}
                                 onClick={() => addToCart(product)}
-                                className="product-card bg-white rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-slate-100 hover:border-orange-200 hover:shadow-lg transition-all active:scale-[0.97] group"
+                                className="product-card bg-[#EDE8DC] rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-[#D4C9B0] hover:border-[#8B6914] hover:shadow-lg transition-all active:scale-[0.97] group"
                             >
                                 {/* Imagen */}
-                                <div className="aspect-square relative overflow-hidden bg-slate-50">
+                                <div className="aspect-square relative overflow-hidden bg-[#F5F0E8]">
                                     {product.imageUrl ? (
                                         <img
                                             src={getThumbnailUrl(product.imageUrl, 300)}
@@ -112,7 +112,7 @@ const ProductGrid = ({
                                     {isAdmin && (
                                         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={(e) => { e.stopPropagation(); setFaultyProduct(product); toggleModal('faulty', true); }}
-                                                className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-orange-500 shadow-sm hover:bg-white">
+                                                className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-[#8B6914] shadow-sm hover:bg-white">
                                                 <AlertCircle size={12} />
                                             </button>
                                             <button onClick={(e) => { e.stopPropagation(); onEditProduct(product); }}
@@ -128,7 +128,7 @@ const ProductGrid = ({
                                     <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight mb-2">{product.name}</h3>
                                     <div className="mt-auto flex items-center justify-between">
                                         <div className="flex flex-col">
-                                            <span className="text-base font-black text-slate-900 leading-none">${product.price?.toLocaleString()}</span>
+                                            <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
                                             {isAdmin && (
                                                 <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-400' : 'text-slate-300'}`}>
                                                     {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}

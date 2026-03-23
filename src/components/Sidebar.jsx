@@ -10,24 +10,24 @@ function NavButton({ active, onClick, icon, label, badge }) {
     <button
       onClick={onClick}
       className={`relative flex flex-col items-center justify-center w-full h-full min-w-[72px] px-1 transition-all active:scale-95 ${
-        active ? 'text-orange-500' : 'text-white/40 hover:text-white/70'
+        active ? 'text-[#8B6914]' : 'text-white/40 hover:text-white/70'
       }`}
     >
       {/* Indicador activo — arriba */}
       {active && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-500 rounded-full" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#8B6914] rounded-full" />
       )}
 
       <div className="relative mb-1.5">
         {icon}
         {badge > 0 && (
-          <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-gray-900">
+          <span className="absolute -top-2 -right-2 bg-[#8B6914] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-gray-900">
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </div>
 
-      <span className={`text-[11px] font-bold leading-none tracking-wide ${active ? 'text-orange-500' : 'text-white/40'}`}>
+      <span className={`text-[11px] font-bold leading-none tracking-wide ${active ? 'text-[#8B6914]' : 'text-white/40'}`}>
         {label}
       </span>
     </button>
@@ -62,10 +62,10 @@ export default function Sidebar({
         className="w-full text-left px-5 py-6 flex items-center gap-4 border-b border-white/10 hover:bg-white/5 transition-colors"
         title="Editar Perfil"
       >
-        <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 ring-2 ring-orange-500/40 flex items-center justify-center bg-orange-500/20">
+        <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 ring-2 ring-[#8B6914]/40 flex items-center justify-center bg-[#8B6914]/20">
           {storeProfile.logoUrl
             ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="Logo" />
-            : <Store size={26} className="text-orange-400" />}
+            : <Store size={26} className="text-[#A07820]" />}
         </div>
         <div className="overflow-hidden">
           <div className="text-white font-black text-base leading-tight truncate">{storeProfile.name}</div>
@@ -84,7 +84,7 @@ export default function Sidebar({
             {item.icon}
             <span>{item.label}</span>
             {item.badge > 0 && (
-              <span className="ml-auto bg-orange-500 text-white text-xs font-black px-2.5 py-0.5 rounded-full">
+              <span className="ml-auto bg-[#8B6914] text-white text-xs font-black px-2.5 py-0.5 rounded-full">
                 {item.badge}
               </span>
             )}
@@ -107,7 +107,7 @@ export default function Sidebar({
         )}
 
         <div className="flex items-center gap-3 px-1">
-          <div className="w-10 h-10 rounded-full bg-orange-500/20 ring-1 ring-orange-500/40 flex items-center justify-center text-orange-400 font-black text-base shrink-0">
+          <div className="w-10 h-10 rounded-full bg-[#8B6914]/20 ring-1 ring-[#8B6914]/40 flex items-center justify-center text-[#A07820] font-black text-base shrink-0">
             {userData.name.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 overflow-hidden">
@@ -167,7 +167,7 @@ export function MobileNav({
       </div>
 
       {supportsPWA && (
-        <button onClick={installApp} className="h-full px-3 flex flex-col items-center justify-center border-l border-white/10 text-orange-400 shrink-0">
+        <button onClick={installApp} className="h-full px-3 flex flex-col items-center justify-center border-l border-white/10 text-[#A07820] shrink-0">
           <Download size={24} />
           <span className="text-[10px] font-bold uppercase mt-1 tracking-wide">App</span>
         </button>
