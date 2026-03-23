@@ -53,10 +53,20 @@ export function ProcessingModal() {
 
 export function InvitationModal({ onClose, onGenerate }) {
     const [generatedCode, setGeneratedCode] = useState(null);
-    const handleGenerate = () => {
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        onGenerate(code);
-        setGeneratedCode(code);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    // onGenerate() genera el código en Firestore y devuelve el código guardado.
+    // El modal solo muestra lo que devuelve — nunca genera su propio código.
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            const code = await onGenerate();
+            setGeneratedCode(code);
+        } catch (e) {
+            alert('Error al generar el código. Intentá de nuevo.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
     const copyToClipboard = () => { navigator.clipboard.writeText(generatedCode).then(() => alert("Copiado")); };
 
@@ -68,7 +78,7 @@ export function InvitationModal({ onClose, onGenerate }) {
                     <button onClick={onClose}><X size={20} /></button>
                 </div>
                 {!generatedCode ? (
-                    <button onClick={handleGenerate} className="w-full py-3 font-black rounded-xl btn-accent">Generar Código</button>
+                    <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-3 font-black rounded-xl btn-accent disabled:opacity-60">{isGenerating ? 'Generando...' : 'Generar Código'}</button>
                 ) : (
                     <div className="space-y-4">
                         <div className="p-4 bg-slate-100 rounded-xl font-black text-3xl">{generatedCode}</div>
