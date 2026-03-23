@@ -27,18 +27,33 @@ const removeFromOfflineQueue = (id) => {
  * navigator.onLine miente en Android con WiFi sin internet real.
  * Usamos google.com/generate_204 (responde en ~50ms si hay red).
  */
-export const checkRealInternet = () =>
-    new Promise(resolve => {
+/**
+ * checkRealInternet
+ * En PC/desktop: navigator.onLine es confiable → respuesta instantánea.
+ * En Android:    navigator.onLine miente con WiFi sin internet real →
+ *                hacemos un ping real a Google para confirmar.
+ */
+const isAndroid = () => /android/i.test(navigator.userAgent);
+
+export const checkRealInternet = () => {
+    // Chequeo base: si el navegador dice offline, confiamos siempre
+    if (!navigator.onLine) return Promise.resolve(false);
+
+    // En desktop navigator.onLine es suficiente — evitamos el ping
+    // que puede ser bloqueado por antivirus, VPN o firewall corporativo
+    if (!isAndroid()) return Promise.resolve(true);
+
+    // En Android: ping real para detectar WiFi sin internet
+    return new Promise(resolve => {
         const ctrl = new AbortController();
-        // Chequeo rápido primero — si el navegador ya sabe que está offline, no pinguea
-        if (!navigator.onLine) { resolve(false); return; }
-        const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 4000);
+        const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 3000);
         fetch('https://www.google.com/generate_204', {
             method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal
         })
         .then(() => { clearTimeout(t); resolve(true); })
         .catch(() => { clearTimeout(t); resolve(false); });
     });
+};
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export const useSyncManager = ({ user, createTransaction, showNotification }) => {
