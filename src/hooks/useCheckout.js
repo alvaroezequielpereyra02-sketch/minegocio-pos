@@ -125,7 +125,7 @@ export const useCheckout = ({
             setTimeout(() => setShowCheckoutSuccess(false), 4000);
 
         } catch (e) {
-            console.error('[Checkout] fallo online:', e.message);
+            console.error('[Checkout] fallo online — tipo:', e.constructor.name, '| mensaje:', e.message, '| código:', e?.code);
             if (isAdmin) {
                 // Falló en medio del intento (señal débil tardía) → offline
                 setIsProcessing(false);
