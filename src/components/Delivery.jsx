@@ -167,11 +167,11 @@ function EditOrderModal({ order, onClose }) {
                 {/* Header */}
                 <div className="p-4 border-b flex items-center justify-between shrink-0">
                     <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-100">
-                        <ArrowLeft size={22} className="text-slate-600" />
+                        <ArrowLeft size={22} className="text-[#5C4A2A]" />
                     </button>
                     <div className="text-center">
-                        <h2 className="font-bold text-slate-800">Editar Boleta</h2>
-                        <p className="text-xs text-slate-400">{order.clientName}</p>
+                        <h2 className="font-bold text-[#3D2B1F]">Editar Boleta</h2>
+                        <p className="text-xs text-[#7A6040]">{order.clientName}</p>
                     </div>
                     <button
                         onClick={handleSave}
@@ -184,9 +184,9 @@ function EditOrderModal({ order, onClose }) {
                 </div>
 
                 {/* Buscador */}
-                <div className="p-3 bg-slate-50 border-b relative shrink-0">
+                <div className="p-3 bg-[#EDE8DC] border-b border-[#D4C9B0] relative shrink-0">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                        <Search className="absolute left-3 top-2.5 text-[#7A6040] w-4 h-4" />
                         <input
                             className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-[#8B6914] bg-white"
                             placeholder="Buscar producto para agregar..."
@@ -194,7 +194,7 @@ function EditOrderModal({ order, onClose }) {
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                         {searchResults.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-[#F5F0E8] border border-[#D4C9B0] rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
                                 {searchResults.map(p => (
                                     <button
                                         key={p.id}
@@ -202,8 +202,8 @@ function EditOrderModal({ order, onClose }) {
                                         className="w-full text-left p-3 hover:bg-amber-50 flex justify-between items-center border-b last:border-0"
                                     >
                                         <div>
-                                            <div className="text-sm font-bold text-slate-800">{p.name}</div>
-                                            <div className="text-xs text-slate-400">${p.price?.toLocaleString()}</div>
+                                            <div className="text-sm font-bold text-[#3D2B1F]">{p.name}</div>
+                                            <div className="text-xs text-[#7A6040]">${p.price?.toLocaleString()}</div>
                                         </div>
                                         <div className="text-xs font-bold text-[#8B6914] flex items-center gap-1">
                                             <Plus size={12} /> Agregar
@@ -218,25 +218,25 @@ function EditOrderModal({ order, onClose }) {
                 {/* Lista de items */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-2">
                     {localItems.map((item, idx) => (
-                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                        <div key={idx} className="bg-[#EDE8DC] border border-[#D4C9B0] rounded-xl p-3 flex items-center gap-3 shadow-sm">
                             <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-800 text-sm truncate">{item.name}</p>
-                                <p className="text-xs text-slate-400">${item.price?.toLocaleString()} c/u</p>
+                                <p className="font-bold text-[#3D2B1F] text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-[#7A6040]">${item.price?.toLocaleString()} c/u</p>
                             </div>
 
                             {/* Controles de cantidad */}
-                            <div className="flex items-center gap-1 bg-slate-100 rounded-xl overflow-hidden">
+                            <div className="flex items-center gap-1 bg-[#D4C9B0] rounded-xl overflow-hidden">
                                 <button onClick={() => handleQtyChange(idx, -1)} className="w-9 h-9 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all">
                                     <Minus size={14} />
                                 </button>
-                                <span className="w-8 text-center font-bold text-slate-800 text-sm">{item.qty}</span>
+                                <span className="w-8 text-center font-bold text-[#3D2B1F] text-sm">{item.qty}</span>
                                 <button onClick={() => handleQtyChange(idx, +1)} className="w-9 h-9 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition-all">
                                     <Plus size={14} />
                                 </button>
                             </div>
 
                             <div className="text-right shrink-0 w-16">
-                                <p className="font-bold text-slate-800 text-sm">${(item.price * item.qty).toLocaleString()}</p>
+                                <p className="font-bold text-[#3D2B1F] text-sm">${(item.price * item.qty).toLocaleString()}</p>
                             </div>
 
                             <button onClick={() => handleRemoveItem(idx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -254,10 +254,10 @@ function EditOrderModal({ order, onClose }) {
                 </div>
 
                 {/* Footer con total */}
-                <div className="p-4 border-t bg-slate-50 shrink-0">
+                <div className="p-4 border-t border-[#D4C9B0] bg-[#EDE8DC] shrink-0">
                     <div className="flex justify-between items-center">
-                        <span className="text-slate-500 font-medium text-sm">Total actualizado</span>
-                        <span className="text-2xl font-black text-slate-800">${newTotal.toLocaleString()}</span>
+                        <span className="text-[#7A6040] font-medium text-sm">Total actualizado</span>
+                        <span className="text-2xl font-black text-[#3D2B1F]">${newTotal.toLocaleString()}</span>
                     </div>
                 </div>
             </div>
@@ -299,10 +299,10 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
                 <div className="p-4 pb-3">
                     <div className="flex justify-between items-start gap-2">
                         <div className="min-w-0 flex-1">
-                            <h3 className="font-black text-slate-800 text-lg truncate uppercase italic leading-tight">
+                            <h3 className="font-black text-[#3D2B1F] text-lg truncate uppercase italic leading-tight">
                                 {name}
                             </h3>
-                            <div className="flex items-center text-xs font-bold text-slate-400 gap-1.5 mt-1">
+                            <div className="flex items-center text-xs font-bold text-[#7A6040] gap-1.5 mt-1">
                                 <Clock size={12} />
                                 {order.date?.seconds
                                     ? new Date(order.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -326,15 +326,15 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
                                 <Navigation size={16} className="text-white" />
                             </div>
                             <div className="text-left flex-1 min-w-0">
-                                <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Navegar</p>
-                                <p className="text-sm font-bold text-indigo-800 truncate leading-snug">{address}</p>
+                                <p className="text-[11px] font-bold text-[#8B6914]/70 uppercase tracking-wider">Navegar</p>
+                                <p className="text-sm font-bold text-[#3D2B1F] truncate leading-snug">{address}</p>
                             </div>
-                            <ExternalLink size={14} className="text-indigo-300 shrink-0" />
+                            <ExternalLink size={14} className="text-[#8B6914]/40 shrink-0" />
                         </button>
                     ) : (
                         <div className="flex items-center gap-3 bg-[#F5F0E8] p-3 rounded-xl border border-[#D4C9B0]">
                             <MapPin size={16} className="text-slate-300 shrink-0" />
-                            <span className="text-sm text-slate-400 italic">Retira en local / Sin dirección</span>
+                            <span className="text-sm text-[#7A6040] italic">Retira en local / Sin dirección</span>
                         </div>
                     )}
 
@@ -350,19 +350,19 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
                 </div>
 
                 {/* Detalle de productos */}
-                <div className="mx-4 mb-3 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                    <div className="px-3 py-2 bg-slate-100/50 flex justify-between items-center border-b border-slate-100">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Productos</span>
-                        <span className="font-black text-slate-700 text-sm">${order.total?.toLocaleString()}</span>
+                <div className="mx-4 mb-3 bg-[#EDE8DC] rounded-xl border border-[#D4C9B0] overflow-hidden">
+                    <div className="px-3 py-2 bg-[#D4C9B0]/40 flex justify-between items-center border-b border-[#D4C9B0]">
+                        <span className="text-[10px] font-black text-[#7A6040] uppercase tracking-widest">Productos</span>
+                        <span className="font-black text-[#3D2B1F] text-sm">${order.total?.toLocaleString()}</span>
                     </div>
                     <ul className="p-3 space-y-1.5 max-h-32 overflow-y-auto">
                         {order.items?.map((item, idx) => (
                             <li key={idx} className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-bold truncate pr-4">
-                                    <span className="text-indigo-600 font-black mr-1">{item.qty}x</span>
+                                <span className="text-[#5C4A2A] font-bold truncate pr-4">
+                                    <span className="text-[#8B6914] font-black mr-1">{item.qty}x</span>
                                     {item.name}
                                 </span>
-                                <span className="text-slate-700 font-black shrink-0">
+                                <span className="text-[#3D2B1F] font-black shrink-0">
                                     ${(item.price * item.qty).toLocaleString()}
                                 </span>
                             </li>
@@ -490,27 +490,27 @@ const Delivery = () => {
 
             {/* Cabecera */}
             <div className="p-4 md:p-6 border-b shrink-0">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-4">
-                    <Truck className="text-indigo-600" size={24} />
+                <h2 className="text-xl font-bold text-[#3D2B1F] flex items-center gap-2 mb-4">
+                    <Truck className="text-[#8B6914]" size={24} />
                     Gestión de Reparto
                 </h2>
 
                 {/* Tabs */}
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                <div className="flex gap-1 bg-[#EDE8DC] border border-[#D4C9B0] p-1 rounded-xl">
                     {tabConfig.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                                 activeTab === tab.id
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-[#F5F0E8] text-[#8B6914] shadow-sm'
+                                    : 'text-[#7A6040] hover:text-[#5C4A2A]'
                             }`}
                         >
                             {tab.label}
                             {tab.count > 0 && (
                                 <span className={`text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center ${
-                                    activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-600'
+                                    activeTab === tab.id ? 'bg-[#8B6914] text-white' : 'bg-[#D4C9B0] text-[#7A6040]'
                                 }`}>
                                     {tab.count}
                                 </span>
@@ -525,7 +525,7 @@ const Delivery = () => {
                 {currentOrders.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-300">
                         <ShoppingBag size={56} className="mb-3 opacity-40" />
-                        <p className="text-base font-bold text-slate-400">
+                        <p className="text-base font-bold text-[#A09070]">
                             {activeTab === 'active'     && 'No hay pedidos activos'}
                             {activeTab === 'delivering' && 'Ningún pedido en camino'}
                             {activeTab === 'completed'  && 'Sin historial de envíos'}
