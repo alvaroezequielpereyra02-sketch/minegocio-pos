@@ -34,6 +34,7 @@ export const useNotifications = (user, userData) => {
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
+            console.log('✅ FCM token guardado correctamente:', token);
         } catch (e) { console.error('Error al guardar token:', e); }
     }, [user, userData?.role]);
 
