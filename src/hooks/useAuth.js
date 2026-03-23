@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
     doc, getDoc, onSnapshot, setDoc, serverTimestamp,
-    collection, query, where, getDocs, updateDoc
+    collection, query, where, getDocs, getDocsFromServer, updateDoc
 } from 'firebase/firestore';
 
 // ✅ Importamos las instancias ya inicializadas en lugar de crearlas en cada render
@@ -83,7 +83,7 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
         if (!code) throw new Error("Código de invitación requerido.");
         const codesRef = collection(db, 'stores', appId, 'invitation_codes');
         const q = query(codesRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocsFromServer(q);
         if (snapshot.empty) throw new Error("Código de invitación inválido o ya utilizado.");
         return snapshot.docs[0];
     };
