@@ -33,6 +33,18 @@ body {
 .mobile-header-safe {
     padding-top: env(safe-area-inset-top, 0px);
     background: var(--sidebar-bg);
+    /* Extiende el fondo oscuro hacia arriba cubriendo la barra de estado del sistema */
+    position: relative;
+}
+.mobile-header-safe::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--sidebar-bg);
+    z-index: 9999;
 }
 
 /* Espacio para que el contenido de las vistas no quede tapado por el nav */
