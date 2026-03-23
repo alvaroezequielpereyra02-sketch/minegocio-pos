@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { uploadImage }    from '../config/uploadImage';
 import { compressImage }  from '../utils/imageHelpers';
 
@@ -26,7 +26,7 @@ export const useProductForm = ({
     const quantityInputRef = useRef(null);
 
     // ── Guardar producto (crear o editar) ─────────────────────────────────────
-    const handleSaveProductWrapper = async (e) => {
+    const handleSaveProductWrapper = useCallback(async (e) => {
         e.preventDefault();
         const f = e.target;
         const rawImage = imageMode === 'file'
@@ -59,10 +59,10 @@ export const useProductForm = ({
         } finally {
             setIsProcessing(false);
         }
-    };
+    }, [editingProduct, imageMode, previewImage, addProduct, updateProduct, toggleModal, showNotification, setIsProcessing]);
 
     // ── Cambio de archivo de imagen ───────────────────────────────────────────
-    const handleFileChange = async (e) => {
+    const handleFileChange = useCallback(async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) {
@@ -73,10 +73,10 @@ export const useProductForm = ({
         const base64 = await compressImage(file);
         setPreviewImage(base64);
         setIsProcessing(false);
-    };
+    }, [showNotification, setIsProcessing]);
 
     // ── Escáner de barcode en la vista Inventario ─────────────────────────────
-    const handleInventoryBarcodeSubmit = (e) => {
+    const handleInventoryBarcodeSubmit = useCallback((e) => {
         e.preventDefault();
         if (!inventoryBarcodeInput) return;
 
@@ -93,7 +93,7 @@ export const useProductForm = ({
             });
         }
         setInventoryBarcodeInput('');
-    };
+    }, [products, inventoryBarcodeInput, toggleModal, showNotification, requestConfirm, setEditingProduct]);
 
     return {
         imageMode,          setImageMode,

@@ -3,7 +3,7 @@ import { getToken } from 'firebase/messaging';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, appId, getMessagingInstance } from '../config/firebase';
 
-const VAPID_KEY = "BINx8NukBcTbTC9LeWI5ePYTbtYVZ60OmD_BB75r1DmJ5Eeq9fKg3Cs885rAHPNYcy1JfzGKXX7SogeIwS_90TM";
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 // Token FCM expira aproximadamente cada 60 días — refrescamos si pasó más de 30 días
 const TOKEN_REFRESH_DAYS = 30;
@@ -34,7 +34,6 @@ export const useNotifications = (user, userData) => {
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
-            console.log("✅ Token FCM guardado. Plataforma:", getPlatform());
         } catch (e) { console.error('Error al guardar token:', e); }
     }, [user, userData?.role]);
 
@@ -59,7 +58,6 @@ export const useNotifications = (user, userData) => {
             });
 
             if (!token) {
-                console.warn("⚠️ No se obtuvo token FCM.");
                 return;
             }
 
@@ -77,7 +75,6 @@ export const useNotifications = (user, userData) => {
 
                 // Guardamos si: token cambió, o pasaron más de 30 días, o el rol cambió
                 if (!tokenChanged && daysSinceUpdate < TOKEN_REFRESH_DAYS && existing.role === userData?.role) {
-                    console.log("✅ Token FCM vigente, no requiere actualización.");
                     tokenSavedRef.current = true;
                     return;
                 }

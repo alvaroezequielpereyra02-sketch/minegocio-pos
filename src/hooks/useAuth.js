@@ -27,7 +27,6 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
         // dejamos pasar al usuario con lo que haya en estado (puede estar offline
         // con caché de sesión anterior). Sin esto, authLoading queda true para siempre.
         const authTimeout = setTimeout(() => {
-            console.warn("Auth timeout — forzando carga offline");
             setAuthLoading(false);
         }, 6000);
 
@@ -51,7 +50,6 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
                     },
                     (e) => {
                         clearTimeout(authTimeout);
-                        console.log("Error auth offline (ignorable):", e);
                         setAuthLoading(false);
                     }
                 );

@@ -74,7 +74,7 @@ export default function TransactionDetail({
 
     const displayAmount = transaction.paymentStatus === 'partial' ? debt : total;
     const displayLabel = transaction.paymentStatus === 'partial' ? 'Restante por Cobrar' : 'Monto Total';
-    const displayColor = transaction.paymentStatus === 'partial' ? 'text-orange-600' : 'text-slate-800';
+    const displayColor = transaction.paymentStatus === 'partial' ? 'text-amber-700' : 'text-[#3D2B1F]';
 
     // Datos del Cliente
     const clientData = customers.find(c => c.id === transaction.clientId) || {};
@@ -424,7 +424,7 @@ export default function TransactionDetail({
     };
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-white sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] bg-[#F5F0E8] sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
             {/* MODAL CONFIRMACIÓN DE CANCELACIÓN */}
             {showDeleteConfirm && (
@@ -441,25 +441,25 @@ export default function TransactionDetail({
             {/* MODAL DE PAGO */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-[12000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
+                    <div className="bg-[#EDE8DC] w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                                <DollarSign size={20} className="text-orange-500" /> Gestionar Pago
+                                <DollarSign size={20} className="text-[#8B6914]" /> Gestionar Pago
                             </h3>
                             <button onClick={() => setShowPaymentModal(false)}><X size={20} className="text-slate-400" /></button>
                         </div>
                         <div className="mt-4">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Estado de Entrega</label>
+                            <label className="text-xs font-bold text-[#7A6040] uppercase">Estado de Entrega</label>
                             <div className="grid grid-cols-2 gap-2 mt-2">
                                 <button
                                     onClick={() => setTempFulfillment('pending')}
-                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'pending' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'pending' ? 'bg-[#8B6914] text-white border-[#8B6914]' : 'bg-[#F5F0E8] text-[#5C4A2A] border-[#D4C9B0]'}`}
                                 >
                                     <Box size={14} /> PENDIENTE
                                 </button>
                                 <button
                                     onClick={() => setTempFulfillment('delivered')}
-                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                                    className={`p-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${tempFulfillment === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-[#F5F0E8] text-[#5C4A2A] border-[#D4C9B0]'}`}
                                 >
                                     <CheckCircle size={14} /> ENTREGADO
                                 </button>
@@ -467,8 +467,8 @@ export default function TransactionDetail({
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Método de Pago</label>
-                            <select value={tempPaymentMethod} onChange={(e) => setTempPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none">
+                            <label className="text-xs font-bold text-[#7A6040] uppercase block mb-1">Método de Pago</label>
+                            <select value={tempPaymentMethod} onChange={(e) => setTempPaymentMethod(e.target.value)} className="w-full p-2 border border-[#D4C9B0] rounded-lg bg-[#F5F0E8] text-sm font-bold text-[#3D2B1F] outline-none">
                                 <option value="unspecified">❓ A definir</option>
                                 <option value="cash">💵 Efectivo</option>
                                 <option value="transfer">🏦 Transferencia</option>
@@ -476,28 +476,28 @@ export default function TransactionDetail({
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
+                            <label className="text-xs font-bold text-[#7A6040] uppercase">Estado Actual</label>
                             <div className="grid grid-cols-3 gap-2 mt-2">
-                                <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'paid' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200'}`}>✅ PAGADO</button>
-                                <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'partial' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}>⚠️ PARCIAL</button>
-                                <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-600 border-slate-200'}`}>❌ PENDIENTE</button>
+                                <button onClick={() => setTempStatus('paid')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'paid' ? 'bg-green-600 text-white border-green-600' : 'bg-[#F5F0E8] text-[#5C4A2A] border-[#D4C9B0]'}`}>✅ PAGADO</button>
+                                <button onClick={() => setTempStatus('partial')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'partial' ? 'bg-amber-500 text-white border-amber-500' : 'bg-[#F5F0E8] text-[#5C4A2A] border-[#D4C9B0]'}`}>⚠️ PARCIAL</button>
+                                <button onClick={() => setTempStatus('pending')} className={`p-2 rounded-lg text-xs font-bold border transition-all ${tempStatus === 'pending' ? 'bg-red-500 text-white border-red-500' : 'bg-[#F5F0E8] text-[#5C4A2A] border-[#D4C9B0]'}`}>❌ PENDIENTE</button>
                             </div>
                         </div>
 
                         {tempStatus === 'partial' && (
-                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 animate-in slide-in-from-top-2">
-                                <label className="text-xs font-bold text-orange-700 uppercase mb-1 block">Monto YA PAGADO:</label>
-                                <div className="flex items-center gap-2 bg-white border border-orange-200 rounded-lg p-2">
+                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 animate-in slide-in-from-top-2">
+                                <label className="text-xs font-bold text-amber-800 uppercase mb-1 block">Monto YA PAGADO:</label>
+                                <div className="flex items-center gap-2 bg-[#F5F0E8] border border-amber-300 rounded-lg p-2">
                                     <span className="text-slate-400 font-bold text-lg">$</span>
-                                    <input type="number" className="w-full outline-none text-xl font-bold text-slate-800" value={tempAmountPaid} onChange={(e) => setTempAmountPaid(Number(e.target.value))} placeholder="0" autoFocus />
+                                    <input type="number" className="w-full outline-none text-xl font-bold text-[#3D2B1F]" value={tempAmountPaid} onChange={(e) => setTempAmountPaid(Number(e.target.value))} placeholder="0" autoFocus />
                                 </div>
-                                <div className="text-right text-xs text-orange-600 mt-2 font-bold">Restan: ${(total - tempAmountPaid).toLocaleString()}</div>
+                                <div className="text-right text-xs text-amber-700 mt-2 font-bold">Restan: ${(total - tempAmountPaid).toLocaleString()}</div>
                             </div>
                         )}
 
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase">Nota / Observaciones</label>
-                            <textarea className="w-full mt-1 p-3 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
+                            <label className="text-xs font-bold text-[#7A6040] uppercase">Nota / Observaciones</label>
+                            <textarea className="w-full mt-1 p-3 border border-[#D4C9B0] rounded-lg text-sm bg-[#F5F0E8] outline-none focus:ring-2 focus:ring-[#8B6914]" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
 
                         <button onClick={handleSavePayment} className="w-full py-3 font-black rounded-xl shadow-lg active:scale-[0.98] transition-transform btn-accent">Guardar Cambios</button>
@@ -508,12 +508,12 @@ export default function TransactionDetail({
             {/* MODAL COMPARTIR */}
             {showShareOptions && (
                 <div className="fixed inset-0 z-[11000] bg-black/60 flex items-end justify-center sm:items-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
+                    <div className="bg-[#EDE8DC] w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom">
                         <div className="p-4 flex justify-between items-start border-b">
                             <button onClick={() => !isGenerating && setShowShareOptions(false)} disabled={isGenerating}>
                                 <X size={24} className="text-slate-400" />
                             </button>
-                            <div className="text-right"><h3 className="text-lg font-bold text-slate-800">OPCIONES</h3></div>
+                            <div className="text-right"><h3 className="text-lg font-bold text-[#3D2B1F]">OPCIONES</h3></div>
                         </div>
                         <div className="p-4 space-y-3 bg-slate-50 relative">
                             {isGenerating && (
@@ -529,7 +529,7 @@ export default function TransactionDetail({
                                     <MessageCircle size={20} />
                                 </div>
                                 <div className="text-left">
-                                    <div className="font-bold text-slate-800">Enviar WhatsApp</div>
+                                    <div className="font-bold text-[#3D2B1F]">Enviar WhatsApp</div>
                                     <div className="text-xs text-slate-500">Adjuntar Comprobante</div>
                                 </div>
                             </button>
@@ -540,7 +540,7 @@ export default function TransactionDetail({
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-orange-100 group-hover:text-orange-500">
                                         <Printer size={20} />
                                     </div>
-                                    <div className="font-bold text-slate-800 text-sm">Imprimir</div>
+                                    <div className="font-bold text-[#3D2B1F] text-sm">Imprimir</div>
                                     <div className="text-[10px] text-slate-500">Wifi / A4</div>
                                 </button>
 
@@ -549,7 +549,7 @@ export default function TransactionDetail({
                                     <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-orange-100 group-hover:text-orange-500">
                                         <Download size={20} />
                                     </div>
-                                    <div className="font-bold text-slate-800 text-sm">Guardar PDF</div>
+                                    <div className="font-bold text-[#3D2B1F] text-sm">Guardar PDF</div>
                                     <div className="text-[10px] text-slate-500">Descargar</div>
                                 </button>
                             </div>
@@ -568,7 +568,7 @@ export default function TransactionDetail({
                     </button>
                     <div className="flex-1 min-w-0">
                         <div className="text-xs text-slate-500 font-medium">Detalle de Venta</div>
-                        <div className="font-bold text-slate-800 truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
+                        <div className="font-bold text-[#3D2B1F] truncate text-lg">#{transaction.id.slice(0, 8).toUpperCase()}</div>
                     </div>
                     {isAdmin && (
                         <button onClick={() => onEditItems(transaction)} className="p-2 bg-orange-50 text-orange-500 rounded-lg hover:bg-orange-100 transition-colors active:scale-95">
@@ -613,10 +613,15 @@ export default function TransactionDetail({
                                     <div key={index} className="flex gap-3 items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
                                         <div className="bg-white border border-slate-200 text-slate-700 font-bold w-9 h-9 rounded flex items-center justify-center shrink-0 text-sm">{item.qty}</div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-slate-800 text-sm leading-tight">{item.name}</div>
-                                            <div className="text-xs text-slate-400 mt-0.5">${item.price.toLocaleString()} un.</div>
+                                            <div className="font-bold text-[#3D2B1F] text-sm leading-tight">{item.name}</div>
+                                            <div className="text-xs text-[#A09070] mt-0.5 flex items-center gap-1.5">
+                                              ${item.price.toLocaleString()} un.
+                                              {item.isWholesale && (
+                                                <span className="text-[9px] font-black bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full uppercase tracking-wide">Mayor</span>
+                                              )}
+                                            </div>
                                         </div>
-                                        <div className="font-bold text-slate-800">${(item.price * item.qty).toLocaleString()}</div>
+                                        <div className="font-bold text-[#3D2B1F]">${(item.price * item.qty).toLocaleString()}</div>
                                     </div>
                                 ))}
                             </div>
@@ -632,7 +637,7 @@ export default function TransactionDetail({
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl">
                                     <div className="w-10 h-10 bg-orange-200 text-orange-700 rounded-full flex items-center justify-center font-bold">{clientName.charAt(0)}</div>
-                                    <div><div className="font-bold text-slate-800">{clientName}</div><div className="text-xs text-orange-500">Cliente</div></div>
+                                    <div><div className="font-bold text-[#3D2B1F]">{clientName}</div><div className="text-xs text-orange-500">Cliente</div></div>
                                 </div>
 
                                 {transaction.paymentNote && (

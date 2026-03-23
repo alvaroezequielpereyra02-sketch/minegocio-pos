@@ -16,17 +16,17 @@ const modalOverlayClass = "fixed inset-0 bg-black/50 flex items-center justify-c
 export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDanger = false }) {
     return (
         <div className={modalOverlayClass} style={{ zIndex: 99999 }}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200 border border-slate-100">
-                <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-500'}`}>
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200 border border-slate-100">
+                <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-[#8B6914]'}`}>
                     {isDanger ? <AlertTriangle size={24} /> : <AlertCircle size={24} />}
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
                 <p className="text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">{message}</p>
                 <div className="flex gap-3">
-                    <button onClick={onCancel} className="flex-1 py-3 text-slate-700 font-bold bg-slate-100 rounded-xl hover:bg-slate-200">
+                    <button onClick={onCancel} className="flex-1 py-3 text-[#5C4A2A] font-bold bg-[#E8E0CC] rounded-xl hover:bg-[#D4C9B0]">
                         {cancelText}
                     </button>
-                    <button onClick={onConfirm} className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md ${isDanger ? 'bg-red-600' : 'bg-orange-500'}`}>
+                    <button onClick={onConfirm} className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md ${isDanger ? 'bg-red-600' : 'bg-[#8B6914]'}`}>
                         {confirmText}
                     </button>
                 </div>
@@ -37,12 +37,12 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmText 
 
 export function ProcessingModal() {
     return (
-        <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-md flex flex-col items-center justify-center z-[300]">
-            <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center">
+        <div className="fixed inset-0 bg-[#F5F0E8]/80 backdrop-blur-md flex flex-col items-center justify-center z-[300]">
+            <div className="bg-[#EDE8DC] p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center">
                 <div className="relative mb-6">
-                    <div className="w-20 h-20 border-4 border-slate-100 rounded-full"></div>
-                    <div className="absolute top-0 left-0 w-20 h-20 border-4 border-orange-500 rounded-full border-t-transparent animate-spin"></div>
-                    <Loader2 className="absolute top-7 left-7 text-orange-500 animate-pulse" size={24} />
+                    <div className="w-20 h-20 border-4 border-[#D4C9B0] rounded-full"></div>
+                    <div className="absolute top-0 left-0 w-20 h-20 border-4 border-[#8B6914] rounded-full border-t-transparent animate-spin"></div>
+                    <Loader2 className="absolute top-7 left-7 text-[#8B6914] animate-pulse" size={24} />
                 </div>
                 <h3 className="text-xl font-extrabold text-slate-800">Procesando</h3>
                 <p className="text-sm text-slate-400">Por favor espere...</p>
@@ -72,7 +72,7 @@ export function InvitationModal({ onClose, onGenerate }) {
 
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Key size={20} /> Nueva Invitación</h3>
                     <button onClick={onClose}><X size={20} /></button>
@@ -81,7 +81,7 @@ export function InvitationModal({ onClose, onGenerate }) {
                     <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-3 font-black rounded-xl btn-accent disabled:opacity-60">{isGenerating ? 'Generando...' : 'Generar Código'}</button>
                 ) : (
                     <div className="space-y-4">
-                        <div className="p-4 bg-slate-100 rounded-xl font-black text-3xl">{generatedCode}</div>
+                        <div className="p-4 bg-[#F5F0E8] rounded-xl font-black text-3xl border border-[#D4C9B0]">{generatedCode}</div>
                         <button onClick={copyToClipboard} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2">
                             <Copy size={18} /> Copiar
                         </button>
@@ -95,7 +95,7 @@ export function InvitationModal({ onClose, onGenerate }) {
 export function ExpenseModal({ onClose, onSave }) {
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-red-600">Registrar Gasto</h3><button onClick={onClose}><X size={20} /></button></div>
                 <form onSubmit={onSave} className="space-y-3">
                     <input name="description" required className="w-full p-2 border rounded" placeholder="Descripción..." />
@@ -112,14 +112,14 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
                 <div className="flex justify-between items-center">
                     <h3 className="font-bold text-lg">{editingProduct ? 'Editar' : 'Nuevo'} Producto</h3>
                     {editingProduct && <button type="button" onClick={() => onDelete(editingProduct.id)} className="text-red-500 text-xs underline">Eliminar</button>}
                 </div>
                 <form onSubmit={onSave} className="space-y-3">
                     <input required name="name" defaultValue={editingProduct?.name} className="w-full p-2 border rounded" placeholder="Nombre" />
-                    <div className="flex gap-2 items-center border p-2 rounded bg-slate-50">
+                    <div className="flex gap-2 items-center border border-[#D4C9B0] p-2 rounded bg-[#F5F0E8]">
                         <ScanBarcode size={16} className="text-slate-400" />
                         <input name="barcode" defaultValue={editingProduct?.barcode} className="w-full bg-transparent outline-none text-sm" placeholder="Código de Barras" />
                     </div>
@@ -148,9 +148,9 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
                         </select>
                     </div>
 
-                    <div className="flex gap-2 bg-slate-100 p-1 rounded">
-                        <button type="button" onClick={() => setImageMode('file')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow' : ''}`}>Subir</button>
-                        <button type="button" onClick={() => setImageMode('link')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow' : ''}`}>Link</button>
+                    <div className="flex gap-2 bg-[#E8E0CC] p-1 rounded">
+                        <button type="button" onClick={() => setImageMode('file')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-[#F5F0E8] shadow' : ''}`}>Subir</button>
+                        <button type="button" onClick={() => setImageMode('link')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-[#F5F0E8] shadow' : ''}`}>Link</button>
                     </div>
 
                     {imageMode === 'file' ? (
@@ -186,8 +186,8 @@ export function CategoryModal({ onClose, onSave, onDelete, categories, onSaveSub
 
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
-                <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                <div className="p-4 bg-[#2C1810] text-white flex justify-between items-center">
                     <h3 className="font-bold flex items-center gap-2"><FolderTree size={20} /> Categorías</h3>
                     <button onClick={onClose}><X size={24} /></button>
                 </div>
@@ -268,11 +268,11 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
 export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageMode, previewImage, setPreviewImage, handleFileChange }) {
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
                 <div className="flex justify-between items-center"><h3 className="font-bold text-lg">Perfil del Negocio</h3><button onClick={onClose}><X size={20} /></button></div>
                 <form onSubmit={onSave} className="space-y-4">
                     <input name="storeName" defaultValue={storeProfile.name} required className="w-full p-2 border rounded" placeholder="Nombre del Negocio" />
-                    <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                    <div className="flex gap-2 bg-[#E8E0CC] p-1 rounded-lg">
                         <button type="button" onClick={() => setImageMode('file')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'file' ? 'bg-white shadow font-bold' : ''}`}>Subir</button>
                         <button type="button" onClick={() => setImageMode('link')} className={`flex-1 py-1 text-xs rounded ${imageMode === 'link' ? 'bg-white shadow font-bold' : ''}`}>Link</button>
                     </div>
@@ -287,7 +287,7 @@ export function StoreModal({ onClose, onSave, storeProfile, imageMode, setImageM
 export function AddStockModal({ onClose, onConfirm, scannedProduct, quantityInputRef }) {
     return (
         <div className={modalOverlayClass}>
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+            <div className="bg-[#EDE8DC] rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
                 <h3 className="font-bold text-lg">Entrada Stock</h3>
                 <div className="bg-slate-100 p-3 rounded-lg font-bold">{scannedProduct?.name}</div>
                 <form onSubmit={onConfirm}>

@@ -140,42 +140,42 @@ function OrderWorkModal({ order, onClose }) {
     const getItemStyle = (item) => {
         const packed = item.packedQty || 0;
         if (packed === item.qty) return "bg-green-50 border-green-200";
-        if (packed > 0) return "bg-orange-50 border-orange-200";
-        return "bg-white border-slate-200";
+        if (packed > 0) return "bg-amber-50 border-amber-200";
+        return "bg-[#EDE8DC] border-[#D4C9B0]";
     };
 
     if (typeof document === 'undefined') return null;
 
     return createPortal(
         <div className="fixed inset-0 z-[20000] bg-slate-900/50 backdrop-blur-sm flex justify-center items-center animate-in fade-in duration-200">
-            <div className="w-full h-full sm:h-[90vh] sm:max-w-2xl bg-white sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="w-full h-full sm:h-[90vh] sm:max-w-2xl bg-[#F5F0E8] sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
                 {/* HEADER */}
-                <div className="bg-white p-4 border-b flex items-center justify-between shadow-sm z-20">
-                    <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-100"><ArrowLeft size={24} className="text-slate-600" /></button>
+                <div className="bg-[#EDE8DC] p-4 border-b border-[#D4C9B0] flex items-center justify-between shadow-sm z-20">
+                    <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-[#D4C9B0]"><ArrowLeft size={24} className="text-[#5C4A2A]" /></button>
                     <div className="text-center">
                         <h2 className="font-bold text-slate-800 text-lg">{order.clientName}</h2>
-                        <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Pedido #{order.id.slice(0, 4)}</div>
+                        <div className="text-xs text-[#7A6040] font-medium uppercase tracking-wide">Pedido #{order.id.slice(0, 4)}</div>
                     </div>
                     <div className="w-8"></div>
                 </div>
 
                 {/* BUSCADOR */}
-                <div className="p-4 bg-slate-50 border-b z-10 relative">
+                <div className="p-4 bg-[#EDE8DC] border-b border-[#D4C9B0] z-10 relative">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
                         <input
-                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-[#D4C9B0] rounded-xl focus:ring-2 focus:ring-[#8B6914] outline-none"
                             placeholder="🔍 Agregar producto extra..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         {searchResults.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 max-h-48 overflow-y-auto">
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-[#EDE8DC] border border-[#D4C9B0] rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 max-h-48 overflow-y-auto">
                                 {searchResults.map(p => (
-                                    <button key={p.id} onClick={() => handleAddItem(p)} className="w-full text-left p-3 hover:bg-orange-50 flex justify-between items-center border-b last:border-0 transition-colors">
+                                    <button key={p.id} onClick={() => handleAddItem(p)} className="w-full text-left p-3 hover:bg-amber-50 flex justify-between items-center border-b last:border-0 transition-colors">
                                         <div className="text-sm font-bold text-slate-800">{p.name}</div>
-                                        <div className="text-xs font-bold text-orange-500"><Plus size={14} className="inline" /> Agregar</div>
+                                        <div className="text-xs font-bold text-[#8B6914]"><Plus size={14} className="inline" /> Agregar</div>
                                     </button>
                                 ))}
                             </div>
@@ -184,7 +184,7 @@ function OrderWorkModal({ order, onClose }) {
                 </div>
 
                 {/* LISTA DE ITEMS */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F5F0E8]">
                     {localItems.map((item, idx) => {
                         const packed = item.packedQty || 0;
                         const isEditing = editingItemIndex === idx;
@@ -194,35 +194,35 @@ function OrderWorkModal({ order, onClose }) {
                                 {/* CHECK BUTTON */}
                                 <button
                                     onClick={() => handleQuickToggle(idx)}
-                                    className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform active:scale-90 ${packed === item.qty ? 'bg-green-500 text-white shadow-green-200 shadow-lg' : packed > 0 ? 'bg-orange-500 text-white' : 'bg-white border-2 border-slate-200 text-slate-300'}`}
+                                    className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform active:scale-90 ${packed === item.qty ? 'bg-green-500 text-white shadow-green-200 shadow-lg' : packed > 0 ? 'bg-[#8B6914] text-white' : 'bg-[#EDE8DC] border-2 border-[#D4C9B0] text-[#C4B090]'}`}
                                 >
                                     {packed === item.qty ? <CheckSquare size={24} strokeWidth={3} /> : packed > 0 ? <span className="font-bold text-lg">!</span> : <div className="w-4 h-4 rounded-sm border-2 border-slate-300"></div>}
                                 </button>
 
                                 <div className="flex-1 min-w-0">
-                                    <div className={`font-bold text-sm leading-snug ${packed === item.qty ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                                    <div className={`font-bold text-sm leading-snug ${packed === item.qty ? 'text-[#A09070] line-through' : 'text-[#3D2B1F]'}`}>
                                         {item.name}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                                        <span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-[#5C4A2A]">
                                             Pedido: {item.qty}
                                         </span>
                                         {packed > 0 && packed < item.qty && (
-                                            <span className="text-xs font-bold text-orange-600 animate-pulse">Faltan {item.qty - packed}</span>
+                                            <span className="text-xs font-bold text-[#8B6914] animate-pulse">Faltan {item.qty - packed}</span>
                                         )}
                                     </div>
                                 </div>
 
                                 {isEditing ? (
-                                    <div className="flex items-center bg-white border border-orange-400 rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95">
-                                        <button onClick={() => setManualQty(Math.max(0, manualQty - 1))} className="p-3 bg-slate-100 hover:bg-slate-200"><Minus size={16} /></button>
+                                    <div className="flex items-center bg-[#F5F0E8] border border-[#8B6914] rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95">
+                                        <button onClick={() => setManualQty(Math.max(0, manualQty - 1))} className="p-3 bg-[#E8E0CC] hover:bg-[#D4C9B0]"><Minus size={16} /></button>
                                         <div className="w-10 text-center font-bold text-lg">{manualQty}</div>
-                                        <button onClick={() => setManualQty(manualQty + 1)} className="p-3 bg-slate-100 hover:bg-slate-200"><Plus size={16} /></button>
-                                        <button onClick={() => saveManualEdit(idx)} className="p-3 bg-orange-500 text-white"><Save size={16} /></button>
+                                        <button onClick={() => setManualQty(manualQty + 1)} className="p-3 bg-[#E8E0CC] hover:bg-[#D4C9B0]"><Plus size={16} /></button>
+                                        <button onClick={() => saveManualEdit(idx)} className="p-3 bg-[#8B6914] text-white"><Save size={16} /></button>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-1">
-                                        <button onClick={() => { setEditingItemIndex(idx); setManualQty(packed); }} className="text-orange-500 hover:bg-orange-50 p-1.5 rounded-lg">
+                                        <button onClick={() => { setEditingItemIndex(idx); setManualQty(packed); }} className="text-[#8B6914] hover:bg-amber-50 p-1.5 rounded-lg">
                                             <span className="text-xs font-bold">Editar</span>
                                         </button>
                                         <button onClick={() => handleDeleteItem(idx)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg">
@@ -236,7 +236,7 @@ function OrderWorkModal({ order, onClose }) {
                 </div>
 
                 {/* FOOTER */}
-                <div className="p-4 bg-white border-t z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+                <div className="p-4 bg-[#EDE8DC] border-t border-[#D4C9B0] z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                     <button
                         onClick={handleConfirmOrder}
                         className="w-full py-4 text-white rounded-xl font-black text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 btn-accent"
@@ -291,13 +291,13 @@ export default function Orders() {
 
     return (
         // 👇 PADDING INDEPENDIENTE PARA ESTA VISTA (pb-28 para móvil)
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50">
-            <div className="bg-white px-4 pt-4 pb-0 sticky top-0 z-10 border-b border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8]">
+            <div className="bg-[#EDE8DC] px-4 pt-4 pb-0 sticky top-0 z-10 border-b border-[#D4C9B0] shadow-sm space-y-3">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <Package className="text-orange-500" /> Pedidos
+                        <Package className="text-[#8B6914]" /> Pedidos
                     </h2>
-                    <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-xs font-bold">
+                    <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded-lg text-xs font-bold">
                         {filteredOrders.length} {statusLabels[filterStatus]}
                     </span>
                 </div>
@@ -311,7 +311,7 @@ export default function Orders() {
                         <button
                             key={t.id}
                             onClick={() => setFilterStatus(t.id)}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterStatus === t.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-[#5C4A2A] border-slate-200'}`}
                         >
                             {t.l}
                         </button>
@@ -321,7 +321,7 @@ export default function Orders() {
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-400 w-5 h-5" />
                     <input
-                        className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 focus:bg-white transition-all"
+                        className="w-full pl-10 pr-4 py-2 bg-[#EDE8DC] border border-[#D4C9B0] rounded-xl text-sm outline-none focus:border-[#8B6914] focus:bg-[#F5F0E8] transition-all"
                         placeholder="Buscar cliente..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -346,22 +346,22 @@ export default function Orders() {
                         <button
                             key={order.id}
                             onClick={() => setSelectedOrderId(order.id)}
-                            className={`w-full text-left bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex justify-between items-center group relative overflow-hidden ${status === 'ready' ? 'border-green-300' : 'border-slate-200'}`}
+                            className={`w-full text-left bg-[#EDE8DC] p-4 rounded-xl border shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex justify-between items-center group relative overflow-hidden ${status === 'ready' ? 'border-green-300' : 'border-[#D4C9B0]'}`}
                         >
                             {status === 'ready' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-green-500"></div>}
-                            {status === 'partial' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>}
+                            {status === 'partial' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500"></div>}
 
                             <div className="pl-2">
-                                <div className="font-bold text-slate-800 text-lg group-hover:text-orange-500 transition-colors">
+                                <div className="font-bold text-[#3D2B1F] text-lg group-hover:text-[#8B6914] transition-colors">
                                     {order.clientName}
                                 </div>
-                                <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                                <div className="text-xs text-[#7A6040] flex items-center gap-2 mt-1">
                                     <Clock size={12} /> {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-1">
-                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${status === 'ready' ? 'bg-green-100 text-green-700 border-green-200' : status === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${status === 'ready' ? 'bg-green-100 text-green-700 border-green-200' : status === 'partial' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-slate-100 text-[#5C4A2A] border-slate-200'}`}>
                                     {status === 'ready' ? 'LISTO' : status === 'partial' ? 'ARMANDO' : 'NUEVO'}
                                 </div>
                                 <div className="text-xs font-bold text-slate-400 flex items-center gap-1">
