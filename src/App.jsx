@@ -2,37 +2,37 @@ import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList } from 'lucide-react';
 
 // Contextos
-import { useAuthContext }         from './context/AuthContext';
-import { useInventoryContext }    from './context/InventoryContext';
+import { useAuthContext } from './context/AuthContext';
+import { useInventoryContext } from './context/InventoryContext';
 import { useTransactionsContext } from './context/TransactionsContext';
-import { useCartContext }         from './context/CartContext';
+import { useCartContext } from './context/CartContext';
 
 // Hooks
-import { usePrinter }       from './hooks/usePrinter';
-import { usePWA }           from './hooks/usePWA';
-import { useCheckout }      from './hooks/useCheckout';
-import { useSyncManager }   from './hooks/useSyncManager';
-import { useExports }       from './hooks/useExports';
+import { usePrinter } from './hooks/usePrinter';
+import { usePWA } from './hooks/usePWA';
+import { useCheckout } from './hooks/useCheckout';
+import { useSyncManager } from './hooks/useSyncManager';
+import { useExports } from './hooks/useExports';
 import { useNotifications } from './hooks/useNotifications';
-import { useModals }        from './hooks/useModals';
-import { useOnlineStatus }  from './hooks/useOnlineStatus';
-import { useProductForm }   from './hooks/useProductForm';
+import { useModals } from './hooks/useModals';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useProductForm } from './hooks/useProductForm';
 
 // Componentes
 import Sidebar, { MobileNav } from './components/Sidebar';
-import Cart                   from './components/Cart';
-import ProductGrid            from './components/ProductGrid';
-import LoadingScreen          from './components/LoadingScreen';
-import LoginScreen            from './components/LoginScreen';
-import AppModals              from './components/AppModals';
-import { ProcessingModal }    from './components/Modals';
+import Cart from './components/Cart';
+import ProductGrid from './components/ProductGrid';
+import LoadingScreen from './components/LoadingScreen';
+import LoginScreen from './components/LoginScreen';
+import AppModals from './components/AppModals';
+import { ProcessingModal } from './components/Modals';
 
 // Lazy Loading
-const Dashboard         = lazy(() => import('./components/Dashboard'));
-const History           = lazy(() => import('./components/History'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const History = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
-const Orders            = lazy(() => import('./components/Orders'));
-const Delivery          = lazy(() => import('./components/Delivery'));
+const Orders = lazy(() => import('./components/Orders'));
+const Delivery = lazy(() => import('./components/Delivery'));
 
 const TabLoader = () => (
     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -42,9 +42,9 @@ const TabLoader = () => (
 );
 
 export default function App() {
-    const [activeTab, setActiveTab]           = useState('pos');
-    const [notification, setNotification]     = useState(null);
-    const [confirmConfig, setConfirmConfig]   = useState(null);
+    const [activeTab, setActiveTab] = useState('pos');
+    const [notification, setNotification] = useState(null);
+    const [confirmConfig, setConfirmConfig] = useState(null);
     const [showMobileCart, setShowMobileCart] = useState(false);
 
     // ── Notificación visual interna ────────────────────────────────────────────
@@ -60,13 +60,13 @@ export default function App() {
         setConfirmConfig({
             title, message, isDanger,
             onConfirm: async () => { setConfirmConfig(null); await action(); },
-            onCancel:  () => setConfirmConfig(null),
+            onCancel: () => setConfirmConfig(null),
         });
     };
 
     // ── Hooks ──────────────────────────────────────────────────────────────────
     const { modals, toggleModal } = useModals();
-    const { isOnline }            = useOnlineStatus(showNotification);
+    const { isOnline } = useOnlineStatus(showNotification);
     const { supportsPWA, installApp, updateAvailable } = usePWA();
 
     // Contextos
@@ -86,17 +86,17 @@ export default function App() {
 
     // ── Estados UI locales ─────────────────────────────────────────────────────
     const [selectedTransaction, setSelectedTransaction] = useState(null);
-    const [editingTransaction, setEditingTransaction]   = useState(null);
-    const [faultyProduct, setFaultyProduct]             = useState(null);
-    const [editingProduct, setEditingProduct]           = useState(null);
-    const [editingCustomer, setEditingCustomer]         = useState(null);
-    const [selectedCustomer, setSelectedCustomer]       = useState(null);
-    const [scannedProduct, setScannedProduct]           = useState(null);
-    const [searchTerm, setSearchTerm]                   = useState('');
-    const [selectedCategory, setSelectedCategory]       = useState('all');
-    const [customerSearch, setCustomerSearch]           = useState('');
-    const [barcodeInput, setBarcodeInput]               = useState('');
-    const [historySection, setHistorySection]           = useState('menu');
+    const [editingTransaction, setEditingTransaction] = useState(null);
+    const [faultyProduct, setFaultyProduct] = useState(null);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [editingCustomer, setEditingCustomer] = useState(null);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [scannedProduct, setScannedProduct] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [barcodeInput, setBarcodeInput] = useState('');
+    const [historySection, setHistorySection] = useState('menu');
 
     // ── Hooks funcionales ──────────────────────────────────────────────────────
     const { isSyncing, setPendingCount } = useSyncManager({
@@ -121,7 +121,7 @@ export default function App() {
     });
 
     const {
-        imageMode,    setImageMode,
+        imageMode, setImageMode,
         previewImage, setPreviewImage,
         inventoryBarcodeInput, setInventoryBarcodeInput,
         quantityInputRef,
@@ -170,7 +170,7 @@ export default function App() {
         const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value };
         try {
             if (editingCustomer) await updateCustomer(editingCustomer.id, d);
-            else                 await addCustomer(d);
+            else await addCustomer(d);
             toggleModal('customer', false);
         } catch { showNotification("❌ Error al guardar cliente"); }
     };
@@ -204,11 +204,11 @@ export default function App() {
             showNotification("✅ Boleta actualizada");
             if (selectedTransaction?.id === editingTransaction.id) setSelectedTransaction(prev => ({ ...prev, ...d }));
         } catch { showNotification("❌ No se pudieron guardar los cambios."); }
-        finally   { setIsProcessing(false); }
+        finally { setIsProcessing(false); }
     };
 
-    const handleConfirmLogout  = async () => { await logout(); toggleModal('logout', false); };
-    const handleConfirmFaulty  = async (p, q, r) => {
+    const handleConfirmLogout = async () => { await logout(); toggleModal('logout', false); };
+    const handleConfirmFaulty = async (p, q, r) => {
         setIsProcessing(true);
         await registerFaultyProduct(p, q, r);
         toggleModal('faulty', false);
@@ -461,7 +461,7 @@ export default function App() {
                     <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
                         <div className="flex flex-col">
                             <p className="font-bold text-sm">¡Venta Guardada!</p>
-                            <p className="text-[10px] opacity-80">Modo offline activo</p>
+                            <p className="text-[10px] opacity-80">Registrada correctamente</p>
                         </div>
                         <button
                             onClick={() => {
@@ -519,26 +519,26 @@ export default function App() {
             </div>
 
             <AppModals
-                modals={modals}             toggleModal={toggleModal}
+                modals={modals} toggleModal={toggleModal}
                 confirmConfig={confirmConfig}
                 editingProduct={editingProduct}
-                imageMode={imageMode}       setImageMode={setImageMode}
+                imageMode={imageMode} setImageMode={setImageMode}
                 previewImage={previewImage} setPreviewImage={setPreviewImage}
                 handleFileChange={handleFileChange}
                 handleSaveProductWrapper={handleSaveProductWrapper}
-                categories={categories}    subcategories={subcategories}
+                categories={categories} subcategories={subcategories}
                 setFaultyProduct={setFaultyProduct}
                 deleteProduct={deleteProduct}
                 requestConfirm={requestConfirm}
-                addSubCategory={addSubCategory}   deleteSubCategory={deleteSubCategory}
-                updateCategory={updateCategory}   deleteCategory={deleteCategory}
+                addSubCategory={addSubCategory} deleteSubCategory={deleteSubCategory}
+                updateCategory={updateCategory} deleteCategory={deleteCategory}
                 addCategory={addCategory}
                 editingCustomer={editingCustomer}
                 handleSaveCustomer={handleSaveCustomer}
                 storeProfile={storeProfile}
                 handleSaveStore={handleSaveStore}
-                scannedProduct={scannedProduct}   setScannedProduct={setScannedProduct}
-                handleAddStock={handleAddStock}   quantityInputRef={quantityInputRef}
+                scannedProduct={scannedProduct} setScannedProduct={setScannedProduct}
+                handleAddStock={handleAddStock} quantityInputRef={quantityInputRef}
                 editingTransaction={editingTransaction}
                 handleSaveTransaction={handleSaveTransaction}
                 handleConfirmLogout={handleConfirmLogout}
