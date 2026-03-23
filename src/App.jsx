@@ -509,7 +509,7 @@ export default function App() {
                     <div className="fixed top-20 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-bounce z-[105] flex items-center gap-4">
                         <div className="flex flex-col">
                             <p className="font-bold text-sm">¡Venta Guardada!</p>
-                            <p className="text-[10px] opacity-80">Modo offline activo</p>
+                            <p className="text-[10px] opacity-80">✅ Guardada en servidor</p>
                         </div>
                         <button
                             onClick={() => {
