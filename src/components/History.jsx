@@ -27,11 +27,11 @@ export default function History({ transactions, userData, handleExportCSV, histo
         <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8]">
 
             {/* Header compacto — sin padding lateral exagerado */}
-            <div className="bg-white border-b border-slate-200 px-4 pt-4 pb-0 sticky top-0 z-10 shadow-sm">
+            <div className="bg-[#EDE8DC] border-b border-[#D4C9B0] px-4 pt-4 pb-0 sticky top-0 z-10 shadow-sm">
 
                 <div className="flex justify-between items-center mb-3">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <Clock size={20} className="text-blue-600" /> Historial
+                        <Clock size={20} className="text-[#8B6914]" /> Historial
                     </h2>
                     {userData.role === 'admin' && (
                         <button
@@ -44,14 +44,14 @@ export default function History({ transactions, userData, handleExportCSV, histo
                 </div>
 
                 {/* Filtros pegados al borde inferior del header — sin margen extra */}
-                <div className="flex border-b border-slate-200">
+                <div className="flex border-b border-[#D4C9B0]">
                     {[{ id: 'paid', l: 'Pagados' }, { id: 'pending', l: 'Pendientes' }, { id: 'partial', l: 'Parciales' }].map(opt => (
                         <button
                             key={opt.id}
                             onClick={() => setHistorySection(opt.id)}
                             className={`flex-1 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px ${
                                 historySection === opt.id
-                                    ? 'border-blue-600 text-blue-600'
+                                    ? 'border-blue-600 text-[#8B6914]'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
                             }`}
                         >
@@ -62,11 +62,11 @@ export default function History({ transactions, userData, handleExportCSV, histo
             </div>
 
             {/* Búsqueda — fuera del sticky para no ocupar espacio fijo */}
-            <div className="px-3 py-2 bg-white border-b border-slate-100">
+            <div className="px-3 py-2 bg-[#EDE8DC] border-b border-[#D4C9B0]">
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
                     <input
-                        className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-400 transition-all"
+                        className="w-full pl-9 pr-4 py-2 text-sm bg-[#F5F0E8] border border-[#D4C9B0] rounded-xl outline-none focus:border-[#8B6914] transition-all"
                         placeholder="Buscar cliente o producto..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -87,22 +87,22 @@ export default function History({ transactions, userData, handleExportCSV, histo
                         .map(([date, items]) => (
                             <div key={date}>
                                 {/* Separador de fecha — compacto */}
-                                <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 sticky top-0">
+                                <div className="px-4 py-2 text-xs font-bold text-[#8B6914] uppercase tracking-wider bg-[#EDE8DC] sticky top-0">
                                     {date}
                                 </div>
 
                                 {/* Cards sin gap entre ellos — separados por borde */}
-                                <div className="divide-y divide-slate-100">
+                                <div className="divide-y divide-[#D4C9B0]">
                                     {items.map(t => (
                                         <button
                                             key={t.id}
                                             onClick={() => onSelectTransaction(t)}
-                                            className="w-full bg-white px-4 py-4 flex items-center text-left active:bg-slate-50 transition-colors"
+                                            className="w-full bg-[#EDE8DC] px-4 py-4 flex items-center text-left active:bg-[#D4C9B0] transition-colors"
                                         >
                                             {/* Ícono más grande */}
                                             <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-4 font-bold text-white shrink-0 ${
                                                 t.paymentStatus === 'paid' ? 'bg-green-500' :
-                                                t.paymentStatus === 'partial' ? 'bg-orange-400' : 'bg-red-500'
+                                                t.paymentStatus === 'partial' ? 'bg-amber-500' : 'bg-red-500'
                                             }`}>
                                                 <DollarSign size={22} />
                                             </div>
@@ -110,22 +110,22 @@ export default function History({ transactions, userData, handleExportCSV, histo
                                             {/* Contenido — usa todo el ancho */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-baseline mb-0.5">
-                                                    <span className="font-black text-slate-900 text-xl">${t.total.toLocaleString()}</span>
-                                                    <span className="text-xs text-slate-400 font-medium ml-2 shrink-0">
+                                                    <span className="font-black text-[#1A0F0A] text-xl">${t.total.toLocaleString()}</span>
+                                                    <span className="text-xs text-[#A09070] font-medium ml-2 shrink-0">
                                                         {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                     </span>
                                                 </div>
-                                                <div className="text-sm font-semibold text-slate-700 flex items-center gap-1 mb-0.5">
-                                                    <User size={13} className="text-slate-400 shrink-0" />
+                                                <div className="text-sm font-semibold text-[#3D2B1F] flex items-center gap-1 mb-0.5">
+                                                    <User size={13} className="text-[#A09070] shrink-0" />
                                                     <span className="truncate">{t.clientName}</span>
                                                 </div>
-                                                <div className="text-xs text-slate-400 truncate">
+                                                <div className="text-xs text-[#A09070] truncate">
                                                     {t.items?.length} items: {t.items?.map(i => i.name).join(', ')}
                                                 </div>
                                             </div>
 
                                             {/* Chevron sutil */}
-                                            <div className="text-slate-300 ml-2 shrink-0">›</div>
+                                            <div className="text-[#C4B090] ml-2 shrink-0">›</div>
                                         </button>
                                     ))}
                                 </div>

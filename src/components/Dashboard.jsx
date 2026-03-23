@@ -12,9 +12,9 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             return (
-                <div className="bg-white p-2 border border-slate-200 shadow-lg rounded-lg text-xs z-50">
-                    <p className="font-bold mb-1 text-slate-700">{payload[0].name}</p>
-                    <p className="text-blue-600 font-bold">${payload[0].value.toLocaleString()}</p>
+                <div className="bg-[#EDE8DC] p-2 border border-[#D4C9B0] shadow-lg rounded-lg text-xs z-50">
+                    <p className="font-bold mb-1 text-[#3D2B1F]">{payload[0].name}</p>
+                    <p className="text-[#8B6914] font-bold">${payload[0].value.toLocaleString()}</p>
                 </div>
             );
         }
@@ -22,18 +22,18 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50 p-4 pb-28 lg:pb-4">
+        <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8] p-4 pb-28 lg:pb-4">
 
             {/* HEADER */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <TrendingUp className="text-blue-600" /> Balance
+                    <TrendingUp className="text-[#8B6914]" /> Balance
                 </h2>
 
                 <div className="flex gap-2 w-full sm:w-auto">
-                    <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
-                        <button onClick={() => setDateRange('week')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateRange === 'week' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>7 Días</button>
-                        <button onClick={() => setDateRange('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateRange === 'month' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>30 Días</button>
+                    <div className="flex bg-[#EDE8DC] rounded-xl border border-[#D4C9B0] p-1 shadow-sm">
+                        <button onClick={() => setDateRange('week')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateRange === 'week' ? 'bg-[#8B6914] text-white' : 'text-[#5C4A2A] hover:bg-[#D4C9B0]'}`}>7 Días</button>
+                        <button onClick={() => setDateRange('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateRange === 'month' ? 'bg-[#8B6914] text-white' : 'text-[#5C4A2A] hover:bg-[#D4C9B0]'}`}>30 Días</button>
                     </div>
                     <button onClick={() => setIsExpenseModalOpen(true)} className="ml-auto bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold hover:bg-red-100 shadow-sm transition-all active:scale-95">
                         <Wallet size={14} /> - Gasto
@@ -66,8 +66,8 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                 <div className="flex flex-col lg:flex-row gap-6">
 
                     {/* Gráfico 1: Barras */}
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col flex-1">
-                        <h3 className="font-bold text-slate-700 mb-4 text-xs uppercase tracking-wide">Evolución de Ventas</h3>
+                    <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0] flex flex-col flex-1">
+                        <h3 className="font-bold text-[#3D2B1F] mb-4 text-xs uppercase tracking-wide">Evolución de Ventas</h3>
                         {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px]">
                             <ResponsiveContainer width="100%" height={300}>
@@ -87,8 +87,8 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                     </div>
 
                     {/* Gráfico 2: Torta */}
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:w-1/3">
-                        <h3 className="font-bold text-slate-700 mb-2 text-xs uppercase tracking-wide flex items-center gap-2">
+                    <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0] flex flex-col lg:w-1/3">
+                        <h3 className="font-bold text-[#3D2B1F] mb-2 text-xs uppercase tracking-wide flex items-center gap-2">
                             <PieIcon size={14} className="text-purple-500" /> Por Categoría
                         </h3>
                         {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
@@ -130,14 +130,14 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                 </div>
 
                 {/* 3. KPIS Y GASTOS */}
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="font-bold text-slate-700 mb-3 text-xs uppercase tracking-wide">Gastos Recientes</h3>
+                <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0]">
+                    <h3 className="font-bold text-[#3D2B1F] mb-3 text-xs uppercase tracking-wide">Gastos Recientes</h3>
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                        {expenses.length === 0 && <div className="text-slate-400 text-xs text-center py-4 italic">No hay gastos registrados</div>}
+                        {expenses.length === 0 && <div className="text-[#A09070] text-xs text-center py-4 italic">No hay gastos registrados</div>}
                         {expenses.map(exp => (
-                            <div key={exp.id} className="flex justify-between items-center text-xs p-2.5 bg-slate-50/50 rounded-lg border border-slate-100">
+                            <div key={exp.id} className="flex justify-between items-center text-xs p-2.5 bg-[#F5F0E8] rounded-lg border border-[#D4C9B0]">
                                 <div>
-                                    <div className="font-bold text-slate-700">{exp.description}</div>
+                                    <div className="font-bold text-[#3D2B1F]">{exp.description}</div>
                                     <div className="text-[10px] text-slate-400">{new Date(exp.date?.seconds * 1000).toLocaleDateString()}</div>
                                 </div>
                                 <div className="flex items-center gap-2">

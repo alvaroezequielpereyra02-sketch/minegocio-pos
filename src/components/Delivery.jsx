@@ -42,9 +42,9 @@ function GpsModal({ address, name, onClose }) {
 
                     <button
                         onClick={openGoogleMaps}
-                        className="w-full flex items-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-xl hover:border-orange-300 hover:bg-orange-50 transition-all active:scale-[0.98]"
+                        className="w-full flex items-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-xl hover:border-[#8B6914]/50 hover:bg-amber-50 transition-all active:scale-[0.98]"
                     >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-orange-500">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-[#8B6914]">
                             <Map size={20} className="text-white" />
                         </div>
                         <div className="text-left">
@@ -188,7 +188,7 @@ function EditOrderModal({ order, onClose }) {
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
                         <input
-                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-[#8B6914] bg-white"
                             placeholder="Buscar producto para agregar..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -199,13 +199,13 @@ function EditOrderModal({ order, onClose }) {
                                     <button
                                         key={p.id}
                                         onClick={() => handleAddProduct(p)}
-                                        className="w-full text-left p-3 hover:bg-orange-50 flex justify-between items-center border-b last:border-0"
+                                        className="w-full text-left p-3 hover:bg-amber-50 flex justify-between items-center border-b last:border-0"
                                     >
                                         <div>
                                             <div className="text-sm font-bold text-slate-800">{p.name}</div>
                                             <div className="text-xs text-slate-400">${p.price?.toLocaleString()}</div>
                                         </div>
-                                        <div className="text-xs font-bold text-orange-500 flex items-center gap-1">
+                                        <div className="text-xs font-bold text-[#8B6914] flex items-center gap-1">
                                             <Plus size={12} /> Agregar
                                         </div>
                                     </button>
@@ -276,7 +276,7 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
 
     const statusConfig = {
         pending:    { label: 'Pendiente',   color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        preparing:  { label: 'Preparando',  color: 'bg-orange-100 text-orange-800 border-orange-200' },
+        preparing:  { label: 'Preparando',  color: 'bg-amber-100 text-amber-800 border-amber-200' },
         ready:      { label: 'Listo',       color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
         delivering: { label: 'En Camino',   color: 'bg-purple-100 text-purple-800 border-purple-200' },
         completed:  { label: 'Entregado',   color: 'bg-green-100 text-green-800 border-green-200' },
@@ -293,7 +293,7 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
 
     return (
         <>
-            <div className="bg-white border-2 border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:border-indigo-100 transition-all flex flex-col">
+            <div className="bg-[#EDE8DC] border-2 border-[#D4C9B0] rounded-2xl overflow-hidden hover:shadow-xl hover:border-[#8B6914]/30 transition-all flex flex-col">
 
                 {/* Header de la tarjeta */}
                 <div className="p-4 pb-3">
@@ -332,7 +332,7 @@ function DeliveryCard({ order, onStatusUpdate, onEdit }) {
                             <ExternalLink size={14} className="text-indigo-300 shrink-0" />
                         </button>
                     ) : (
-                        <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-3 bg-[#F5F0E8] p-3 rounded-xl border border-[#D4C9B0]">
                             <MapPin size={16} className="text-slate-300 shrink-0" />
                             <span className="text-sm text-slate-400 italic">Retira en local / Sin dirección</span>
                         </div>
@@ -486,7 +486,7 @@ const Delivery = () => {
     const currentOrders = tabs[activeTab] || [];
 
     return (
-        <div className="bg-white rounded-lg shadow-sm h-full flex flex-col overflow-hidden">
+        <div className="bg-[#F5F0E8] rounded-lg shadow-sm h-full flex flex-col overflow-hidden">
 
             {/* Cabecera */}
             <div className="p-4 md:p-6 border-b shrink-0">
