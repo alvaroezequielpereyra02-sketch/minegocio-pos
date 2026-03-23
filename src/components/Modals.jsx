@@ -165,7 +165,7 @@ export function ProductModal({ onClose, onSave, onDelete, editingProduct, imageM
 
                     <div className="flex gap-2 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
-                        <button type="submit" className="flex-1 bg-orange-500 text-white py-2 rounded font-bold">Guardar</button>
+                        <button type="submit" className="flex-1 text-white py-2 rounded font-bold" style={{background:"linear-gradient(135deg,#8B6914,#6B4F0F)"}}>Guardar</button>
                         {editingProduct && (
                             <button type="button" onClick={onRegisterFaulty} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Falla</button>
                         )}
@@ -257,7 +257,7 @@ export function CustomerModal({ onClose, onSave, editingCustomer }) {
                     <input name="email" type="email" defaultValue={editingCustomer?.email} className="w-full p-2 border rounded" placeholder="Email" />
                     <div className="flex gap-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-500">Cancelar</button>
-                        <button type="submit" className="flex-1 bg-orange-500 text-white py-2 rounded font-bold">Guardar</button>
+                        <button type="submit" className="flex-1 text-white py-2 rounded font-bold" style={{background:"linear-gradient(135deg,#8B6914,#6B4F0F)"}}>Guardar</button>
                     </div>
                 </form>
             </div>

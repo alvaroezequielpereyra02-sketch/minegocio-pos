@@ -24,7 +24,7 @@ export default function History({ transactions, userData, handleExportCSV, histo
     }, [transactions, historySection, searchTerm]);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+        <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8]">
 
             {/* Header compacto — sin padding lateral exagerado */}
             <div className="bg-white border-b border-slate-200 px-4 pt-4 pb-0 sticky top-0 z-10 shadow-sm">

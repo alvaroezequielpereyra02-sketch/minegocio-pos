@@ -20,9 +20,16 @@ export const useCheckout = ({
     const [checkoutError, setCheckoutError]             = useState(null);
 
     const buildPayload = () => {
+        // Usamos i.price directamente — ya tiene el precio mayorista aplicado si corresponde
         const itemsWithCost = cart.map(i => {
             const p = products.find(x => x.id === i.id);
-            return { id: i.id, name: i.name, qty: Number(i.qty), price: Number(i.price), cost: p ? Number(p.cost || 0) : 0 };
+            return {
+                id: i.id, name: i.name,
+                qty: Number(i.qty),
+                price: Number(i.price),
+                cost: p ? Number(p.cost || 0) : 0,
+                isWholesale: i.isWholesale || false,
+            };
         });
         const client = selectedCustomer
             ? { id: selectedCustomer.id, name: selectedCustomer.name, role: 'customer', address: selectedCustomer.address || '', phone: selectedCustomer.phone || '' }

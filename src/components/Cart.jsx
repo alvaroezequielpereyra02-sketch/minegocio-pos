@@ -16,17 +16,17 @@ const Cart = memo(function Cart({
       {/* Header */}
       <div className="px-4 py-3.5 flex justify-between items-center border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <ShoppingCart size={18} className="text-orange-500" />
+          <ShoppingCart size={18} className="text-[#8B6914]" />
           <span className="font-bold text-slate-800 text-base">Pedido</span>
           {itemCount > 0 && (
             <span className="text-xs font-black text-white px-2 py-0.5 rounded-full"
-              style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
+              style={{ background: 'linear-gradient(135deg, #8B6914, #6B4F0F)' }}>
               {itemCount}
             </span>
           )}
         </div>
         <button onClick={() => setShowMobileCart(false)}
-          className="lg:hidden w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors">
+          className="lg:hidden w-7 h-7 bg-[#E8E0CC] rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors">
           <X size={16} className="text-slate-500" />
         </button>
       </div>
@@ -39,7 +39,7 @@ const Cart = memo(function Cart({
             <p className="text-sm font-medium">El carrito está vacío</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-[#E8E0CC]">
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
@@ -54,9 +54,9 @@ const Cart = memo(function Cart({
                   </div>
                 </div>
 
-                <div className="flex items-center rounded-xl border border-slate-200 overflow-hidden shrink-0">
+                <div className="flex items-center rounded-xl border border-[#D4C9B0] overflow-hidden shrink-0">
                   <button onClick={() => updateCartQty(item.id, -1)}
-                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors">
+                    className="w-7 h-7 flex items-center justify-center hover:bg-[#E8E0CC] active:bg-[#D4C9B0] text-[#5C4A2A] transition-colors">
                     <Minus size={12} strokeWidth={3} />
                   </button>
                   <input
@@ -65,7 +65,7 @@ const Cart = memo(function Cart({
                     className="w-8 h-7 text-center text-sm font-bold bg-transparent outline-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <button onClick={() => updateCartQty(item.id, 1)}
-                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors">
+                    className="w-7 h-7 flex items-center justify-center hover:bg-[#E8E0CC] active:bg-[#D4C9B0] text-[#5C4A2A] transition-colors">
                     <Plus size={12} strokeWidth={3} />
                   </button>
                 </div>
@@ -84,25 +84,25 @@ const Cart = memo(function Cart({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-slate-100 bg-slate-50/60 px-4 pt-3 pb-4 space-y-3">
+      <div className="border-t border-slate-100 bg-[#F5F0E8]/80 px-4 pt-3 pb-4 space-y-3">
 
         {/* Cliente (admin) */}
         {userData.role === 'admin' && (
           <div className="relative">
             {selectedCustomer ? (
-              <div className="flex items-center justify-between bg-orange-50 px-3 py-2.5 rounded-xl border border-orange-200">
+              <div className="flex items-center justify-between bg-amber-50 px-3 py-2.5 rounded-xl border border-amber-200">
                 <div>
-                  <div className="text-sm font-bold text-orange-800 leading-tight">{selectedCustomer.name}</div>
-                  <div className="text-xs text-orange-500">{selectedCustomer.phone}</div>
+                  <div className="text-sm font-bold text-amber-900 leading-tight">{selectedCustomer.name}</div>
+                  <div className="text-xs text-[#8B6914]">{selectedCustomer.phone}</div>
                 </div>
                 <button onClick={() => setSelectedCustomer(null)}
-                  className="text-orange-300 hover:text-orange-500 transition-colors bg-white rounded-full w-5 h-5 flex items-center justify-center">
+                  className="text-orange-300 hover:text-[#8B6914] transition-colors bg-white rounded-full w-5 h-5 flex items-center justify-center">
                   <X size={12} />
                 </button>
               </div>
             ) : (
               <div>
-                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus-within:border-orange-400 transition-colors">
+                <div className="flex items-center gap-2 border border-[#D4C9B0] rounded-xl px-3 py-2.5 bg-[#F5F0E8] focus-within:border-[#8B6914] transition-colors">
                   <Search size={14} className="text-slate-300 shrink-0" />
                   <input
                     className="w-full text-sm outline-none bg-transparent placeholder:text-slate-300"
@@ -112,10 +112,10 @@ const Cart = memo(function Cart({
                   />
                 </div>
                 {customerSearch && (
-                  <div className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto z-50">
+                  <div className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-[#D4C9B0] rounded-xl shadow-xl max-h-44 overflow-y-auto z-50">
                     {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase())).map(c => (
                       <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }}
-                        className="w-full text-left px-4 py-3 hover:bg-orange-50 text-sm border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
+                        className="w-full text-left px-4 py-3 hover:bg-amber-50 text-sm border-b border-[#E8E0CC] last:border-0 flex items-center justify-between transition-colors">
                         <div>
                           <div className="font-semibold text-slate-800">{c.name}</div>
                           <div className="text-xs text-slate-400">{c.phone}</div>
@@ -134,7 +134,7 @@ const Cart = memo(function Cart({
         <select
           value={paymentMethod}
           onChange={(e) => setPaymentMethod(e.target.value)}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-sm font-semibold text-slate-700 outline-none focus:border-orange-400 transition-colors cursor-pointer"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-sm font-semibold text-slate-700 outline-none focus:border-[#8B6914] transition-colors cursor-pointer"
         >
           <option value="unspecified">❓ A definir</option>
           <option value="cash">💵 Efectivo</option>
@@ -143,8 +143,8 @@ const Cart = memo(function Cart({
 
         {/* Total */}
         <div className="flex justify-between items-center py-1">
-          <span className="text-sm font-semibold text-slate-500">Total</span>
-          <span className="text-2xl font-black text-slate-900 tracking-tight">${cartTotal.toLocaleString()}</span>
+          <span className="text-sm font-semibold text-[#5C4A2A]">Total</span>
+          <span className="text-2xl font-black text-[#1A0F0A] tracking-tight">${cartTotal.toLocaleString()}</span>
         </div>
 
         {/* Botón cobrar */}

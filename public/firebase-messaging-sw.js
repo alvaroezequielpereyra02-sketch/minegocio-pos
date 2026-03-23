@@ -1,14 +1,12 @@
 // firebase-messaging-sw.js
 // ✅ SW UNIFICADO: FCM + Cache + AUTO-UPDATE al detectar nueva versión
 
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-messaging-compat.js');
 
 // ─── CACHE ────────────────────────────────────────────────────────────────────
 // ⚠️ IMPORTANTE: cambiar este número en cada deploy importante
-// El SW detecta automáticamente si cambió y recarga la app,
-// pero tener un nombre nuevo garantiza que el caché viejo se borre.
-const CACHE_VERSION = 'v21';
+const CACHE_VERSION = 'v22';
 const CACHE_NAME = `minegocio-pos-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -21,7 +19,6 @@ const STATIC_ASSETS = [
 
 // ─── INSTALACIÓN ──────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
-  // skipWaiting: el SW nuevo toma control sin esperar que se cierren todas las pestañas
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -32,7 +29,6 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      // Borrar TODOS los cachés viejos (cualquier versión anterior)
       caches.keys().then((keys) =>
         Promise.all(
           keys
@@ -43,11 +39,8 @@ self.addEventListener('activate', (event) => {
             })
         )
       ),
-      // Tomar control de todas las pestañas abiertas inmediatamente
       self.clients.claim()
     ]).then(() => {
-      // ✅ Notificar a TODOS los clientes abiertos que hay una nueva versión
-      // La app React escucha este mensaje y recarga automáticamente
       return self.clients.matchAll({ type: 'window' }).then((clients) => {
         clients.forEach((client) => {
           client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
@@ -105,13 +98,10 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith('http')) return;
 
-  // Navegación → SIEMPRE red primero para detectar actualizaciones
-  // Si falla (offline), servir index.html del caché
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Guardar la respuesta más reciente de index.html
           if (response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
@@ -123,11 +113,11 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           return new Response(
             `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MiNegocio</title></head>
-             <body style="font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;background:#111827;color:#f8fafc;margin:0">
+             <body style="font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;background:#2C1810;color:#f8fafc;margin:0">
                <div style="font-size:48px">📶</div>
                <h2 style="margin:0">Sin conexión</h2>
                <p style="margin:0;color:#94a3b8;text-align:center;max-width:280px">Necesitás conexión para abrir la app por primera vez.</p>
-               <button onclick="location.reload()" style="background:#f97316;color:white;border:none;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:bold;cursor:pointer">Reintentar</button>
+               <button onclick="location.reload()" style="background:#8B6914;color:white;border:none;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:bold;cursor:pointer">Reintentar</button>
              </body></html>`,
             { headers: { 'Content-Type': 'text/html' } }
           );
@@ -136,8 +126,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets con hash (JS/CSS de Vite) → caché primero, actualiza en background
-  // Los assets de Vite tienen hash en el nombre → son inmutables → ok cachearlos
   if (event.request.url.includes('/assets/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
@@ -154,7 +142,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Resto → red primero (imágenes de Firebase Storage, APIs, etc.)
   event.respondWith(
     fetch(event.request).catch(() => caches.match(event.request))
   );

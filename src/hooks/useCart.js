@@ -17,22 +17,18 @@ export const useCart = (products = []) => {
     const [cart, setCart] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('unspecified');
 
-    // Recalcula el precio de un item en el carrito según su cantidad actual
-    const recalcPrice = (item) => {
-        const source = products.find(p => p.id === item.id) || item;
-        const { price, isWholesale } = getEffectivePrice(source, item.qty);
-        return { ...item, price, isWholesale };
-    };
-
     // Agregar producto al carrito
     const addToCart = useCallback((product) => {
         setCart(prev => {
             const existing = prev.find(item => item.id === product.id);
             if (existing) {
-                const updated = prev.map(item =>
-                    item.id === product.id ? { ...item, qty: item.qty + 1 } : item
-                );
-                return updated.map(item => item.id === product.id ? recalcPrice(item) : item);
+                return prev.map(item => {
+                    if (item.id !== product.id) return item;
+                    const newQty = item.qty + 1;
+                    const source = products.find(p => p.id === item.id) || item;
+                    const { price, isWholesale } = getEffectivePrice(source, newQty);
+                    return { ...item, qty: newQty, price, isWholesale };
+                });
             }
             const { price, isWholesale } = getEffectivePrice(product, 1);
             return [...prev, { ...product, qty: 1, price, isWholesale, imageUrl: product.imageUrl }];
