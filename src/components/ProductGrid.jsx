@@ -130,7 +130,7 @@ const ProductGrid = ({
                                         <div className="flex flex-col">
                                             <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
                                             {isAdmin && (
-                                                <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-400' : 'text-slate-300'}`}>
+                                                <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-500' : 'text-emerald-700'}`}>
                                                     {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
                                                 </span>
                                             )}
