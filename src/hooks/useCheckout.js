@@ -72,6 +72,26 @@ export const useCheckout = ({
 
         const isAdmin = userData?.role === 'admin';
         setCheckoutError(null);
+
+        // ✅ FIX: verificar stock disponible antes de intentar cobrar.
+        // Evita que el stock quede en valores negativos por ventas concurrentes
+        // o por no controlar disponibilidad en cliente.
+        const stockErrors = cart.filter(i => {
+            const p = products.find(x => x.id === i.id);
+            return !p || (p.stock ?? 0) < i.qty;
+        });
+        if (stockErrors.length > 0) {
+            setCheckoutError({
+                isPendingSync: false,
+                isOffline: false,
+                isStockError: true,
+                items: stockErrors.map(i => i.name).join(', '),
+                total: cartTotal,
+                time: new Date().toLocaleTimeString()
+            });
+            return;
+        }
+
         const { itemsWithCost, client } = buildPayload();
 
         // PASO 1 — Ping 1.5s. Detecta la realidad en Android con WiFi mentiroso.

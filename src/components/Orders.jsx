@@ -15,6 +15,10 @@ function OrderWorkModal({ order, onClose }) {
 
     // ESTADO LOCAL (OPTIMISTA)
     const [localItems, setLocalItems] = useState(order.items || []);
+    // ✅ FIX: rastrear si hay cambios pendientes de guardado
+    const [isDirty, setIsDirty] = useState(false);
+    // ✅ FIX: confirmación inline en lugar de window.confirm
+    const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -24,6 +28,7 @@ function OrderWorkModal({ order, onClose }) {
     // Sincronizar estado local
     useEffect(() => {
         setLocalItems(order.items || []);
+        setIsDirty(false);
     }, [order]);
 
     // Buscador
@@ -39,16 +44,24 @@ function OrderWorkModal({ order, onClose }) {
 
     // --- FUNCIONES DE ACCIÓN ---
 
-    const syncChanges = async (newItems) => {
+    // ✅ FIX: syncChanges ya NO escribe a Firestore en cada toggle.
+    // Solo actualiza el estado local y marca isDirty.
+    // La escritura real ocurre al llamar flushChanges() o al confirmar el pedido.
+    const syncChanges = (newItems) => {
         setLocalItems(newItems);
-        const newStatus = calculateNewStatus(newItems);
-        const newTotal = newItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
+        setIsDirty(true);
+    };
 
+    // ✅ Nueva: persiste a Firestore (llamada manualmente o al confirmar)
+    const flushChanges = async (items = localItems) => {
+        const newStatus = calculateNewStatus(items);
+        const newTotal = items.reduce((acc, i) => acc + (i.price * i.qty), 0);
         await updateTransaction(order.id, {
-            items: newItems,
+            items,
             total: newTotal,
             fulfillmentStatus: newStatus
         });
+        setIsDirty(false);
     };
 
     const handleAddItem = (product) => {
@@ -99,9 +112,15 @@ function OrderWorkModal({ order, onClose }) {
     };
 
     const handleDeleteItem = (idx) => {
-        if (!window.confirm("¿Quitar este producto del pedido?")) return;
+        // ✅ FIX: confirmación inline, sin window.confirm nativo.
+        // setPendingDeleteIdx muestra un UI de confirmación en el propio card.
+        setPendingDeleteIdx(idx);
+    };
+
+    const confirmDeleteItem = (idx) => {
         const newItems = localItems.filter((_, i) => i !== idx);
         syncChanges(newItems);
+        setPendingDeleteIdx(null);
     };
 
     const calculateNewStatus = (items) => {
@@ -125,15 +144,15 @@ function OrderWorkModal({ order, onClose }) {
 
         const finalTotal = finalItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
+        // ✅ FIX: una sola escritura a Firestore con el estado final completo.
         await updateTransaction(order.id, {
             items: finalItems,
             total: finalTotal,
             amountPaid: order.paymentStatus === 'paid' ? finalTotal : (order.amountPaid || 0),
-            // fulfillmentStatus 'ready' → el pedido aparece en Reparto como "Listo para despachar"
             fulfillmentStatus: 'ready',
-            // Aseguramos que deliveryType esté seteado para que Delivery lo filtre
             deliveryType: order.deliveryType || 'delivery',
         });
+        setIsDirty(false);
         onClose();
     };
 
@@ -220,6 +239,12 @@ function OrderWorkModal({ order, onClose }) {
                                         <button onClick={() => setManualQty(manualQty + 1)} className="p-3 bg-[#E8E0CC] hover:bg-[#D4C9B0]"><Plus size={16} /></button>
                                         <button onClick={() => saveManualEdit(idx)} className="p-3 bg-[#8B6914] text-white"><Save size={16} /></button>
                                     </div>
+                                ) : pendingDeleteIdx === idx ? (
+                                    /* ✅ FIX: confirm inline, sin window.confirm */
+                                    <div className="flex flex-col gap-1 animate-in zoom-in-95">
+                                        <button onClick={() => confirmDeleteItem(idx)} className="text-xs font-bold bg-red-500 text-white px-2 py-1 rounded-lg">Quitar</button>
+                                        <button onClick={() => setPendingDeleteIdx(null)} className="text-xs text-slate-500 hover:bg-slate-100 px-2 py-1 rounded-lg">Cancelar</button>
+                                    </div>
                                 ) : (
                                     <div className="flex flex-col gap-1">
                                         <button onClick={() => { setEditingItemIndex(idx); setManualQty(packed); }} className="text-[#8B6914] hover:bg-amber-50 p-1.5 rounded-lg">
@@ -236,7 +261,16 @@ function OrderWorkModal({ order, onClose }) {
                 </div>
 
                 {/* FOOTER */}
-                <div className="p-4 bg-[#EDE8DC] border-t border-[#D4C9B0] z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+                <div className="p-4 bg-[#EDE8DC] border-t border-[#D4C9B0] z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] flex flex-col gap-2">
+                    {/* ✅ FIX: botón de guardado explícito — escribe a Firestore una sola vez */}
+                    {isDirty && (
+                        <button
+                            onClick={() => flushChanges()}
+                            className="w-full py-2.5 rounded-xl font-bold text-sm border-2 border-[#8B6914] text-[#8B6914] bg-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                        >
+                            <Save size={16} /> Guardar cambios
+                        </button>
+                    )}
                     <button
                         onClick={handleConfirmOrder}
                         className="w-full py-4 text-white rounded-xl font-black text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 btn-accent"

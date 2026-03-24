@@ -158,7 +158,15 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     const purgeTransactions = async () => {
         const batch = writeBatch(db);
+        // ✅ FIX: restaurar stock de cada venta antes de borrarla,
+        // igual que hace deleteTransaction(). Sin esto el inventario queda inconsistente.
         transactions.forEach(t => {
+            if (t.type === 'sale' && t.items) {
+                t.items.forEach(item => {
+                    const productRef = doc(db, 'stores', appId, 'products', item.id);
+                    batch.update(productRef, { stock: increment(item.qty) });
+                });
+            }
             const ref = doc(db, 'stores', appId, 'transactions', t.id);
             batch.delete(ref);
         });
@@ -216,8 +224,11 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
                 if (t.paymentStatus === 'paid') salesPaid += currentTotal;
                 else if (t.paymentStatus === 'partial') {
+                    // ✅ FIX: contadores separados sin doble suma.
+                    // salesPartial = lo efectivamente cobrado (parcial)
+                    // salesPending = el saldo restante por cobrar
                     salesPartial += currentPaid;
-                    salesPaid += currentPaid;
+                    salesPending += (currentTotal - currentPaid);
                 }
                 else if (t.paymentStatus === 'pending') salesPending += currentTotal;
 

@@ -43,11 +43,17 @@ export const checkRealInternet = () => {
     // que puede ser bloqueado por antivirus, VPN o firewall corporativo
     if (!isAndroid()) return Promise.resolve(true);
 
-    // En Android: ping real para detectar WiFi sin internet
+    // ✅ FIX: usar el propio endpoint de Firebase en lugar de google.com.
+    // Evita falsos negativos en redes corporativas o países que bloquean Google.
+    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const pingUrl = projectId
+        ? `https://${projectId}.firebaseapp.com/__/firebase/init.json`
+        : 'https://www.google.com/generate_204';
+
     return new Promise(resolve => {
         const ctrl = new AbortController();
         const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 3000);
-        fetch('https://www.google.com/generate_204', {
+        fetch(pingUrl, {
             method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal
         })
         .then(() => { clearTimeout(t); resolve(true); })

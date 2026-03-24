@@ -34,7 +34,9 @@ const missingVars = envCheck.filter(([, v]) => !v).map(([k]) => k);
 if (missingVars.length > 0) {
     console.error('❌ [Firebase] Variables de entorno FALTANTES:', missingVars);
     console.error('   → En Vercel: Settings → Environment Variables. En local: revisá tu .env');
-} else {
+} else if (import.meta.env.DEV) {
+    // ✅ FIX: logs de diagnóstico solo en modo desarrollo.
+    // En producción evitamos exponer el Project ID en DevTools.
     console.log('✅ [Firebase] Credenciales cargadas. Project ID:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
 }
 
@@ -47,7 +49,7 @@ export const db = initializeFirestore(app, {
 // 🔧 FIX: persistentLocalCache arranca en modo offline hasta que algo dispara la conexión.
 // enableNetwork() fuerza la reconexión inmediata al cargar la app.
 enableNetwork(db)
-    .then(() => console.log('✅ [Firestore] Red habilitada'))
+    .then(() => { if (import.meta.env.DEV) console.log('✅ [Firestore] Red habilitada'); })
     .catch(e => console.error('❌ [Firestore] Error al habilitar red:', e.message));
 
 export const auth = getAuth(app);

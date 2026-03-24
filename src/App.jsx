@@ -159,15 +159,28 @@ export default function App() {
     // ── Handlers de modales ────────────────────────────────────────────────────
     const handleSaveExpense = async (e) => {
         e.preventDefault();
+        // ✅ FIX: trim + validación de amount antes de persistir
+        const description = e.target.description.value.trim().slice(0, 300);
+        const amount = parseFloat(e.target.amount.value);
+        if (!description) { showNotification("⚠️ Descripción requerida."); return; }
+        if (isNaN(amount) || amount <= 0) { showNotification("⚠️ Monto inválido."); return; }
         try {
-            await addExpense({ description: e.target.description.value, amount: parseFloat(e.target.amount.value) });
+            await addExpense({ description, amount });
             toggleModal('expense', false);
         } catch { showNotification("❌ Error al guardar gasto"); }
     };
 
     const handleSaveCustomer = async (e) => {
         e.preventDefault();
-        const d = { name: e.target.name.value, phone: e.target.phone.value, address: e.target.address.value, email: e.target.email.value };
+        // ✅ FIX: trim + límite de longitud en todos los campos de texto libre
+        // para evitar que se persistan valores vacíos o cadenas de longitud arbitraria.
+        const d = {
+            name:    e.target.name.value.trim().slice(0, 100),
+            phone:   e.target.phone.value.trim().slice(0, 20),
+            address: e.target.address.value.trim().slice(0, 300),
+            email:   e.target.email.value.trim().toLowerCase().slice(0, 100),
+        };
+        if (!d.name) { showNotification("⚠️ El nombre del cliente es requerido."); return; }
         try {
             if (editingCustomer) await updateCustomer(editingCustomer.id, d);
             else                 await addCustomer(d);

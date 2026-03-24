@@ -42,9 +42,18 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
                         if (userDoc.exists()) {
                             setUserData(userDoc.data());
                         } else if (navigator.onLine) {
-                            signOut(auth);
-                            setUserData(null);
-                            setUser(null);
+                            // ✅ FIX: esperar 3 s antes de desloguear para evitar falsos negativos
+                            // cuando el snapshot llega antes que el setDoc de registro termine de persistir.
+                            setTimeout(async () => {
+                                const retryDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                                if (!retryDoc.exists()) {
+                                    signOut(auth);
+                                    setUserData(null);
+                                    setUser(null);
+                                } else {
+                                    setUserData(retryDoc.data());
+                                }
+                            }, 3000);
                         }
                         setAuthLoading(false);
                     },

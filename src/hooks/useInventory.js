@@ -19,7 +19,7 @@ export const useInventory = (user, userData) => {
         const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (d) => {
             if (d.exists()) setStoreProfile(d.data());
         });
-        const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name')), (s) =>
+        const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name'), limit(1000)), (s) =>
             setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })))
         );
         const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (s) =>
@@ -85,7 +85,9 @@ export const useInventory = (user, userData) => {
 
     const addStock = async (product, qty) => {
         if (!product || !qty) return;
-        await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: product.stock + qty });
+        // ✅ FIX: usar increment() atómico en lugar de product.stock + qty
+        // para evitar race conditions cuando múltiples sesiones actualizan stock simultáneamente.
+        await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: increment(qty) });
     };
 
     const addCategory = async (name) => addDoc(collection(db, 'stores', appId, 'categories'), { name, isActive: true, createdAt: serverTimestamp() });
