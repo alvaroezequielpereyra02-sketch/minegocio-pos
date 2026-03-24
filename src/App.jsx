@@ -354,6 +354,7 @@ export default function App() {
                                 setIsExpenseModalOpen={(v) => toggleModal('expense', v)}
                                 handleDeleteExpense={(id) => requestConfirm("Borrar Gasto", "¿Seguro?", () => deleteExpense(id), true)}
                                 dateRange={dateRange} setDateRange={setDateRange}
+                                products={products}
                             />
                         </Suspense>
                     )}

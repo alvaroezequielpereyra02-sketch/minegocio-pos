@@ -1,6 +1,11 @@
 /**
  * useCheckout — solo maneja el cobro. Sin lógica de sincronización.
  * La sync vive en useSyncManager (App.jsx).
+ *
+ * NOTA: No se valida stock mínimo antes de cobrar.
+ * El negocio opera por demanda — los pedidos se registran aunque
+ * el stock sea 0 o quede en negativo. El panel "Demanda Pendiente"
+ * del Dashboard muestra qué productos hay que reponer.
  */
 import { useState } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
@@ -72,26 +77,6 @@ export const useCheckout = ({
 
         const isAdmin = userData?.role === 'admin';
         setCheckoutError(null);
-
-        // ✅ FIX: verificar stock disponible antes de intentar cobrar.
-        // Evita que el stock quede en valores negativos por ventas concurrentes
-        // o por no controlar disponibilidad en cliente.
-        const stockErrors = cart.filter(i => {
-            const p = products.find(x => x.id === i.id);
-            return !p || (p.stock ?? 0) < i.qty;
-        });
-        if (stockErrors.length > 0) {
-            setCheckoutError({
-                isPendingSync: false,
-                isOffline: false,
-                isStockError: true,
-                items: stockErrors.map(i => i.name).join(', '),
-                total: cartTotal,
-                time: new Date().toLocaleTimeString()
-            });
-            return;
-        }
-
         const { itemsWithCost, client } = buildPayload();
 
         // PASO 1 — Ping 1.5s. Detecta la realidad en Android con WiFi mentiroso.

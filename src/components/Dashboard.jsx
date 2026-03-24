@@ -1,5 +1,5 @@
-import React from 'react';
-import { Wallet, Trash2, TrendingUp, PieChart as PieIcon } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Wallet, Trash2, TrendingUp, PieChart as PieIcon, AlertTriangle, PackageSearch } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend
@@ -7,7 +7,7 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
-export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, handleDeleteExpense, dateRange, setDateRange }) {
+export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, handleDeleteExpense, dateRange, setDateRange, products = [] }) {
 
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
@@ -20,6 +20,20 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
         }
         return null;
     };
+
+    // Productos con stock negativo o en cero — demanda pendiente de reponer
+    const demandProducts = useMemo(() => {
+        return products
+            .filter(p => (p.stock ?? 0) <= 0)
+            .map(p => ({
+                id: p.id,
+                name: p.name,
+                stock: p.stock ?? 0,
+                // stock negativo = unidades ya comprometidas sin stock físico
+                needed: Math.abs(p.stock ?? 0),
+            }))
+            .sort((a, b) => a.stock - b.stock); // más negativo primero
+    }, [products]);
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8] p-4 pb-28 lg:pb-4">
@@ -68,7 +82,6 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                     {/* Gráfico 1: Barras */}
                     <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0] flex flex-col flex-1">
                         <h3 className="font-bold text-[#3D2B1F] mb-4 text-xs uppercase tracking-wide">Evolución de Ventas</h3>
-                        {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px]">
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={balance.chartData}>
@@ -91,7 +104,6 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         <h3 className="font-bold text-[#3D2B1F] mb-2 text-xs uppercase tracking-wide flex items-center gap-2">
                             <PieIcon size={14} className="text-purple-500" /> Por Categoría
                         </h3>
-                        {/* CONTENEDOR CON ALTURA FIJA PARA MÓVIL */}
                         <div className="w-full h-[300px] relative">
                             {balance.salesByCategory.length > 0 ? (
                                 <ResponsiveContainer width="100%" height={300}>
@@ -129,7 +141,67 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                     </div>
                 </div>
 
-                {/* 3. KPIS Y GASTOS */}
+                {/* 3. DEMANDA PENDIENTE — productos con stock 0 o negativo */}
+                <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0]">
+                    <h3 className="font-bold text-[#3D2B1F] mb-3 text-xs uppercase tracking-wide flex items-center gap-2">
+                        <PackageSearch size={14} className="text-orange-500" />
+                        Demanda Pendiente
+                        {demandProducts.length > 0 && (
+                            <span className="ml-auto bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                {demandProducts.length} producto{demandProducts.length !== 1 ? 's' : ''}
+                            </span>
+                        )}
+                    </h3>
+
+                    {demandProducts.length === 0 ? (
+                        <div className="text-[#A09070] text-xs text-center py-4 italic">
+                            ✅ Todo el catálogo tiene stock disponible
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                            {demandProducts.map(p => (
+                                <div
+                                    key={p.id}
+                                    className={`flex justify-between items-center text-xs p-2.5 rounded-lg border ${
+                                        p.stock < 0
+                                            ? 'bg-red-50 border-red-200'
+                                            : 'bg-amber-50 border-amber-200'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {p.stock < 0 ? (
+                                            <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
+                                        ) : (
+                                            <AlertTriangle size={13} className="text-amber-500 flex-shrink-0" />
+                                        )}
+                                        <span className={`font-semibold ${p.stock < 0 ? 'text-red-800' : 'text-amber-800'}`}>
+                                            {p.name}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        {p.stock < 0 && (
+                                            <span className="text-red-600 font-bold">
+                                                {p.needed} comprometido{p.needed !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                        <span className={`font-black text-sm ${p.stock < 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                                            {p.stock < 0 ? `−${p.needed}` : '0'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {demandProducts.length > 0 && (
+                        <p className="text-[10px] text-[#A09070] mt-3 italic">
+                            Los valores negativos indican unidades vendidas sin stock físico disponible.
+                            Usá esta lista para calcular tu próxima compra.
+                        </p>
+                    )}
+                </div>
+
+                {/* 4. GASTOS RECIENTES */}
                 <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0]">
                     <h3 className="font-bold text-[#3D2B1F] mb-3 text-xs uppercase tracking-wide">Gastos Recientes</h3>
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
@@ -150,6 +222,7 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         ))}
                     </div>
                 </div>
+
                 {/* Espaciador final para asegurar scroll */}
                 <div className="h-10"></div>
             </div>
