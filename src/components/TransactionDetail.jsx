@@ -42,10 +42,10 @@ export default function TransactionDetail({
         return transactions.find(t => t.id === initialTransaction.id) || initialTransaction;
     }, [transactions, initialTransaction]);
 
-    // Si no hay datos, no renderizamos nada
-    if (!transaction) return null;
-
     // --- ESTADOS LOCALES ---
+    // ⚠️ IMPORTANTE: todos los hooks van ANTES del early return.
+    // React exige que el número y orden de hooks sea siempre el mismo.
+    // Usamos optional chaining (?.) para que sean seguros cuando transaction es null.
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -55,20 +55,26 @@ export default function TransactionDetail({
     const isAdmin = userData?.role === 'admin';
 
     // Estados para el modal de pago (Edición)
-    const [tempStatus, setTempStatus] = useState(transaction.paymentStatus || 'pending');
-    const [tempFulfillment, setTempFulfillment] = useState(transaction.fulfillmentStatus || 'pending');
-    const [tempAmountPaid, setTempAmountPaid] = useState(transaction.amountPaid || 0);
-    const [tempNote, setTempNote] = useState(transaction.paymentNote || '');
-    const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction.paymentMethod || 'unspecified');
+    // Los ?. evitan crash si transaction llega null en el primer render
+    const [tempStatus, setTempStatus] = useState(transaction?.paymentStatus || 'pending');
+    const [tempFulfillment, setTempFulfillment] = useState(transaction?.fulfillmentStatus || 'pending');
+    const [tempAmountPaid, setTempAmountPaid] = useState(transaction?.amountPaid || 0);
+    const [tempNote, setTempNote] = useState(transaction?.paymentNote || '');
+    const [tempPaymentMethod, setTempPaymentMethod] = useState(transaction?.paymentMethod || 'unspecified');
 
-    // Sincronizar el formulario cada vez que la transacción cambia externamente
+    // Sincronizar el formulario cada vez que la transacción cambia externamente.
+    // El guard `if (!transaction) return` protege el caso null sin romper el hook.
     useEffect(() => {
+        if (!transaction) return;
         setTempStatus(transaction.paymentStatus || 'pending');
         setTempAmountPaid(transaction.amountPaid || 0);
         setTempNote(transaction.paymentNote || '');
         setTempPaymentMethod(transaction.paymentMethod || 'unspecified');
         setTempFulfillment(transaction.fulfillmentStatus || 'pending');
     }, [transaction]);
+
+    // Si no hay datos, no renderizamos nada — el early return va DESPUÉS de todos los hooks
+    if (!transaction) return null;
 
     // --- CÁLCULOS ---
     const total = transaction.total || 0;
