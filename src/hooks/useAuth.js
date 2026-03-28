@@ -197,10 +197,19 @@ export const useAuth = () => {
 
     const resetPassword = async (email) => {
         if (!email) {
-            setLoginError("Escribe tu correo primero.");
-            throw new Error("Email requerido");
+            setLoginError('Escribí tu correo primero.');
+            throw new Error('Email requerido');
         }
-        await sendPasswordResetEmail(auth, email);
+        // actionCodeSettings apunta al dominio real de la app (Vercel).
+        // Sin esto Firebase usa su dominio por defecto (proyecto.firebaseapp.com)
+        // y el link de recuperación puede no redirigir correctamente,
+        // o el correo cae en spam por dominio desconocido.
+        const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+        const actionCodeSettings = {
+            url: appUrl,
+            handleCodeInApp: false,
+        };
+        await sendPasswordResetEmail(auth, email, actionCodeSettings);
     };
 
     return {

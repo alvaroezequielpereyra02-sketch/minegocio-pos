@@ -15,6 +15,10 @@ export default function LoginScreen({
     showNotification,
 }) {
     const [isRegistering, setIsRegistering] = useState(false);
+    // Estado controlado del email — compartido entre el form y el botón de recuperación.
+    // Reemplaza el document.querySelector que era frágil y podía devolver null.
+    const [email, setEmail] = useState('');
+    const [isSendingReset, setIsSendingReset] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -25,27 +29,33 @@ export default function LoginScreen({
                     name:       form.name.value,
                     phone:      form.phone.value,
                     address:    form.address.value,
-                    email:      form.email.value,
+                    email:      email,
                     password:   form.password.value,
                     inviteCode: form.inviteCode?.value || '',
                 });
             } else {
-                await login(form.email.value, form.password.value);
+                await login(email, form.password.value);
             }
         } catch {
             // El error ya se setea en loginError desde useAuth
         }
     };
 
-    const handleForgotPassword = () => {
-        const emailInput = document.querySelector('input[name="email"]');
-        if (!emailInput?.value) {
-            setLoginError("Escribe tu correo primero.");
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            setLoginError('Escribí tu correo antes de recuperar la contraseña.');
             return;
         }
-        resetPassword(emailInput.value)
-            .then(() => showNotification("📧 Correo de recuperación enviado"))
-            .catch(err => setLoginError(err.message));
+        setIsSendingReset(true);
+        setLoginError('');
+        try {
+            await resetPassword(email.trim());
+            showNotification('📧 Correo de recuperación enviado — revisá tu bandeja y el spam');
+        } catch (err) {
+            setLoginError(err.message);
+        } finally {
+            setIsSendingReset(false);
+        }
     };
 
     return (
@@ -102,6 +112,8 @@ export default function LoginScreen({
                         <input
                             name="email" type="email" required
                             autoComplete="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                             placeholder="Correo electrónico"
                         />
@@ -139,9 +151,10 @@ export default function LoginScreen({
                     {!isRegistering && (
                         <button
                             onClick={handleForgotPassword}
-                            className="w-full mt-2 text-white/30 text-xs hover:text-white/50 transition-colors"
+                            disabled={isSendingReset}
+                            className="w-full mt-2 text-white/30 text-xs hover:text-white/50 transition-colors disabled:opacity-50"
                         >
-                            Olvidé mi contraseña
+                            {isSendingReset ? 'Enviando...' : 'Olvidé mi contraseña'}
                         </button>
                     )}
                 </div>
