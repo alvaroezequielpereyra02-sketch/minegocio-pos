@@ -51,7 +51,12 @@ const purgeInvalidTokens = async (storeId, results, tokenDocs) => {
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-    const { transactionId, clientName, total, storeId } = req.body;
+    const { transactionId, clientName, total, storeId, dry_run } = req.body;
+
+    // Modo health-check: verificar que el endpoint responde sin disparar FCM real
+    if (dry_run === true) {
+        return res.status(200).json({ success: true, message: 'dry_run OK — endpoint activo' });
+    }
 
     const title = '🛒 ¡Nuevo Pedido!';
     const body  = `${clientName} realizó un pedido por $${Number(total).toLocaleString('es-AR')}`;

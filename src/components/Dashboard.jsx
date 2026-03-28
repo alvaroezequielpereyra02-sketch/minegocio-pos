@@ -5,6 +5,7 @@ import {
     PieChart, Pie, Legend
 } from 'recharts';
 import { formatRelativeDate } from '../utils/dateHelpers';
+import HealthCheck from './HealthCheck';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
@@ -223,6 +224,9 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                         ))}
                     </div>
                 </div>
+
+                {/* 5. HEALTH CHECK — solo visible para admin */}
+                <HealthCheck />
 
                 {/* Espaciador final para asegurar scroll */}
                 <div className="h-10"></div>
