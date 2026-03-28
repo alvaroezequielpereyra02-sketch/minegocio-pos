@@ -16,7 +16,8 @@ import { useExports }       from './hooks/useExports';
 import { useNotifications } from './hooks/useNotifications';
 import { useModals }        from './hooks/useModals';
 import { useOnlineStatus }  from './hooks/useOnlineStatus';
-import { useProductForm }   from './hooks/useProductForm';
+import { useProductForm }       from './hooks/useProductForm';
+import { useInventoryScanner }  from './hooks/useInventoryScanner';
 
 // Componentes
 import Sidebar, { MobileNav } from './components/Sidebar';
@@ -91,7 +92,7 @@ export default function App() {
     const [editingProduct, setEditingProduct]           = useState(null);
     const [editingCustomer, setEditingCustomer]         = useState(null);
     const [selectedCustomer, setSelectedCustomer]       = useState(null);
-    const [scannedProduct, setScannedProduct]           = useState(null);
+
     const [searchTerm, setSearchTerm]                   = useState('');
     const [selectedCategory, setSelectedCategory]       = useState('all');
     const [customerSearch, setCustomerSearch]           = useState('');
@@ -123,16 +124,26 @@ export default function App() {
     const {
         imageMode,    setImageMode,
         previewImage, setPreviewImage,
-        inventoryBarcodeInput, setInventoryBarcodeInput,
-        quantityInputRef,
         handleSaveProductWrapper,
         handleFileChange,
-        handleInventoryBarcodeSubmit,
     } = useProductForm({
-        products, editingProduct,
-        addProduct, updateProduct, addStock,
-        toggleModal, showNotification, requestConfirm,
+        editingProduct,
+        addProduct, updateProduct,
+        toggleModal, showNotification,
         setIsProcessing, setEditingProduct,
+    });
+
+    const {
+        scannedProduct, setScannedProduct, clearScannedProduct,
+        isScanning,
+        barcodeInput:        inventoryBarcodeInput,
+        setBarcodeInput:     setInventoryBarcodeInput,
+        handleBarcodeSubmit: handleInventoryBarcodeSubmit,
+        quantityInputRef,
+    } = useInventoryScanner({
+        products,
+        toggleModal, showNotification, requestConfirm,
+        setEditingProduct,
     });
 
     useNotifications(user, userData);
@@ -205,7 +216,7 @@ export default function App() {
         e.preventDefault();
         await addStock(scannedProduct, parseInt(e.target.qty.value));
         toggleModal('stock', false);
-        setScannedProduct(null);
+        clearScannedProduct();
     };
 
     const handleSaveTransaction = async (d) => {
@@ -599,7 +610,7 @@ export default function App() {
                 handleSaveCustomer={handleSaveCustomer}
                 storeProfile={storeProfile}
                 handleSaveStore={handleSaveStore}
-                scannedProduct={scannedProduct}   setScannedProduct={setScannedProduct}
+                scannedProduct={scannedProduct}   setScannedProduct={clearScannedProduct}
                 handleAddStock={handleAddStock}   quantityInputRef={quantityInputRef}
                 editingTransaction={editingTransaction}
                 handleSaveTransaction={handleSaveTransaction}
