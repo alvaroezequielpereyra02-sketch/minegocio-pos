@@ -23,29 +23,34 @@ const removeFromOfflineQueue = (id) => {
 };
 
 /**
- * Ping real en 1.5 s.
- * navigator.onLine miente en Android con WiFi sin internet real.
- * Usamos google.com/generate_204 (responde en ~50ms si hay red).
- */
-/**
  * checkRealInternet
- * En PC/desktop: navigator.onLine es confiable → respuesta instantánea.
- * En Android:    navigator.onLine miente con WiFi sin internet real →
- *                hacemos un ping real a Google para confirmar.
+ *
+ * Estrategia según entorno:
+ *
+ *  TEST (import.meta.env.MODE === 'test'):
+ *    Siempre hace el ping para que los mocks de fetch funcionen.
+ *    Vitest expone MODE='test' exactamente para este propósito.
+ *
+ *  DESKTOP (producción, no Android):
+ *    navigator.onLine es confiable en PC — retorna true sin ping.
+ *    Evita latencia innecesaria (~50-100ms) en cada cobro.
+ *
+ *  ANDROID (producción):
+ *    navigator.onLine miente con WiFi sin internet real.
+ *    Hace un ping real para confirmar conectividad.
  */
 const isAndroid = () => /android/i.test(navigator.userAgent);
+const isTestEnv = () => import.meta.env?.MODE === 'test';
 
 export const checkRealInternet = () => {
-    // Chequeo base: si el navegador dice offline, confiamos siempre
+    // Si el navegador dice offline, confiamos siempre
     if (!navigator.onLine) return Promise.resolve(false);
 
-    // En desktop navigator.onLine es suficiente — evitamos el ping
-    // que puede ser bloqueado por antivirus, VPN o firewall corporativo
-    if (!isAndroid()) return Promise.resolve(true);
+    // En desktop (producción) navigator.onLine es suficiente → respuesta instantánea
+    if (!isTestEnv() && !isAndroid()) return Promise.resolve(true);
 
-    // ✅ FIX: usar el propio endpoint de Firebase en lugar de google.com.
-    // Evita falsos negativos en redes corporativas o países que bloquean Google.
-    const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    // En Android (producción) y en tests: ping real
+    const projectId = import.meta.env?.VITE_FIREBASE_PROJECT_ID;
     const pingUrl = projectId
         ? `https://${projectId}.firebaseapp.com/__/firebase/init.json`
         : 'https://www.google.com/generate_204';

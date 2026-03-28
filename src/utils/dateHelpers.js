@@ -26,7 +26,7 @@ const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
  * @returns {Date|null}
  */
 export function firestoreToDate(firestoreDate) {
-    if (!firestoreDate || typeof firestoreDate.seconds !== 'number') return null;
+    if (!firestoreDate || !Number.isFinite(firestoreDate.seconds)) return null;
     return new Date(firestoreDate.seconds * 1000);
 }
 
@@ -37,7 +37,7 @@ export function firestoreToDate(firestoreDate) {
  * @returns {string}
  */
 function formatTime(date) {
-    return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 /**
