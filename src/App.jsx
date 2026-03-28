@@ -83,7 +83,7 @@ export default function App() {
     } = useInventoryContext();
     const { transactions, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
     const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
-    const printer = usePrinter();
+    const printer = usePrinter(showNotification);
 
     // ── Estados UI locales ─────────────────────────────────────────────────────
     const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -373,11 +373,7 @@ export default function App() {
                     {/* Pedidos */}
                     {activeTab === 'orders' && userData.role === 'admin' && (
                         <Suspense fallback={<TabLoader />}>
-                            <Orders
-                                transactions={transactions} products={products} categories={categories}
-                                onUpdateTransaction={(id, data) => updateTransaction(id, data)}
-                                onSelectTransaction={(t) => setSelectedTransaction(t)}
-                            />
+                            <Orders />
                         </Suspense>
                     )}
 
@@ -385,12 +381,7 @@ export default function App() {
                     {activeTab === 'delivery' && userData.role === 'admin' && (
                         <div className="flex-1 overflow-hidden p-4 pb-24 lg:pb-4">
                             <Suspense fallback={<TabLoader />}>
-                                <Delivery
-                                    transactions={transactions} customers={customers}
-                                    onUpdateTransaction={updateTransaction}
-                                    onSelectTransaction={(t) => setSelectedTransaction(t)}
-                                    onRequestConfirm={requestConfirm}
-                                />
+                                <Delivery />
                             </Suspense>
                         </div>
                     )}
@@ -526,6 +517,7 @@ export default function App() {
                             printer={printer} storeProfile={storeProfile} customers={customers}
                             onEditItems={(t) => { setEditingTransaction(t); toggleModal('transaction', true); }}
                             userData={userData}
+                            showNotification={showNotification}
                         />
                     </Suspense>
                 )}
@@ -619,6 +611,7 @@ export default function App() {
                 faultyProduct={faultyProduct}
                 handleConfirmFaulty={handleConfirmFaulty}
                 handleSaveExpense={handleSaveExpense}
+                showNotification={showNotification}
             />
         </div>
     );

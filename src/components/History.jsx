@@ -16,9 +16,12 @@ export default function History({ transactions, userData, handleExportCSV, histo
 
         filtered.forEach(t => {
             const date = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
-            const dateKey = date.toLocaleDateString();
-            if (!groups[dateKey]) groups[dateKey] = [];
-            groups[dateKey].push(t);
+            // ✅ FIX: usar una clave ISO (YYYY-MM-DD) para el agrupado en lugar de
+            // toLocaleDateString(), que devuelve formatos distintos según el navegador
+            // (DD/MM/AAAA en español, M/D/YYYY en inglés) y rompía el sort al hacer split('/').
+            const dateKey = date.toISOString().slice(0, 10); // "2025-03-27"
+            if (!groups[dateKey]) groups[dateKey] = { label: date.toLocaleDateString('es-AR'), items: [] };
+            groups[dateKey].items.push(t);
         });
         return groups;
     }, [transactions, historySection, searchTerm]);
@@ -83,12 +86,14 @@ export default function History({ transactions, userData, handleExportCSV, histo
                     </div>
                 ) : (
                     Object.entries(groupedTransactions)
-                        .sort((a, b) => new Date(b[0].split('/').reverse().join('-')) - new Date(a[0].split('/').reverse().join('-')))
-                        .map(([date, items]) => (
-                            <div key={date}>
+                        // ✅ FIX: las claves ahora son ISO (YYYY-MM-DD) → sort lexicográfico
+                        // es suficiente y correcto en cualquier locale del navegador.
+                        .sort((a, b) => b[0].localeCompare(a[0]))
+                        .map(([dateKey, { label, items }]) => (
+                            <div key={dateKey}>
                                 {/* Separador de fecha — compacto */}
                                 <div className="px-4 py-2 text-xs font-bold text-[#8B6914] uppercase tracking-wider bg-[#EDE8DC] sticky top-0">
-                                    {date}
+                                    {label}
                                 </div>
 
                                 {/* Cards sin gap entre ellos — separados por borde */}

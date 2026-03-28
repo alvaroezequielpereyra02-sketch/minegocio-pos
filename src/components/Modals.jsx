@@ -51,7 +51,7 @@ export function ProcessingModal() {
     );
 }
 
-export function InvitationModal({ onClose, onGenerate }) {
+export function InvitationModal({ onClose, onGenerate, showNotification = () => {} }) {
     const [generatedCode, setGeneratedCode] = useState(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -63,12 +63,18 @@ export function InvitationModal({ onClose, onGenerate }) {
             const code = await onGenerate();
             setGeneratedCode(code);
         } catch (e) {
-            alert('Error al generar el código. Intentá de nuevo.');
+            // ✅ FIX: reemplazado alert() por showNotification
+            showNotification('❌ Error al generar el código. Intentá de nuevo.');
         } finally {
             setIsGenerating(false);
         }
     };
-    const copyToClipboard = () => { navigator.clipboard.writeText(generatedCode).then(() => alert("Copiado")); };
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(generatedCode).then(() => {
+            // ✅ FIX: reemplazado alert("Copiado") por showNotification
+            showNotification('✅ Código copiado al portapapeles');
+        });
+    };
 
     return (
         <div className={modalOverlayClass}>

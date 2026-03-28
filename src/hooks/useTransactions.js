@@ -157,20 +157,40 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     };
 
     const purgeTransactions = async () => {
-        const batch = writeBatch(db);
-        // ✅ FIX: restaurar stock de cada venta antes de borrarla,
-        // igual que hace deleteTransaction(). Sin esto el inventario queda inconsistente.
+        // ✅ FIX: Firestore permite máximo 500 operaciones por batch.
+        // Con 500 transacciones y ~5 items cada una → ~3000 ops → el batch explotaba.
+        // Solución: acumular todas las operaciones y ejecutarlas en lotes de 450
+        // (margen de seguridad sobre el límite de 500).
+        const BATCH_LIMIT = 450;
+
+        // Construir lista plana de operaciones
+        const ops = []; // { type: 'delete'|'update', ref, data? }
         transactions.forEach(t => {
             if (t.type === 'sale' && t.items) {
                 t.items.forEach(item => {
-                    const productRef = doc(db, 'stores', appId, 'products', item.id);
-                    batch.update(productRef, { stock: increment(item.qty) });
+                    ops.push({
+                        type: 'update',
+                        ref: doc(db, 'stores', appId, 'products', item.id),
+                        data: { stock: increment(item.qty) }
+                    });
                 });
             }
-            const ref = doc(db, 'stores', appId, 'transactions', t.id);
-            batch.delete(ref);
+            ops.push({
+                type: 'delete',
+                ref: doc(db, 'stores', appId, 'transactions', t.id)
+            });
         });
-        await batch.commit();
+
+        // Ejecutar en lotes de BATCH_LIMIT
+        for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
+            const chunk = ops.slice(i, i + BATCH_LIMIT);
+            const batch = writeBatch(db);
+            chunk.forEach(op => {
+                if (op.type === 'delete') batch.delete(op.ref);
+                else batch.update(op.ref, op.data);
+            });
+            await batch.commit();
+        }
     };
 
     // 5. CÁLCULO DE BALANCE (CON CORRECCIÓN PARA 30 DÍAS Y NÚMEROS SEGUROS)

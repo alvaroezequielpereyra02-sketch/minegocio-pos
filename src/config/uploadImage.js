@@ -34,16 +34,15 @@ export const uploadImage = async (base64Image, productName = 'producto') => {
 
     } catch (error) {
         console.error("❌ Error subiendo a Cloudinary:", error);
-        alert("No se pudo subir la imagen.");
-        return null;
+        // ✅ FIX: reemplazado alert() bloqueante por throw.
+        // Los callers (useProductForm, handleSaveStore) ya tienen try/catch
+        // con showNotification, así que el error llega al usuario sin bloquear el hilo.
+        throw new Error("No se pudo subir la imagen. Verificá la conexión e intentá de nuevo.");
     }
 };
 
 // --- 2. FUNCIÓN DE MINIATURAS ---
-export const getThumbnailUrl = (url, width = 300) => {
-    if (!url) return '';
-    if (!url.includes('cloudinary.com')) return url;
-
-    // Insertamos la transformación de calidad y tamaño
-    return url.replace('/upload/', `/upload/f_auto,q_auto,w_${width}/`);
-};
+// ✅ FIX: getThumbnailUrl vivía duplicada aquí y en imageHelpers.js.
+// La fuente de verdad es imageHelpers.js — re-exportamos desde ahí
+// para no romper imports existentes que apuntan a este módulo.
+export { getThumbnailUrl } from '../utils/imageHelpers';

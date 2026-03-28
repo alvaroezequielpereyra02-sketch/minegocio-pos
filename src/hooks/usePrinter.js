@@ -11,7 +11,7 @@ const ALIGN_CENTER = ESC + 'a' + '\x01';
 const ALIGN_LEFT = ESC + 'a' + '\x00';
 const ALIGN_RIGHT = ESC + 'a' + '\x02';
 
-export const usePrinter = () => {
+export const usePrinter = (onNotify = () => {}) => {
     const [isPrinting, setIsPrinting] = useState(false);
     const [printerDevice, setPrinterDevice] = useState(null);
 
@@ -28,10 +28,11 @@ export const usePrinter = () => {
             const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
             setPrinterDevice({ device, characteristic });
-            alert(`Conectado a ${device.name}`);
+            // ✅ FIX: reemplazado alert() bloqueante por el sistema de notificaciones de la app
+            onNotify(`✅ Impresora conectada: ${device.name}`);
         } catch (error) {
             console.error(error);
-            alert("No se pudo conectar.");
+            onNotify("❌ No se pudo conectar la impresora.");
         }
     };
 
@@ -104,7 +105,8 @@ export const usePrinter = () => {
             window.removeEventListener('blur', handleBlur);
             document.body.removeChild(iframe);
             if (!appOpened) {
-                alert('No se encontró la app RawBT.\nInstalala desde Play Store para imprimir por Bluetooth.');
+                // ✅ FIX: reemplazado alert() por onNotify
+                onNotify('⚠️ No se encontró la app RawBT. Instalala desde Play Store.');
             }
         }, 1500);
     };

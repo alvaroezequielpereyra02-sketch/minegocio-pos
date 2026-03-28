@@ -77,17 +77,6 @@ export const useCart = (products = []) => {
         return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
     }, [cart]);
 
-    // Preparar items para guardar en Firebase (con costo original)
-    const getItemsForCheckout = useCallback(() => {
-        return cart.map(i => {
-            // Buscamos el producto original para obtener el costo actualizado si existe
-            const originalProduct = products.find(p => p.id === i.id);
-            return {
-                ...i,
-                cost: originalProduct ? (originalProduct.cost || 0) : 0
-            };
-        });
-    }, [cart, products]);
 
     return {
         cart,
@@ -99,6 +88,5 @@ export const useCart = (products = []) => {
         cartTotal,
         paymentMethod,
         setPaymentMethod,
-        getItemsForCheckout
     };
 };

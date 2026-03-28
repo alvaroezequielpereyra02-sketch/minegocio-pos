@@ -152,9 +152,18 @@ export const useExports = ({ products, transactions, expenses, balance, storePro
                     "✅ Reporte descargado.\n\n¿Querés borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
                     async () => {
                         setIsProcessing(true);
-                        await purgeTransactions();
-                        setIsProcessing(false);
-                        showNotification("🧹 Historial limpiado");
+                        // ✅ FIX: try/catch + finally para que el spinner
+                        // nunca quede trabado si purgeTransactions falla
+                        // (antes: si el batch explotaba, setIsProcessing(false) nunca corría).
+                        try {
+                            await purgeTransactions();
+                            showNotification("🧹 Historial limpiado");
+                        } catch (e) {
+                            console.error("[purge] Error al limpiar historial:", e);
+                            showNotification("❌ Error al limpiar el historial. Intentá de nuevo.");
+                        } finally {
+                            setIsProcessing(false);
+                        }
                     },
                     true
                 );

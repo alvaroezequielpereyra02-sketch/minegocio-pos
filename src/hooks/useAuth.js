@@ -109,11 +109,21 @@ export const useAuth = () => {  // ✅ Ya no recibe `app` como parámetro
                 createdAt: serverTimestamp()
             };
 
-            await setDoc(doc(db, 'users', uid), newUserData);
-            await setDoc(doc(db, 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
-            await updateDoc(doc(db, 'stores', appId, 'invitation_codes', inviteDoc.id), {
-                status: 'used', usedBy: uid, usedAt: serverTimestamp()
-            });
+            try {
+                // ✅ FIX: si alguno de estos setDoc falla (red o reglas de Firestore),
+                // el usuario ya existe en Auth pero sin documento → loop infinito de carga
+                // y no puede re-registrarse con el mismo email.
+                // Solución: eliminar el usuario de Auth en el catch para mantener consistencia.
+                await setDoc(doc(db, 'users', uid), newUserData);
+                await setDoc(doc(db, 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
+                await updateDoc(doc(db, 'stores', appId, 'invitation_codes', inviteDoc.id), {
+                    status: 'used', usedBy: uid, usedAt: serverTimestamp()
+                });
+            } catch (firestoreError) {
+                // Revertir: borrar el usuario de Auth para evitar cuenta huérfana
+                await userCredential.user.delete();
+                throw firestoreError;
+            }
 
             return userCredential.user;
         } catch (error) {

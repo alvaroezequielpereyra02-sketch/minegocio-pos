@@ -54,6 +54,8 @@ export default function AppModals({
     handleConfirmFaulty,
     // Gasto
     handleSaveExpense,
+    // Notificaciones inline (reemplaza alert() en modales)
+    showNotification,
 }) {
     return (
         <>
@@ -138,6 +140,7 @@ export default function AppModals({
                 <InvitationModal
                     onClose={() => toggleModal('invitation', false)}
                     onGenerate={generateInvitationCode}
+                    showNotification={showNotification}
                 />
             )}
 

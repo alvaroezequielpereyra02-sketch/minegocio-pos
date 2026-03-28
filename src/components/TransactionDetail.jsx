@@ -29,7 +29,8 @@ export default function TransactionDetail({
     printer,
     storeProfile,
     customers = [],
-    onEditItems
+    onEditItems,
+    showNotification = () => {},
 }) {
     // 1. CONECTAMOS LOS CONTEXTOS
     const { userData } = useAuthContext();
@@ -384,9 +385,12 @@ export default function TransactionDetail({
             a.href = url;
             a.download = `Recibo_${clientName.split(' ')[0]}_${transaction.id.slice(0, 4)}.pdf`;
             a.click();
+            // ✅ FIX: liberar la URL de blob para evitar memory leak.
+            // El browser necesita un tick para iniciar la descarga antes de revocar.
+            setTimeout(() => URL.revokeObjectURL(url), 100);
         } catch (e) {
             console.error(e);
-            alert("Error al generar PDF");
+            showNotification("❌ Error al generar PDF");
         }
         setIsGenerating(false);
     };
@@ -397,6 +401,8 @@ export default function TransactionDetail({
             const blob = await generatePDFBlob();
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
+            // ✅ FIX: liberar blob URL. La nueva pestaña ya tomó la referencia.
+            setTimeout(() => URL.revokeObjectURL(url), 100);
         } catch (e) {
             console.error(e);
         }
@@ -416,18 +422,20 @@ export default function TransactionDetail({
                     text: `Hola ${clientName}, adjunto tu comprobante de compra.`
                 });
             } else {
-                alert("⚠️ Desde la PC no se puede adjuntar automático.\n\nEl PDF se descargará. Arrástralo al chat de WhatsApp.");
+                showNotification("📎 El PDF se descargará. Arrastralo al chat de WhatsApp.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = file.name;
                 a.click();
+                // ✅ FIX: liberar blob URL del fallback de escritorio
+                setTimeout(() => URL.revokeObjectURL(url), 100);
                 const phone = clientData.phone || '';
                 window.open(`https://wa.me/${phone}?text=Adjunto%20el%20comprobante.`, '_blank');
             }
         } catch (error) {
             console.error("Error compartiendo:", error);
-            if (error.name !== 'AbortError') alert("No se pudo compartir.");
+            if (error.name !== 'AbortError') showNotification("❌ No se pudo compartir.");
         }
         setIsGenerating(false);
     };
