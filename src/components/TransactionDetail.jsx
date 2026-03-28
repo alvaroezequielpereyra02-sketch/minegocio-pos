@@ -13,7 +13,9 @@ import {
     StickyNote,
     Truck,
     CheckCircle,
-    Box
+    Box,
+    Bluetooth,
+    BluetoothConnected,
 } from 'lucide-react';
 
 // --- IMPORTS DE CONTEXTO (CORREGIDOS) ---
@@ -24,6 +26,7 @@ import { ConfirmModal } from './Modals';
 export default function TransactionDetail({
     transaction: initialTransaction,
     onClose,
+    printer,
     storeProfile,
     customers = [],
     onEditItems
@@ -423,6 +426,25 @@ export default function TransactionDetail({
         setIsGenerating(false);
     };
 
+    // Imprime ticket térmico.
+    // Si hay impresora Bluetooth pareada → la usa directamente.
+    // Si no → intenta RawBT (app Android). En ambos casos printTicket() hace el routing.
+    const handleThermalPrint = async () => {
+        if (!printer) return;
+        try {
+            await printer.printTicket(transaction, storeProfile);
+        } catch (e) {
+            console.error('Error al imprimir ticket:', e);
+        }
+    };
+
+    // Conectar impresora Bluetooth (Web Bluetooth API).
+    // Solo disponible en Chrome/Edge en Android y desktop.
+    const handleConnectBluetooth = async () => {
+        if (!printer) return;
+        await printer.connectBluetooth();
+    };
+
     return (
         <div className="fixed inset-0 z-[10000] bg-[#F5F0E8] sm:bg-slate-900/40 sm:backdrop-blur-sm flex justify-center sm:items-center animate-in fade-in duration-200">
 
@@ -553,6 +575,48 @@ export default function TransactionDetail({
                                     <div className="text-[10px] text-slate-500">Descargar</div>
                                 </button>
                             </div>
+
+                            {/* Impresora Térmica */}
+                            {printer && (
+                                <div className="border border-[#D4C9B0] rounded-xl overflow-hidden">
+                                    {/* Botón principal: imprimir ticket */}
+                                    <button
+                                        onClick={handleThermalPrint}
+                                        disabled={printer.isPrinting}
+                                        className="w-full flex items-center p-4 bg-white hover:bg-slate-50 transition-all group disabled:opacity-60"
+                                    >
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform ${printer.isConnected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                                            {printer.isPrinting
+                                                ? <Loader2 size={20} className="animate-spin" />
+                                                : <Printer size={20} />
+                                            }
+                                        </div>
+                                        <div className="text-left flex-1">
+                                            <div className="font-bold text-[#3D2B1F]">
+                                                {printer.isPrinting ? 'Imprimiendo...' : 'Ticket Térmico'}
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                {printer.isConnected ? 'Impresora Bluetooth conectada' : 'Vía RawBT (Android)'}
+                                            </div>
+                                        </div>
+                                        {/* Indicador de estado */}
+                                        <div className={`w-2 h-2 rounded-full shrink-0 ${printer.isConnected ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                    </button>
+
+                                    {/* Botón secundario: conectar/desconectar Bluetooth */}
+                                    <div className="border-t border-[#D4C9B0]">
+                                        <button
+                                            onClick={handleConnectBluetooth}
+                                            className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                        >
+                                            {printer.isConnected
+                                                ? <><BluetoothConnected size={13} /> Impresora BT conectada</>
+                                                : <><Bluetooth size={13} /> Conectar impresora Bluetooth</>
+                                            }
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
