@@ -1,3 +1,5 @@
+import { formatExportDate } from '../utils/dateHelpers';
+
 /**
  * Encapsula la generación de PDF (stock negativo) y exportación CSV.
  * Extrae esta responsabilidad de App.jsx.
@@ -124,12 +126,12 @@ export const useExports = ({ products, transactions, expenses, balance, storePro
             csv += "\nGASTOS DETALLADOS\n";
             csv += "Fecha,Descripción,Monto\n";
             expenses.forEach(e => {
-                csv += `${new Date(e.date?.seconds * 1000).toLocaleDateString()},${e.description},${e.amount}\n`;
+                csv += `${formatExportDate(e.date)},${e.description},${e.amount}\n`;
             });
             csv += "\nDETALLE DE TRANSACCIONES\n";
             csv += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
             transactions.forEach(t => {
-                const date = new Date(t.date?.seconds * 1000).toLocaleString();
+                const date = formatExportDate(t.date);
                 const itemsStr = t.items?.map(i => `${i.qty}x ${i.name}`).join(' | ') || '';
                 csv += `${date},${t.clientName},${t.paymentStatus},${t.paymentMethod},${t.total},${t.amountPaid || 0},"${itemsStr.replace(/"/g, '""')}"\n`;
             });

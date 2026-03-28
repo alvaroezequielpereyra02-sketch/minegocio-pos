@@ -4,6 +4,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend
 } from 'recharts';
+import { formatRelativeDate } from '../utils/dateHelpers';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
@@ -210,7 +211,7 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                             <div key={exp.id} className="flex justify-between items-center text-xs p-2.5 bg-[#F5F0E8] rounded-lg border border-[#D4C9B0]">
                                 <div>
                                     <div className="font-bold text-[#3D2B1F]">{exp.description}</div>
-                                    <div className="text-[10px] text-slate-400">{new Date(exp.date?.seconds * 1000).toLocaleDateString()}</div>
+                                    <div className="text-[10px] text-slate-400">{formatRelativeDate(exp.date)}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-bold text-red-600">-${exp.amount.toLocaleString()}</span>
