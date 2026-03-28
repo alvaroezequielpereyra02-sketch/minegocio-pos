@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef, useCallback } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList, Search } from 'lucide-react';
 
 // Contextos
@@ -49,21 +49,25 @@ export default function App() {
     const [showMobileCart, setShowMobileCart] = useState(false);
 
     // ── Notificación visual interna ────────────────────────────────────────────
+    // useCallback con [] → referencia estable entre renders.
+    // Sin esto, cualquier re-render de App creaba una nueva función,
+    // lo que forzaba a useInventoryScanner a re-registrar el listener de keydown.
     const _notifTimer = useRef(null);
-    const showNotification = (msg) => {
+    const showNotification = useCallback((msg) => {
         if (_notifTimer.current) clearTimeout(_notifTimer.current);
         setNotification(msg);
         _notifTimer.current = setTimeout(() => setNotification(null), 5000);
-    };
+    }, []);
 
     // ── Confirmación reutilizable ──────────────────────────────────────────────
-    const requestConfirm = (title, message, action, isDanger = false) => {
+    // Ídem: referencia estable para que processBarcode no se recree en cada render.
+    const requestConfirm = useCallback((title, message, action, isDanger = false) => {
         setConfirmConfig({
             title, message, isDanger,
             onConfirm: async () => { setConfirmConfig(null); await action(); },
             onCancel:  () => setConfirmConfig(null),
         });
-    };
+    }, []);
 
     // ── Hooks ──────────────────────────────────────────────────────────────────
     const { modals, toggleModal } = useModals();
@@ -142,6 +146,7 @@ export default function App() {
         quantityInputRef,
     } = useInventoryScanner({
         products,
+        activeTab,
         toggleModal, showNotification, requestConfirm,
         setEditingProduct,
     });

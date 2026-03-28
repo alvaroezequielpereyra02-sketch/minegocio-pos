@@ -19,6 +19,8 @@ function OrderWorkModal({ order, onClose }) {
     const [isDirty, setIsDirty] = useState(false);
     // ✅ FIX: confirmación inline en lugar de window.confirm
     const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
+    // Intercepción del cierre cuando hay cambios sin guardar
+    const [pendingClose, setPendingClose] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -52,7 +54,7 @@ function OrderWorkModal({ order, onClose }) {
         setIsDirty(true);
     };
 
-    // ✅ Nueva: persiste a Firestore (llamada manualmente o al confirmar)
+    // ✅ FIX: persiste a Firestore (llamada manualmente o al confirmar)
     const flushChanges = async (items = localItems) => {
         const newStatus = calculateNewStatus(items);
         const newTotal = items.reduce((acc, i) => acc + (i.price * i.qty), 0);
@@ -171,13 +173,36 @@ function OrderWorkModal({ order, onClose }) {
 
                 {/* HEADER */}
                 <div className="bg-[#EDE8DC] p-4 border-b border-[#D4C9B0] flex items-center justify-between shadow-sm z-20">
-                    <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-[#D4C9B0]"><ArrowLeft size={24} className="text-[#5C4A2A]" /></button>
+                    <button onClick={() => isDirty ? setPendingClose(true) : onClose()} className="p-2 -ml-2 rounded-full hover:bg-[#D4C9B0]"><ArrowLeft size={24} className="text-[#5C4A2A]" /></button>
                     <div className="text-center">
                         <h2 className="font-bold text-slate-800 text-lg">{order.clientName}</h2>
                         <div className="text-xs text-[#7A6040] font-medium uppercase tracking-wide">Pedido #{order.id.slice(0, 4)}</div>
                     </div>
                     <div className="w-8"></div>
                 </div>
+
+                {/* AVISO DE CIERRE CON CAMBIOS SIN GUARDAR */}
+                {pendingClose && (
+                    <div className="bg-amber-50 border-b-2 border-amber-300 px-4 py-3 flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
+                        <p className="text-xs font-bold text-amber-800 flex-1">
+                            ⚠️ Tenés cambios sin guardar. ¿Salir de todos modos?
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                            <button
+                                onClick={() => setPendingClose(false)}
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                            >
+                                Salir sin guardar
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* BUSCADOR */}
                 <div className="p-4 bg-[#EDE8DC] border-b border-[#D4C9B0] z-10 relative">

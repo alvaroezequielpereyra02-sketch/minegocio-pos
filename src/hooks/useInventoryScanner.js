@@ -36,6 +36,7 @@ const MIN_BARCODE_LENGTH = 3;
 
 export const useInventoryScanner = ({
     products,
+    activeTab,
     toggleModal,
     showNotification,
     requestConfirm,
@@ -91,10 +92,11 @@ export const useInventoryScanner = ({
     }, [products, toggleModal, showNotification, requestConfirm, setEditingProduct]);
 
     // ── Listener global para lectores HID ────────────────────────────────────
-    // Solo activo cuando la tab activa es 'inventory' (controlado desde afuera
-    // mediante el prop `active`). Igual se monta siempre pero solo procesa
-    // cuando el foco NO está en un input ajeno al escáner.
+    // Solo se registra cuando la tab activa es 'inventory'.
+    // Al cambiar de tab, el cleanup del efecto anterior remueve el listener
+    // y el nuevo ciclo retorna temprano sin añadir uno nuevo.
     useEffect(() => {
+        if (activeTab !== 'inventory') return;
         const handleKeyDown = (e) => {
             const activeTag = document.activeElement?.tagName?.toUpperCase();
             const activeType = document.activeElement?.type?.toLowerCase();
@@ -160,7 +162,7 @@ export const useInventoryScanner = ({
             window.removeEventListener('keydown', handleKeyDown);
             clearTimeout(flushTimer.current);
         };
-    }, [processBarcode]);
+    }, [processBarcode, activeTab]);
 
     // ── Submit manual desde el campo visible ──────────────────────────────────
     const handleBarcodeSubmit = useCallback((e) => {
