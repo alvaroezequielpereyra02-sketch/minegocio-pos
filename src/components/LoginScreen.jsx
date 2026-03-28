@@ -72,23 +72,27 @@ export default function LoginScreen({
                             <>
                                 <input
                                     name="name" required
+                                    autoComplete="name"
                                     className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                                     placeholder="Nombre completo"
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <input
                                         name="phone" required
+                                        autoComplete="tel"
                                         className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                                         placeholder="Teléfono"
                                     />
                                     <input
                                         name="address" required
+                                        autoComplete="street-address"
                                         className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                                         placeholder="Dirección"
                                     />
                                 </div>
                                 <input
                                     name="inviteCode" required
+                                    autoComplete="off"
                                     className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-bold text-center uppercase tracking-widest"
                                     placeholder="CÓDIGO DE INVITACIÓN"
                                 />
@@ -97,11 +101,13 @@ export default function LoginScreen({
 
                         <input
                             name="email" type="email" required
+                            autoComplete="email"
                             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                             placeholder="Correo electrónico"
                         />
                         <input
                             name="password" type="password" required
+                            autoComplete={isRegistering ? 'new-password' : 'current-password'}
                             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                             placeholder="Contraseña"
                         />
