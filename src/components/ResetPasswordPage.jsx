@@ -24,15 +24,24 @@ export default function ResetPasswordPage({ oobCode }) {
     const [userEmail, setUserEmail]       = useState('');
 
     // ── Estado del formulario ─────────────────────────────────────────────────
-    const [password, setPassword]         = useState('');
+    const [password, setPassword]               = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatus, setSubmitStatus] = useState(null); // null | 'success' | 'error'
-    const [errorMsg, setErrorMsg]         = useState('');
+    const [showPassword, setShowPassword]       = useState(false);
+    const [isSubmitting, setIsSubmitting]       = useState(false);
+    const [submitStatus, setSubmitStatus]       = useState(null); // null | 'success' | 'error'
+    const [errorMsg, setErrorMsg]               = useState('');
 
     // ── Perfil de la tienda (para el logo y nombre) ───────────────────────────
     const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio POS', logoUrl: '' });
+
+    // ── Forzar fondo oscuro en el body mientras esta página está activa ───────
+    // Sin esto, el fondo crema (#F5F0E8) del body se filtra en la mitad
+    // inferior de la pantalla porque el componente no cubre el scroll del body.
+    useEffect(() => {
+        const prev = document.body.style.background;
+        document.body.style.background = '#1c0f05';
+        return () => { document.body.style.background = prev; };
+    }, []);
 
     // ── 1. Cargar perfil de la tienda ─────────────────────────────────────────
     useEffect(() => {
@@ -91,7 +100,7 @@ export default function ResetPasswordPage({ oobCode }) {
     // ── UI helpers ────────────────────────────────────────────────────────────
     const PasswordStrength = ({ value }) => {
         if (!value) return null;
-        const len = value.length;
+        const len      = value.length;
         const hasUpper = /[A-Z]/.test(value);
         const hasNum   = /[0-9]/.test(value);
         const score    = (len >= 8 ? 1 : 0) + (len >= 12 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasNum ? 1 : 0);
@@ -114,7 +123,7 @@ export default function ResetPasswordPage({ oobCode }) {
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         // fixed inset-0 garantiza cobertura completa del viewport sin importar
-        // la altura de #root o el background del body (que en App es #F5F0E8 crema).
+        // la altura de #root o el background del body.
         // overflow-y-auto permite scroll si el formulario es más alto que la pantalla.
         <div className="fixed inset-0 overflow-y-auto login-bg flex items-center justify-center p-4">
             <div className="w-full max-w-sm">
