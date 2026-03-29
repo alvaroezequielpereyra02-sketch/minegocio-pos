@@ -19,6 +19,11 @@ export default function LoginScreen({
     // Reemplaza el document.querySelector que era frágil y podía devolver null.
     const [email, setEmail] = useState('');
     const [isSendingReset, setIsSendingReset] = useState(false);
+    // Mensaje de éxito inline para el reseteo de contraseña.
+    // NO usamos showNotification porque ese toast se renderiza dentro del JSX
+    // principal de App.jsx, que no está montado cuando LoginScreen hace su propio
+    // return anticipado. El mensaje nunca aparecería en pantalla.
+    const [resetSuccessMsg, setResetSuccessMsg] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -48,9 +53,12 @@ export default function LoginScreen({
         }
         setIsSendingReset(true);
         setLoginError('');
+        setResetSuccessMsg('');
         try {
             await resetPassword(email.trim());
-            showNotification('📧 Correo de recuperación enviado — revisá tu bandeja y el spam');
+            // Mostramos el éxito inline — showNotification no funciona acá porque
+            // el toast vive en App.jsx que no está en el árbol de render en este punto.
+            setResetSuccessMsg('📧 Correo enviado. Revisá tu bandeja y el spam.');
         } catch (err) {
             setLoginError(err.message);
         } finally {
@@ -127,6 +135,12 @@ export default function LoginScreen({
                         {loginError && (
                             <div className="text-red-400 text-xs text-center font-medium py-1">
                                 {loginError}
+                            </div>
+                        )}
+
+                        {resetSuccessMsg && (
+                            <div className="text-emerald-400 text-xs text-center font-medium py-2 px-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                {resetSuccessMsg}
                             </div>
                         )}
 

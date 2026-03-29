@@ -113,7 +113,10 @@ export default function ResetPasswordPage({ oobCode }) {
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div className="min-h-screen login-bg flex items-center justify-center p-4">
+        // fixed inset-0 garantiza cobertura completa del viewport sin importar
+        // la altura de #root o el background del body (que en App es #F5F0E8 crema).
+        // overflow-y-auto permite scroll si el formulario es más alto que la pantalla.
+        <div className="fixed inset-0 overflow-y-auto login-bg flex items-center justify-center p-4">
             <div className="w-full max-w-sm">
 
                 {/* Logo y nombre de tienda */}
