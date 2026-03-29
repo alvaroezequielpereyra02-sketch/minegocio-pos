@@ -21,6 +21,8 @@
   "rewrites": [
     { "source": "/manifest.json", "destination": "/manifest.json" },
     { "source": "/firebase-messaging-sw.js", "destination": "/firebase-messaging-sw.js" },
-    { "source": "/logo192.png", "destination": "/logo192.png" }
+    { "source": "/logo192.png", "destination": "/logo192.png" },
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

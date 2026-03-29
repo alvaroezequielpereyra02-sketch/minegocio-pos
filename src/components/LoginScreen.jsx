@@ -58,7 +58,7 @@ export default function LoginScreen({
             await resetPassword(email.trim());
             // Mostramos el éxito inline — showNotification no funciona acá porque
             // el toast vive en App.jsx que no está en el árbol de render en este punto.
-            setResetSuccessMsg('📧 Correo enviado. Revisá tu bandeja y el spam.');
+            setResetSuccessMsg('sent');
         } catch (err) {
             setLoginError(err.message);
         } finally {
@@ -138,9 +138,25 @@ export default function LoginScreen({
                             </div>
                         )}
 
-                        {resetSuccessMsg && (
-                            <div className="text-emerald-400 text-xs text-center font-medium py-2 px-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                                {resetSuccessMsg}
+                        {resetSuccessMsg === 'sent' && (
+                            <div className="rounded-2xl overflow-hidden border border-emerald-500/30">
+                                <div className="bg-emerald-500/15 px-4 py-3 flex items-center gap-3">
+                                    <span className="text-2xl">📧</span>
+                                    <div>
+                                        <p className="text-emerald-400 font-black text-sm leading-snug">
+                                            ¡Email enviado!
+                                        </p>
+                                        <p className="text-emerald-300/80 text-xs mt-0.5">
+                                            Revisá tu correo <span className="font-bold text-white/70">{email}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="bg-amber-500/10 border-t border-amber-500/20 px-4 py-2.5 flex items-start gap-2">
+                                    <span className="text-amber-400 text-base shrink-0 mt-0.5">⚠️</span>
+                                    <p className="text-amber-300/90 text-xs leading-relaxed">
+                                        Si no lo ves en unos minutos, <span className="font-bold">revisá la carpeta de spam o correo no deseado</span> — los filtros a veces lo mandan ahí.
+                                    </p>
+                                </div>
                             </div>
                         )}
 
