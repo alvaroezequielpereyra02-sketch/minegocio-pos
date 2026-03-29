@@ -112,8 +112,8 @@ function calcBalance({ transactions = [], products = [], expenses = [], categori
     };
 }
 
-// Timestamp de "hoy" (hace 1 hora)
-const nowTs = () => ({ seconds: Math.floor((Date.now() - 3600000) / 1000) });
+// Timestamp de "hoy" (hace 1 minuto — offset mínimo para evitar cruzar medianoche)
+const nowTs = () => ({ seconds: Math.floor((Date.now() - 60000) / 1000) });
 // Timestamp de "esta semana" (hace 3 días)
 const weekTs = () => ({ seconds: Math.floor((Date.now() - 3 * 86400000) / 1000) });
 // Timestamp fuera del rango (hace 40 días)

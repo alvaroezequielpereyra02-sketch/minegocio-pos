@@ -72,8 +72,18 @@ describe('formatRelativeDate', () => {
     });
 
     it('devuelve "Hoy HH:MM" para la misma fecha de hoy', () => {
-        const result = formatRelativeDate(minsAgo(90)); // 1.5 horas atrás, sigue siendo hoy
-        expect(result).toMatch(/^Hoy \d{2}:\d{2}$/);
+        // Anclamos el reloj a mediodía para que "90 minutos atrás" siempre sea hoy,
+        // independientemente de la hora en que corra el test (evita fallos tras medianoche).
+        const noon = new Date();
+        noon.setHours(12, 0, 0, 0);
+        vi.useFakeTimers();
+        vi.setSystemTime(noon);
+        try {
+            const result = formatRelativeDate(minsAgo(90)); // 10:30 → sigue siendo hoy
+            expect(result).toMatch(/^Hoy \d{2}:\d{2}$/);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('devuelve "Ayer HH:MM" para ayer', () => {
