@@ -46,19 +46,31 @@ export const useCheckout = ({
 
     const saveOffline = ({ itemsWithCost, client, setShowMobileCart, setSelectedCustomer }) => {
         const localId = 'offline-' + Date.now();
-        addToOfflineQueue({
-            localId,
-            itemsWithCost,
-            saleData: {
-                type: 'sale', total: Number(cartTotal), items: itemsWithCost,
-                date: { seconds: Math.floor(Date.now() / 1000) },
-                deliveryType: 'delivery', status: 'pending',
-                clientInfo: { name: client.name, address: client.address, phone: client.phone },
-                clientId: client.id, clientName: client.name, clientRole: client.role,
-                paymentStatus: 'pending', fulfillmentStatus: 'pending',
-                sellerId: user.uid, paymentMethod
-            }
-        });
+        try {
+            addToOfflineQueue({
+                localId,
+                itemsWithCost,
+                saleData: {
+                    type: 'sale', total: Number(cartTotal), items: itemsWithCost,
+                    date: { seconds: Math.floor(Date.now() / 1000) },
+                    deliveryType: 'delivery', status: 'pending',
+                    clientInfo: { name: client.name, address: client.address, phone: client.phone },
+                    clientId: client.id, clientName: client.name, clientRole: client.role,
+                    paymentStatus: 'pending', fulfillmentStatus: 'pending',
+                    sellerId: user.uid, paymentMethod
+                }
+            });
+        } catch (e) {
+            // QuotaExceededError: localStorage lleno (~5MB), boleta no guardada.
+            // No limpiar el carrito — el usuario debe saber que el pedido se perdió.
+            setCheckoutError({
+                isPendingSync: false, isOffline: true,
+                isStorageFull: true,
+                items: cart.map(i => `${i.qty}x ${i.name}`).join(', '),
+                total: cartTotal, time: new Date().toLocaleTimeString()
+            });
+            return;
+        }
 
         onOfflineSaved?.();  // notifica a App.jsx
         setLastSale({ id: localId });

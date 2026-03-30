@@ -14,6 +14,15 @@ export default defineConfig({
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      // firebase-admin es exclusivo del servidor (api/notify.js).
+      // Marcarlo como external evita que Vite lo bundlee en el cliente,
+      // reduciendo el tamaño del bundle y eliminando warnings de build.
+      external: [
+        'firebase-admin',
+        'firebase-admin/app',
+        'firebase-admin/firestore',
+        'firebase-admin/messaging',
+      ],
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

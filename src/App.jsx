@@ -154,9 +154,12 @@ export default function App() {
     useNotifications(user, userData);
 
     // ── Pedidos pendientes para badge ──────────────────────────────────────────
-    const pendingOrders = transactions.filter(t =>
-        t.clientRole === 'client' && t.fulfillmentStatus === 'pending'
-    );
+    // useMemo evita recalcular el filtro en cada render cuando transactions no cambió
+    const pendingOrders = useMemo(() =>
+        transactions.filter(t =>
+            t.clientRole === 'client' && t.fulfillmentStatus === 'pending'
+        ),
+    [transactions]);
     const prevOrdersCount = useRef(pendingOrders.length);
     useEffect(() => {
         if (userData?.role === 'admin' && pendingOrders.length > prevOrdersCount.current) {
@@ -564,7 +567,7 @@ export default function App() {
                         <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <p className="font-bold text-base">
-                                    {checkoutError.isPendingSync ? '⏳ Pedido guardado — sin sincronizar' : checkoutError.isOffline ? '📶 Sin conexión' : '⚠️ Error al registrar pedido'}
+                                    {checkoutError.isPendingSync ? '⏳ Pedido guardado — sin sincronizar' : checkoutError.isStorageFull ? '💾 Almacenamiento lleno' : checkoutError.isOffline ? '📶 Sin conexión' : '⚠️ Error al registrar pedido'}
                                 </p>
                                 <p className="text-xs opacity-80 mt-1">Ocurrió a las {checkoutError.time}</p>
                             </div>
@@ -580,9 +583,11 @@ export default function App() {
                         <p className="text-xs opacity-90 text-center">
                             {checkoutError.isPendingSync
                                 ? 'El pedido está guardado en este dispositivo. Se enviará automáticamente cuando haya conexión.'
-                                : checkoutError.isOffline
-                                    ? 'Necesitás internet para enviar pedidos. Conectate y repetí el pedido.'
-                                    : 'Anotá el pedido manualmente y avisá al administrador.'}
+                                : checkoutError.isStorageFull
+                                    ? 'El almacenamiento del dispositivo está lleno. Sincronizá los pedidos pendientes y liberá espacio antes de continuar.'
+                                    : checkoutError.isOffline
+                                        ? 'Necesitás internet para enviar pedidos. Conectate y repetí el pedido.'
+                                        : 'Anotá el pedido manualmente y avisá al administrador.'}
                         </p>
                     </div>
                 )}

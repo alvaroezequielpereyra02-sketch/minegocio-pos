@@ -152,7 +152,8 @@ function EditOrderModal({ order, onClose }) {
             });
             onClose();
         } catch (e) {
-            console.error('Error guardando boleta:', e);
+            console.error('[Delivery] Error al guardar boleta', { orderId: order?.id, error: e.message, code: e?.code });
+            showNotification('❌ Error al guardar la boleta. Intentá de nuevo.');
         } finally {
             setIsSaving(false);
         }
@@ -473,7 +474,8 @@ const Delivery = () => {
         try {
             await updateTransaction(orderId, updates);
         } catch (error) {
-            console.error("Error al actualizar:", error);
+            console.error('[Delivery] Error al actualizar estado del pedido', { orderId, newStatus, error: error.message, code: error?.code });
+            showNotification('❌ No se pudo actualizar el estado. Intentá de nuevo.');
         }
     };
 

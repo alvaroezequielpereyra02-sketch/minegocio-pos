@@ -50,6 +50,7 @@ export default function TransactionDetail({
     const [showShareOptions, setShowShareOptions] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('items'); // 'items' | 'details'
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -104,32 +105,54 @@ export default function TransactionDetail({
         setShowPaymentModal(true);
     };
     const handleSavePayment = async () => {
-        if (!isAdmin) return;
+        if (!isAdmin || isSaving) return;
 
         let finalAmountPaid = tempAmountPaid;
         if (tempStatus === 'paid') finalAmountPaid = total;
         if (tempStatus === 'pending') finalAmountPaid = 0;
 
-        await updateTransaction(transaction.id, {
-            paymentStatus: tempStatus,
-            fulfillmentStatus: tempFulfillment, // <--- ESTA ES LA CLAVE
-            amountPaid: finalAmountPaid,
-            paymentNote: tempNote,
-            paymentMethod: tempPaymentMethod
-        });
-
-        setShowPaymentModal(false);
+        setIsSaving(true);
+        try {
+            await updateTransaction(transaction.id, {
+                paymentStatus: tempStatus,
+                fulfillmentStatus: tempFulfillment,
+                amountPaid: finalAmountPaid,
+                paymentNote: tempNote,
+                paymentMethod: tempPaymentMethod
+            });
+            setShowPaymentModal(false);
+        } catch {
+            showNotification('❌ No se pudo guardar el pago. Intentá de nuevo.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleConfirmCancel = async () => {
-        // Usamos la función del contexto para borrar (y devolver stock)
-        await deleteTransaction(transaction.id);
-        setShowDeleteConfirm(false);
-        onClose(); // Cerramos el detalle
+        try {
+            await deleteTransaction(transaction.id);
+            setShowDeleteConfirm(false);
+            onClose();
+        } catch {
+            setShowDeleteConfirm(false);
+            showNotification('❌ No se pudo cancelar la venta. Intentá de nuevo.');
+        }
     };
 
     // --- GENERADOR DE BOLETA (ESTILOS Y HTML) ---
     // Mantenemos esto expandido para que sea fácil de leer y editar
+    // ── Sanitizador HTML mínimo ────────────────────────────────────────────────
+    // Escapa los 5 caracteres peligrosos para prevenir XSS al interpolar
+    // datos de Firestore (paymentNote, clientName, storeProfile.name) en innerHTML.
+    // Sin esto, un campo con <script> o <img onerror=...> se ejecutaría en el
+    // contexto del documento al generar el ticket PDF.
+    const esc = (s) => s == null ? '' : String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
     const getTicketElement = () => {
         const styles = {
             container: `
@@ -280,7 +303,7 @@ export default function TransactionDetail({
             <div style="${styles.header}">
                 <div style="${styles.brand}">
                     ${storeProfile.logoUrl ? `<img src="${storeProfile.logoUrl}" style="${styles.logo}" crossorigin="anonymous"/>` : ''}
-                    <h1 style="${styles.storeName}">${storeProfile.name}</h1>
+                    <h1 style="${styles.storeName}">${esc(storeProfile.name)}</h1>
                 </div>
                 <div style="${styles.invoiceInfo}">
                     <h2 style="${styles.invoiceTitle}">RECIBO</h2>
@@ -293,9 +316,9 @@ export default function TransactionDetail({
 
             <div style="${styles.clientSection}">
                 <div style="${styles.sectionTitle}">CLIENTE</div>
-                <div style="${styles.clientName}">${clientName}</div>
-                ${clientPhone ? `<div style="${styles.clientDetails}">Tel: ${clientPhone}</div>` : ''}
-                ${clientAddress ? `<div style="${styles.clientDetails}">${clientAddress}</div>` : ''}
+                <div style="${styles.clientName}">${esc(clientName)}</div>
+                ${clientPhone ? `<div style="${styles.clientDetails}">Tel: ${esc(clientPhone)}</div>` : ''}
+                ${clientAddress ? `<div style="${styles.clientDetails}">${esc(clientAddress)}</div>` : ''}
                 <div style="${styles.clientDetails}">Método: ${transaction.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}</div>
             </div>
 
@@ -313,7 +336,7 @@ export default function TransactionDetail({
                         <tr>
                             <td style="${styles.td}">${i.qty}</td>
                             <td style="${styles.td}">
-                                <span style="font-weight: 500;">${i.name}</span>
+                                <span style="font-weight: 500;">${esc(i.name)}</span>
                             </td>
                             <td style="${styles.td} ${styles.tdRight}">$${i.price.toLocaleString()}</td>
                             <td style="${styles.td} ${styles.tdRight} font-weight: bold;">$${(i.qty * i.price).toLocaleString()}</td>
@@ -347,12 +370,12 @@ export default function TransactionDetail({
             ${transaction.paymentNote ? `
             <div style="${styles.noteSection}">
                 <strong>OBSERVACIONES:</strong><br/>
-                ${transaction.paymentNote}
+                ${esc(transaction.paymentNote)}
             </div>` : ''}
 
             <div style="${styles.footer}">
                 <p>¡Gracias por su compra!</p>
-                <p>${storeProfile.name} • Comprobante Digital</p>
+                <p>${esc(storeProfile.name)} • Comprobante Digital</p>
             </div>
         </div>`;
 
@@ -389,7 +412,7 @@ export default function TransactionDetail({
             // El browser necesita un tick para iniciar la descarga antes de revocar.
             setTimeout(() => URL.revokeObjectURL(url), 100);
         } catch (e) {
-            console.error(e);
+            console.error('[TransactionDetail] Error al generar PDF', { transactionId: transaction?.id, error: e.message });
             showNotification("❌ Error al generar PDF");
         }
         setIsGenerating(false);
@@ -404,7 +427,8 @@ export default function TransactionDetail({
             // ✅ FIX: liberar blob URL. La nueva pestaña ya tomó la referencia.
             setTimeout(() => URL.revokeObjectURL(url), 100);
         } catch (e) {
-            console.error(e);
+            console.error('[TransactionDetail] Error al imprimir PDF en browser', { transactionId: transaction?.id, error: e.message });
+            showNotification("❌ Error al abrir el PDF para imprimir.");
         }
         setIsGenerating(false);
     };
@@ -434,7 +458,7 @@ export default function TransactionDetail({
                 window.open(`https://wa.me/${phone}?text=Adjunto%20el%20comprobante.`, '_blank');
             }
         } catch (error) {
-            console.error("Error compartiendo:", error);
+            console.error('[TransactionDetail] Error al compartir por WhatsApp', { transactionId: transaction?.id, error: error.message });
             if (error.name !== 'AbortError') showNotification("❌ No se pudo compartir.");
         }
         setIsGenerating(false);
@@ -448,7 +472,8 @@ export default function TransactionDetail({
         try {
             await printer.printTicket(transaction, storeProfile);
         } catch (e) {
-            console.error('Error al imprimir ticket:', e);
+            console.error('[TransactionDetail] Error al imprimir ticket térmico', { transactionId: transaction?.id, error: e.message });
+            showNotification('❌ Error al imprimir el ticket.');
         }
     };
 
@@ -456,7 +481,14 @@ export default function TransactionDetail({
     // Solo disponible en Chrome/Edge en Android y desktop.
     const handleConnectBluetooth = async () => {
         if (!printer) return;
-        await printer.connectBluetooth();
+        try {
+            await printer.connectBluetooth();
+        } catch (e) {
+            // NotFoundError = usuario canceló el selector — no es un error real
+            if (e.name !== 'NotFoundError') {
+                showNotification('❌ No se pudo conectar la impresora.');
+            }
+        }
     };
 
     return (
@@ -536,7 +568,7 @@ export default function TransactionDetail({
                             <textarea className="w-full mt-1 p-3 border border-[#D4C9B0] rounded-lg text-sm bg-[#F5F0E8] outline-none focus:ring-2 focus:ring-[#8B6914]" rows="2" placeholder="Ej: Entregar por la tarde..." value={tempNote} onChange={(e) => setTempNote(e.target.value)} />
                         </div>
 
-                        <button onClick={handleSavePayment} className="w-full py-3 font-black rounded-xl shadow-lg active:scale-[0.98] transition-transform btn-accent">Guardar Cambios</button>
+                        <button onClick={handleSavePayment} disabled={isSaving} className="w-full py-3 font-black rounded-xl shadow-lg active:scale-[0.98] transition-transform btn-accent disabled:opacity-60 disabled:cursor-not-allowed">{isSaving ? 'Guardando...' : 'Guardar Cambios'}</button>
                     </div>
                 </div>
             )}

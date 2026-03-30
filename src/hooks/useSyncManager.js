@@ -14,8 +14,19 @@ export const getOfflineQueue = () => {
     catch { return []; }
 };
 export const addToOfflineQueue = (entry) => {
-    const q = getOfflineQueue(); q.push(entry);
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+    try {
+        const q = getOfflineQueue();
+        q.push(entry);
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+    } catch (e) {
+        // QuotaExceededError: el localStorage (~5MB por origen) está lleno.
+        // La boleta NO se puede guardar — loguear para diagnóstico y
+        // dejar que el caller maneje el error mostrando feedback al usuario.
+        if (e.name === 'QuotaExceededError') {
+            console.error('[OfflineQueue] Storage lleno, boleta no guardada:', entry.localId);
+        }
+        throw e; // re-throw para que useCheckout pueda mostrar error al usuario
+    }
 };
 const removeFromOfflineQueue = (id) => {
     localStorage.setItem(OFFLINE_QUEUE_KEY,
