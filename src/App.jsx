@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useRef, useCallback } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef, useCallback, useMemo } from 'react';
 import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList, Search } from 'lucide-react';
 
 // Contextos
