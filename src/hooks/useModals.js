@@ -6,16 +6,17 @@ import { useState } from 'react';
  */
 export const useModals = () => {
     const [modals, setModals] = useState({
-        product:     false,
-        category:    false,
-        customer:    false,
-        transaction: false,
-        store:       false,
-        stock:       false,
-        expense:     false,
-        logout:      false,
-        invitation:  false,
-        faulty:      false,
+        product:      false,
+        category:     false,
+        customer:     false,
+        transaction:  false,
+        store:        false,
+        stock:        false,
+        expense:      false,
+        logout:       false,
+        invitation:   false,
+        faulty:       false,
+        shoppingList: false,
     });
 
     const toggleModal = (name, value) =>

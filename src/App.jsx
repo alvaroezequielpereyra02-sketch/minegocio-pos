@@ -119,8 +119,8 @@ export default function App() {
         onOfflineSaved: () => setPendingCount(n => n + 1),
     });
 
-    const { handlePrintShoppingList, handleExportData } = useExports({
-        products, transactions, expenses, balance, storeProfile,
+    const { generateShoppingListPDF, handleExportData } = useExports({
+        products, categories, transactions, expenses, balance, storeProfile,
         dashboardDateRange: dateRange, purgeTransactions, showNotification,
         requestConfirm, setIsProcessing,
     });
@@ -398,7 +398,7 @@ export default function App() {
                                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                                 <div className="flex gap-2">
                                     <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
-                                    <button onClick={handlePrintShoppingList} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
+                                    <button onClick={() => toggleModal('shoppingList', true)} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                                     <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="btn-accent px-3 py-2 text-sm font-bold flex gap-1 items-center"><Plus size={16} /> Prod</button>
                                 </div>
                             </div>
@@ -617,6 +617,7 @@ export default function App() {
                 handleConfirmFaulty={handleConfirmFaulty}
                 handleSaveExpense={handleSaveExpense}
                 showNotification={showNotification}
+                generateShoppingListPDF={generateShoppingListPDF}
             />
         </div>
     );

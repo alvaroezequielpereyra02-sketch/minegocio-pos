@@ -2,7 +2,7 @@ import React from 'react';
 import {
     ExpenseModal, ProductModal, CategoryModal, CustomerModal,
     StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal,
-    InvitationModal, ConfirmModal, FaultyProductModal,
+    InvitationModal, ConfirmModal, FaultyProductModal, ShoppingListModal,
 } from './Modals';
 
 /**
@@ -56,6 +56,8 @@ export default function AppModals({
     handleSaveExpense,
     // Notificaciones inline (reemplaza alert() en modales)
     showNotification,
+    // Lista de faltantes
+    generateShoppingListPDF,
 }) {
     return (
         <>
@@ -149,6 +151,14 @@ export default function AppModals({
                     product={faultyProduct}
                     onClose={() => toggleModal('faulty', false)}
                     onConfirm={handleConfirmFaulty}
+                />
+            )}
+
+            {modals.shoppingList && (
+                <ShoppingListModal
+                    onClose={() => toggleModal('shoppingList', false)}
+                    categories={categories}
+                    onGenerate={generateShoppingListPDF}
                 />
             )}
         </>

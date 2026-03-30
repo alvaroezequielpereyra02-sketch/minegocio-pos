@@ -2,99 +2,167 @@ import { formatExportDate } from '../utils/dateHelpers';
 
 /**
  * Encapsula la generación de PDF (stock negativo) y exportación CSV.
- * Extrae esta responsabilidad de App.jsx.
  */
-export const useExports = ({ products, transactions, expenses, balance, storeProfile, dashboardDateRange, purgeTransactions, showNotification, requestConfirm, setIsProcessing }) => {
+export const useExports = ({ products, categories = [], transactions, expenses, balance, storeProfile, dashboardDateRange, purgeTransactions, showNotification, requestConfirm, setIsProcessing }) => {
 
-    // --- PDF: Lista de faltantes (stock negativo) ---
-    const handlePrintShoppingList = async () => {
+    // --- PDF: Lista de faltantes agrupada por categoría ---
+    // selectedCategoryIds: string[] — IDs de categorías seleccionadas.
+    // Si está vacío se incluyen todas (incluyendo "Sin categoría").
+    const generateShoppingListPDF = async (selectedCategoryIds = []) => {
         setIsProcessing(true);
         try {
-            const negativeStockProducts = products
-                .filter(p => p.stock < 0)
-                .sort((a, b) => a.stock - b.stock);
+            // 1. Filtrar productos con stock negativo
+            const negative = products.filter(p => p.stock < 0);
 
-            if (negativeStockProducts.length === 0) {
-                showNotification("✅ ¡No hay productos con stock negativo!");
+            if (negative.length === 0) {
+                showNotification('✅ ¡No hay productos con stock negativo!');
                 setIsProcessing(false);
                 return;
             }
 
+            // 2. Determinar si el usuario quiere filtrar por categoría
+            const filterByCategory = selectedCategoryIds.length > 0;
+
+            // 3. Agrupar por categoría
+            // Clave: categoryId || '__sin_categoria__'
+            const groups = {};
+
+            negative.forEach(p => {
+                const catId   = p.categoryId || '__sin_categoria__';
+                const catName = categories.find(c => c.id === catId)?.name || 'Sin categoría';
+
+                // Si hay filtro activo y esta categoría no está en la selección, saltar
+                if (filterByCategory && catId !== '__sin_categoria__' && !selectedCategoryIds.includes(catId)) return;
+                if (filterByCategory && catId === '__sin_categoria__' && !selectedCategoryIds.includes('__sin_categoria__')) return;
+
+                if (!groups[catId]) groups[catId] = { name: catName, products: [] };
+                groups[catId].products.push(p);
+            });
+
+            // Ordenar productos dentro de cada grupo: más negativo primero
+            Object.values(groups).forEach(g => g.products.sort((a, b) => a.stock - b.stock));
+
+            // Ordenar grupos alfabéticamente ("Sin categoría" siempre al final)
+            const sortedGroups = Object.values(groups).sort((a, b) => {
+                if (a.name === 'Sin categoría') return 1;
+                if (b.name === 'Sin categoría') return -1;
+                return a.name.localeCompare(b.name, 'es');
+            });
+
+            if (sortedGroups.length === 0) {
+                showNotification('✅ No hay faltantes en las categorías seleccionadas.');
+                setIsProcessing(false);
+                return;
+            }
+
+            const totalProducts = sortedGroups.reduce((acc, g) => acc + g.products.length, 0);
+            const filterLabel   = filterByCategory
+                ? sortedGroups.map(g => g.name).join(', ')
+                : 'Todas las categorías';
+
+            // 4. Generar HTML del PDF
             const html2pdf = (await import('html2pdf.js')).default;
 
-            const content = `
-                <div style="font-family: Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;">
-                        <div>
-                            ${storeProfile.logoUrl
-                                ? `<img src="${storeProfile.logoUrl}"
-                                        crossorigin="anonymous"
-                                        style="height: 60px; width: auto; object-fit: contain; margin-bottom: 10px;"
-                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                   <div style="display:none; height:60px; width:60px; background:#eff6ff; border-radius:8px; align-items:center; justify-content:center; margin-bottom:10px; font-size:24px;">🏪</div>`
-                                : ''}
-                            <h1 style="font-size: 24px; font-weight: bold; color: #2563eb; margin: 0;">${storeProfile.name}</h1>
-                        </div>
-                        <div style="text-align: right;">
-                            <h2 style="font-size: 24px; font-weight: 200; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 2px;">STOCK NEGATIVO</h2>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">
-                                FECHA: ${new Date().toLocaleDateString()}<br/>
-                                HORA: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                        </div>
+            const groupsHTML = sortedGroups.map(group => `
+                <div style="margin-bottom: 32px; break-inside: avoid;">
+                    <!-- Encabezado de categoría -->
+                    <div style="background: linear-gradient(135deg, #1e40af, #1d4ed8); padding: 10px 16px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+                        <span style="font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1px;">
+                            📦 ${group.name}
+                        </span>
+                        <span style="font-size: 11px; color: rgba(255,255,255,0.7); margin-left: 8px;">
+                            (${group.products.length} producto${group.products.length !== 1 ? 's' : ''})
+                        </span>
                     </div>
-
-                    <div style="background: #fff1f2; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #fecdd3; color: #9f1239; font-size: 13px;">
-                        <strong>INFORME DE RECUPERACIÓN:</strong> Productos vendidos sin stock disponible.
-                        La columna "A COMPRAR" indica la cantidad para volver el stock a 0.
-                    </div>
-
-                    <table style="width: 100%; border-collapse: collapse;">
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #dbeafe; border-top: none; border-radius: 0 0 8px 8px; overflow: hidden;">
                         <thead>
-                            <tr>
-                                <th style="text-align: left; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">PRODUCTO / CÓDIGO</th>
-                                <th style="text-align: center; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">STOCK ACTUAL</th>
-                                <th style="text-align: right; padding: 12px 10px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">A COMPRAR</th>
+                            <tr style="background: #eff6ff;">
+                                <th style="text-align: left; padding: 9px 12px; color: #1e40af; font-size: 10px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #bfdbfe;">Producto / Código</th>
+                                <th style="text-align: center; padding: 9px 12px; color: #1e40af; font-size: 10px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #bfdbfe;">Stock actual</th>
+                                <th style="text-align: right; padding: 9px 12px; color: #1e40af; font-size: 10px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #bfdbfe;">A comprar</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${negativeStockProducts.map(p => `
-                                <tr>
-                                    <td style="padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px;">
-                                        <span style="font-weight: bold; display: block;">${p.name}</span>
-                                        <span style="font-size: 11px; color: #94a3b8;">${p.barcode || 'Sin código'}</span>
+                            ${group.products.map((p, i) => `
+                                <tr style="background: ${i % 2 === 0 ? '#ffffff' : '#f8faff'};">
+                                    <td style="padding: 11px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
+                                        <span style="font-weight: bold; display: block; color: #1e293b;">${p.name}</span>
+                                        <span style="font-size: 10px; color: #94a3b8;">${p.barcode || 'Sin código'}</span>
                                     </td>
-                                    <td style="padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: center;">
+                                    <td style="padding: 11px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: center;">
                                         <span style="font-weight: bold; color: #ef4444;">${p.stock}</span>
                                     </td>
-                                    <td style="padding: 14px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: right;">
-                                        <span style="font-weight: bold; font-size: 14px; color: #2563eb;">+${Math.abs(p.stock)}</span>
+                                    <td style="padding: 11px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: right;">
+                                        <span style="font-weight: bold; color: #2563eb;">+${Math.abs(p.stock)}</span>
                                     </td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
+                </div>
+            `).join('');
 
-                    <div style="margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;">
-                        Generado automáticamente por el sistema de gestión • ${storeProfile.name}
+            const content = `
+                <div style="font-family: Helvetica, Arial, sans-serif; padding: 36px; color: #333; background: white;">
+
+                    <!-- CABECERA -->
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 28px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;">
+                        <div>
+                            ${storeProfile.logoUrl
+                                ? `<img src="${storeProfile.logoUrl}" crossorigin="anonymous"
+                                        style="height: 56px; width: auto; object-fit: contain; margin-bottom: 8px;"
+                                        onerror="this.style.display='none';" />`
+                                : ''}
+                            <h1 style="font-size: 22px; font-weight: bold; color: #1e40af; margin: 0;">${storeProfile.name}</h1>
+                        </div>
+                        <div style="text-align: right;">
+                            <h2 style="font-size: 20px; font-weight: 800; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 1.5px;">Lista de Faltantes</h2>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 6px; line-height: 1.6;">
+                                Fecha: ${new Date().toLocaleDateString('es-AR')}<br/>
+                                Hora: ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RESUMEN -->
+                    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 12px; color: #9a3412; line-height: 1.6;">
+                            <strong>Filtro:</strong> ${filterLabel}<br/>
+                            <strong>Total de productos a reponer:</strong> ${totalProducts}
+                        </div>
+                        <div style="font-size: 11px; color: #c2410c; text-align: right;">
+                            Stock negativo = unidades<br/>comprometidas sin stock físico
+                        </div>
+                    </div>
+
+                    <!-- GRUPOS POR CATEGORÍA -->
+                    ${groupsHTML}
+
+                    <!-- PIE -->
+                    <div style="margin-top: 40px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                        Generado automáticamente por ${storeProfile.name} • ${new Date().toLocaleString('es-AR')}
                     </div>
                 </div>`;
 
             const el = document.createElement('div');
             el.innerHTML = content;
 
+            const catSlug = filterByCategory
+                ? sortedGroups.map(g => g.name).join('-').replace(/[^a-z0-9]/gi, '_').slice(0, 40)
+                : 'Todas';
+
             await html2pdf().set({
                 margin: 0,
-                filename: `Recuperacion_Stock_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
+                filename: `Faltantes_${catSlug}_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             }).from(el).save();
 
-            showNotification("✅ Lista de faltantes generada");
+            showNotification('✅ Lista de faltantes generada');
         } catch (e) {
             console.error(e);
-            showNotification("❌ Error generando PDF");
+            showNotification('❌ Error generando PDF');
         } finally {
             setIsProcessing(false);
         }
@@ -152,9 +220,6 @@ export const useExports = ({ products, transactions, expenses, balance, storePro
                     "✅ Reporte descargado.\n\n¿Querés borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
                     async () => {
                         setIsProcessing(true);
-                        // ✅ FIX: try/catch + finally para que el spinner
-                        // nunca quede trabado si purgeTransactions falla
-                        // (antes: si el batch explotaba, setIsProcessing(false) nunca corría).
                         try {
                             await purgeTransactions();
                             showNotification("🧹 Historial limpiado");
@@ -174,5 +239,5 @@ export const useExports = ({ products, transactions, expenses, balance, storePro
         }
     };
 
-    return { handlePrintShoppingList, handleExportData };
+    return { generateShoppingListPDF, handleExportData };
 };

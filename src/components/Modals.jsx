@@ -3,6 +3,7 @@ import {
     X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
     CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
     ChevronDown, Folder, FolderOpen, Edit, CornerDownRight, Eye, EyeOff, Edit3, Check,
+    FileDown, Filter,
 } from 'lucide-react';
 
 // IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
@@ -437,6 +438,158 @@ export function FaultyProductModal({ onClose, onConfirm, product }) {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// ShoppingListModal
+// Permite al admin elegir qué categorías incluir en el PDF de faltantes.
+// ─────────────────────────────────────────────────────────────────────────────
+export function ShoppingListModal({ onClose, categories = [], onGenerate }) {
+    // IDs seleccionados. Vacío = "Todas".
+    const [selected, setSelected] = useState([]);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const ALL_OPTION_ID = '__todas__';
+    const SIN_CAT_ID    = '__sin_categoria__';
+
+    // Opciones disponibles: categorías reales + "Sin categoría"
+    const options = [
+        ...categories.map(c => ({ id: c.id, name: c.name })),
+        { id: SIN_CAT_ID, name: 'Sin categoría' },
+    ];
+
+    const allSelected = selected.length === 0;
+
+    const toggle = (id) => {
+        if (id === ALL_OPTION_ID) {
+            setSelected([]);
+            return;
+        }
+        setSelected(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            await onGenerate(selected); // selected vacío = todas
+            onClose();
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const selectedLabel = allSelected
+        ? 'Todas las categorías'
+        : selected.length === 1
+            ? options.find(o => o.id === selected[0])?.name || '1 categoría'
+            : `${selected.length} categorías`;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#EDE8DC] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl border border-[#D4C9B0] animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#D4C9B0]">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
+                            <Filter size={16} className="text-yellow-700" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-[#3D2B1F] text-base leading-none">Lista de faltantes</h3>
+                            <p className="text-xs text-[#8B6914] mt-0.5">Seleccioná las categorías a incluir</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#D4C9B0] transition-colors">
+                        <X size={18} className="text-[#5C4A2A]" />
+                    </button>
+                </div>
+
+                {/* Lista de opciones */}
+                <div className="px-5 py-3 max-h-72 overflow-y-auto space-y-1.5">
+
+                    {/* Opción "Todas" */}
+                    <button
+                        onClick={() => toggle(ALL_OPTION_ID)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                            allSelected
+                                ? 'bg-[#8B6914] border-[#8B6914] text-white'
+                                : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-[#8B6914]/40'
+                        }`}
+                    >
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                            allSelected ? 'border-white bg-white/20' : 'border-[#D4C9B0]'
+                        }`}>
+                            {allSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+                        </div>
+                        <span className="font-bold text-sm">Todas las categorías</span>
+                        <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${
+                            allSelected ? 'bg-white/20 text-white' : 'bg-[#EDE8DC] text-[#8B6914]'
+                        }`}>
+                            PDF completo
+                        </span>
+                    </button>
+
+                    {/* Separador */}
+                    {options.length > 0 && (
+                        <div className="flex items-center gap-2 py-1">
+                            <div className="flex-1 h-px bg-[#D4C9B0]" />
+                            <span className="text-[10px] text-[#A09070] font-medium uppercase tracking-wider">o por categoría</span>
+                            <div className="flex-1 h-px bg-[#D4C9B0]" />
+                        </div>
+                    )}
+
+                    {/* Categorías individuales */}
+                    {options.map(opt => {
+                        const isOn = selected.includes(opt.id);
+                        return (
+                            <button
+                                key={opt.id}
+                                onClick={() => toggle(opt.id)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                                    isOn
+                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                        : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-blue-300'
+                                }`}
+                            >
+                                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                                    isOn ? 'border-white bg-white/20' : 'border-[#D4C9B0]'
+                                }`}>
+                                    {isOn && <Check size={12} className="text-white" strokeWidth={3} />}
+                                </div>
+                                <span className="font-medium text-sm flex-1">{opt.name}</span>
+                            </button>
+                        );
+                    })}
+
+                    {options.length === 0 && (
+                        <p className="text-center text-sm text-[#A09070] py-4">
+                            No hay categorías creadas todavía.
+                        </p>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-4 border-t border-[#D4C9B0] space-y-2">
+                    <p className="text-xs text-[#A09070] text-center">
+                        {allSelected
+                            ? 'Se incluirán todos los productos con stock negativo'
+                            : `Incluyendo: ${selectedLabel}`}
+                    </p>
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        className="w-full py-3.5 btn-accent rounded-xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-all"
+                    >
+                        {isGenerating
+                            ? <><Loader2 size={16} className="animate-spin" /> Generando PDF...</>
+                            : <><FileDown size={16} /> Descargar PDF de faltantes</>
+                        }
+                    </button>
+                </div>
             </div>
         </div>
     );
