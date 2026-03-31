@@ -6,12 +6,14 @@
  * @returns {Promise<string>} - Una promesa que resuelve con la imagen en formato Base64 comprimida.
  */
 export const compressImage = (file) => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo de imagen.'));
         reader.onload = (event) => {
             const img = new Image();
             img.src = event.target.result;
+            img.onerror = () => reject(new Error('No se pudo procesar la imagen.'));
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 const MAX_WIDTH = 800; // Ancho máximo optimizado para la web

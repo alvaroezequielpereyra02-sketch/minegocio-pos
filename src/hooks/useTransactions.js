@@ -5,6 +5,109 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// calcBalance — función pura exportada
+// Separada del hook para poder importarla directamente en los tests
+// sin necesidad de renderizar el hook completo ni mockear Firebase.
+// El hook la consume vía useMemo pasándole el estado actual.
+// ─────────────────────────────────────────────────────────────────────────────
+export function calcBalance({ transactions = [], products = [], expenses = [], categories = [], dateRange = 'week' }) {
+    let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
+    const now = new Date();
+    const startDate = new Date();
+
+    const isMonth = dateRange === 'month' || dateRange === '30' || dateRange === '30days';
+    const daysToSubtract = isMonth ? 30 : 7;
+
+    startDate.setDate(now.getDate() - daysToSubtract);
+    startDate.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let todayCash = 0, todayDigital = 0, todayTotal = 0;
+    const chartDataMap = {};
+
+    for (let i = daysToSubtract - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+        chartDataMap[key] = { name: key, total: 0 };
+    }
+
+    const categoryStats = {};
+    let filteredExpenses = 0;
+
+    products.forEach(p => {
+        inventoryValue += (Number(p.price || 0) * Number(p.stock || 0));
+    });
+
+    expenses.forEach(e => {
+        const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
+        if (eDate >= startDate) filteredExpenses += Number(e.amount || 0);
+    });
+
+    transactions.forEach(t => {
+        const tDate = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
+        const isWithinRange = tDate >= startDate;
+
+        if (t.type === 'sale') {
+            const currentTotal = Number(t.total || 0);
+            const currentPaid  = Number(t.amountPaid || 0);
+
+            if (t.paymentStatus === 'paid') salesPaid += currentTotal;
+            else if (t.paymentStatus === 'partial') {
+                salesPartial += currentPaid;
+                salesPending += (currentTotal - currentPaid);
+            }
+            else if (t.paymentStatus === 'pending') salesPending += currentTotal;
+
+            if (tDate >= today) {
+                const amountToday = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
+                todayTotal += amountToday;
+                if (t.paymentMethod === 'cash') todayCash += amountToday;
+                else todayDigital += amountToday;
+            }
+
+            if (isWithinRange && (t.paymentStatus === 'paid' || t.paymentStatus === 'partial')) {
+                const amount   = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
+                const dayLabel = tDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                if (chartDataMap[dayLabel]) chartDataMap[dayLabel].total += amount;
+
+                if (t.items) {
+                    t.items.forEach(item => {
+                        costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
+                        let catName = 'Varios';
+                        if (item.categoryId) {
+                            const cat = categories.find(c => c.id === item.categoryId);
+                            if (cat) catName = cat.name;
+                        }
+                        if (!categoryStats[catName]) categoryStats[catName] = 0;
+                        categoryStats[catName] += (Number(item.price || 0) * Number(item.qty || 0));
+                    });
+                }
+            }
+        }
+    });
+
+    const salesByCategory = Object.keys(categoryStats).map(key => ({
+        name: key, value: categoryStats[key]
+    })).sort((a, b) => b.value - a.value);
+
+    const totalPeriodSales = Object.values(chartDataMap).reduce((acc, curr) => acc + curr.total, 0);
+
+    return {
+        salesPaid, salesPending, salesPartial, inventoryValue,
+        periodSales: totalPeriodSales,
+        periodExpenses: filteredExpenses,
+        periodCost: costOfGoodsSold,
+        periodNet: totalPeriodSales - filteredExpenses - costOfGoodsSold,
+        todayCash, todayDigital, todayTotal,
+        chartData: Object.values(chartDataMap),
+        salesByCategory,
+    };
+}
+
 export const useTransactions = (user, userData, products = [], expenses = [], categories = [], dateRange = 'week') => {
     const [transactions, setTransactions] = useState([]);
     const [lastTransactionId, setLastTransactionId] = useState(null);
@@ -194,114 +297,12 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         }
     };
 
-    // 5. CÁLCULO DE BALANCE (CON CORRECCIÓN PARA 30 DÍAS Y NÚMEROS SEGUROS)
-    const balance = useMemo(() => {
-        let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
-        const now = new Date();
-        const startDate = new Date();
-
-        // 🛡️ CORRECCIÓN: Aceptamos múltiples etiquetas para el rango de 30 días
-        const isMonth = dateRange === 'month' || dateRange === '30' || dateRange === '30days';
-        const daysToSubtract = isMonth ? 30 : 7;
-
-        startDate.setDate(now.getDate() - daysToSubtract);
-        startDate.setHours(0, 0, 0, 0);
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        let todayCash = 0, todayDigital = 0, todayTotal = 0;
-        const chartDataMap = {};
-
-        // Inicializamos el mapa con ceros para el rango seleccionado
-        for (let i = daysToSubtract - 1; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const key = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-            chartDataMap[key] = { name: key, total: 0 };
-        }
-
-        const categoryStats = {};
-        let filteredExpenses = 0;
-
-        // Valor de inventario (Seguro contra undefined)
-        products.forEach(p => {
-            inventoryValue += (Number(p.price || 0) * Number(p.stock || 0));
-        });
-
-        // Gastos del periodo (Seguro contra undefined)
-        expenses.forEach(e => {
-            const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
-            if (eDate >= startDate) filteredExpenses += Number(e.amount || 0);
-        });
-
-        transactions.forEach(t => {
-            const tDate = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
-            const isWithinRange = tDate >= startDate;
-
-            if (t.type === 'sale') {
-                const currentTotal = Number(t.total || 0);
-                const currentPaid = Number(t.amountPaid || 0);
-
-                if (t.paymentStatus === 'paid') salesPaid += currentTotal;
-                else if (t.paymentStatus === 'partial') {
-                    // ✅ FIX: contadores separados sin doble suma.
-                    // salesPartial = lo efectivamente cobrado (parcial)
-                    // salesPending = el saldo restante por cobrar
-                    salesPartial += currentPaid;
-                    salesPending += (currentTotal - currentPaid);
-                }
-                else if (t.paymentStatus === 'pending') salesPending += currentTotal;
-
-                if (tDate >= today) {
-                    const amountToday = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
-                    todayTotal += amountToday;
-                    if (t.paymentMethod === 'cash') todayCash += amountToday;
-                    else todayDigital += amountToday;
-                }
-
-                if (isWithinRange && (t.paymentStatus === 'paid' || t.paymentStatus === 'partial')) {
-                    const amount = t.paymentStatus === 'paid' ? currentTotal : currentPaid;
-                    const dayLabel = tDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-
-                    if (chartDataMap[dayLabel]) chartDataMap[dayLabel].total += amount;
-
-                    if (t.items) {
-                        t.items.forEach(item => {
-                            // Cálculo de COGS (Costo de Mercadería Vendida)
-                            costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
-
-                            let catName = 'Varios';
-                            if (item.categoryId) {
-                                const cat = categories.find(c => c.id === item.categoryId);
-                                if (cat) catName = cat.name;
-                            }
-                            if (!categoryStats[catName]) categoryStats[catName] = 0;
-                            categoryStats[catName] += (Number(item.price || 0) * Number(item.qty || 0));
-                        });
-                    }
-                }
-            }
-        });
-
-        const salesByCategory = Object.keys(categoryStats).map(key => ({
-            name: key,
-            value: categoryStats[key]
-        })).sort((a, b) => b.value - a.value);
-
-        const totalPeriodSales = Object.values(chartDataMap).reduce((acc, curr) => acc + curr.total, 0);
-
-        return {
-            salesPaid, salesPending, salesPartial, inventoryValue,
-            periodSales: totalPeriodSales,
-            periodExpenses: filteredExpenses,
-            periodCost: costOfGoodsSold,
-            periodNet: totalPeriodSales - filteredExpenses - costOfGoodsSold,
-            todayCash, todayDigital, todayTotal,
-            chartData: Object.values(chartDataMap),
-            salesByCategory
-        };
-    }, [transactions, products, expenses, categories, dateRange]);
+    // 5. CÁLCULO DE BALANCE
+    // Delega en calcBalance (función pura exportada) para que los tests
+    // puedan importarla directamente sin renderizar el hook.
+    const balance = useMemo(() =>
+        calcBalance({ transactions, products, expenses, categories, dateRange }),
+    [transactions, products, expenses, categories, dateRange]);
 
     return { transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance };
 };

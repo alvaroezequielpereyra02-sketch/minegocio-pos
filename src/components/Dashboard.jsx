@@ -9,19 +9,21 @@ import HealthCheck from './HealthCheck';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
-export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, handleDeleteExpense, dateRange, setDateRange, products = [] }) {
+// Definido fuera del componente para que Recharts no lo desmonte/remonte
+// en cada render al recibir una nueva referencia de función.
+const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-[#EDE8DC] p-2 border border-[#D4C9B0] shadow-lg rounded-lg text-xs z-50">
+                <p className="font-bold mb-1 text-[#3D2B1F]">{payload[0].name}</p>
+                <p className="text-[#8B6914] font-bold">${payload[0].value.toLocaleString()}</p>
+            </div>
+        );
+    }
+    return null;
+};
 
-    const CustomTooltip = ({ active, payload }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-[#EDE8DC] p-2 border border-[#D4C9B0] shadow-lg rounded-lg text-xs z-50">
-                    <p className="font-bold mb-1 text-[#3D2B1F]">{payload[0].name}</p>
-                    <p className="text-[#8B6914] font-bold">${payload[0].value.toLocaleString()}</p>
-                </div>
-            );
-        }
-        return null;
-    };
+export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, handleDeleteExpense, dateRange, setDateRange, products = [] }) {
 
     // Productos con stock negativo o en cero — demanda pendiente de reponer
     const demandProducts = useMemo(() => {
@@ -215,8 +217,17 @@ export default function Dashboard({ balance, expenses, setIsExpenseModalOpen, ha
                                     <div className="text-[10px] text-slate-400">{formatRelativeDate(exp.date)}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="font-bold text-red-600">-${exp.amount.toLocaleString()}</span>
-                                    <button onClick={() => handleDeleteExpense(exp.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-colors">
+                                    <span className="font-bold text-red-600">-${(exp.amount || 0).toLocaleString()}</span>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await handleDeleteExpense(exp.id);
+                                            } catch {
+                                                // El error se loguea en useInventory — acá solo evitamos el crash
+                                            }
+                                        }}
+                                        className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-colors"
+                                    >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
