@@ -18,6 +18,9 @@ export default function LoginScreen({
     // Estado controlado del email — compartido entre el form y el botón de recuperación.
     // Reemplaza el document.querySelector que era frágil y podía devolver null.
     const [email, setEmail] = useState('');
+    // Estado controlado del password — necesario para que fireEvent.change
+    // funcione correctamente en jsdom (form.password.value no se actualiza sin value+onChange).
+    const [password, setPassword] = useState('');
     const [isSendingReset, setIsSendingReset] = useState(false);
     // Mensaje de éxito inline para el reseteo de contraseña.
     // NO usamos showNotification porque ese toast se renderiza dentro del JSX
@@ -35,11 +38,11 @@ export default function LoginScreen({
                     phone:      form.phone.value,
                     address:    form.address.value,
                     email:      email,
-                    password:   form.password.value,
+                    password:   password,
                     inviteCode: form.inviteCode?.value || '',
                 });
             } else {
-                await login(email, form.password.value);
+                await login(email, password);
             }
         } catch {
             // El error ya se setea en loginError desde useAuth
@@ -128,6 +131,8 @@ export default function LoginScreen({
                         <input
                             name="password" type="password" required
                             autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
                             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
                             placeholder="Contraseña"
                         />
@@ -175,7 +180,7 @@ export default function LoginScreen({
                         onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
                         className="w-full py-2.5 rounded-xl border border-white/20 text-white/60 text-sm font-semibold hover:bg-white/10 transition-colors"
                     >
-                        {isRegistering ? 'Ya tengo cuenta' : 'Crear cuenta nueva'}
+                        {isRegistering ? 'Ya tengo cuenta' : 'Registrarse'}
                     </button>
 
                     {!isRegistering && (

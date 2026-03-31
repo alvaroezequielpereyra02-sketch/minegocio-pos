@@ -137,12 +137,13 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
 
     // 4. Borrar Transacción
     const deleteTransaction = async (id) => {
-        const batch = writeBatch(db);
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
-
         const transactionSnap = await getDoc(transactionRef);
+
+        // Salir sin crear ningún batch si la transacción no existe
         if (!transactionSnap.exists()) return;
 
+        const batch = writeBatch(db);
         const transactionData = transactionSnap.data();
 
         if (transactionData.type === 'sale' && transactionData.items) {

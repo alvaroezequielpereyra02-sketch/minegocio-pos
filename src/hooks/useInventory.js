@@ -81,7 +81,12 @@ export const useInventory = (user, userData) => {
 
     const addProduct = async (data) => addDoc(collection(db, 'stores', appId, 'products'), { ...data, createdAt: serverTimestamp() });
     const updateProduct = async (id, data) => updateDoc(doc(db, 'stores', appId, 'products', id), data);
-    const deleteProduct = async (id) => deleteDoc(doc(db, 'stores', appId, 'products', id));
+    // Soft delete: marca el producto como inactivo en lugar de borrarlo físicamente.
+    // Preserva el historial de ventas que referencia el producto por ID.
+    const deleteProduct = async (id) => updateDoc(
+        doc(db, 'stores', appId, 'products', id),
+        { isActive: false, deletedAt: serverTimestamp() }
+    );
 
     const addStock = async (product, qty) => {
         if (!product || !qty) return;
@@ -102,7 +107,8 @@ export const useInventory = (user, userData) => {
     const deleteExpense = async (id) => deleteDoc(doc(db, 'stores', appId, 'expenses', id));
     const updateStoreProfile = async (data) => setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data, { merge: true });
     const generateInvitationCode = async () => {
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // substring(2, 10) → 8 caracteres (base36 sin el "0." inicial)
+        const code = Math.random().toString(36).substring(2, 10).toUpperCase();
         await addDoc(collection(db, 'stores', appId, 'invitation_codes'), { code, status: 'active', createdAt: serverTimestamp() });
         return code;
     };
