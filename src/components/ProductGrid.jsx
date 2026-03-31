@@ -1,17 +1,25 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ShoppingCart, Image as ImageIcon, ScanBarcode, Edit, AlertCircle, Plus } from 'lucide-react';
 import { getThumbnailUrl } from '../config/uploadImage';
 
-const ProductGrid = ({
+// React.memo evita re-renderizar la grilla cuando cambia un estado en App
+// que no afecta productos, carrito ni búsqueda (ej: modales, notificaciones, tab activo).
+// Con 500+ productos esto es significativo.
+const ProductGrid = React.memo(function ProductGrid({
     products, addToCart, searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory, categories,
+    // subcategories recibido por compatibilidad pero no se usa en la grilla
     userData, barcodeInput, setBarcodeInput, handleBarcodeSubmit,
     onEditProduct, setFaultyProduct, toggleModal,
     cart
-}) => {
-    const activeCategories = categories.filter(c => c.isActive !== false);
+}) {
+    // useMemo evita recalcular en cada render cuando las deps no cambiaron
+    const activeCategories = useMemo(
+        () => categories.filter(c => c.isActive !== false),
+        [categories]
+    );
 
-    const filteredProducts = products.filter(product => {
+    const filteredProducts = useMemo(() => products.filter(product => {
         const category = categories.find(c => c.id === product.categoryId);
         if (category && category.isActive === false) return false;
         const effectiveSearch = (barcodeInput || searchTerm).toLowerCase();
@@ -19,12 +27,12 @@ const ProductGrid = ({
             product.barcode?.toLowerCase().includes(effectiveSearch);
         const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
         return matchesSearch && matchesCategory;
-    });
+    }), [products, categories, barcodeInput, searchTerm, selectedCategory]);
 
-    const cartQtyMap = (cart || []).reduce((acc, item) => {
-        acc[item.id] = item.qty;
-        return acc;
-    }, {});
+    const cartQtyMap = useMemo(() =>
+        (cart || []).reduce((acc, item) => { acc[item.id] = item.qty; return acc; }, {}),
+        [cart]
+    );
 
     const isAdmin = userData?.role === 'admin';
 
@@ -148,6 +156,6 @@ const ProductGrid = ({
             </div>
         </div>
     );
-};
+});
 
 export default ProductGrid;

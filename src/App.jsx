@@ -101,7 +101,7 @@ export default function App() {
     const [selectedCategory, setSelectedCategory]       = useState('all');
     const [customerSearch, setCustomerSearch]           = useState('');
     const [barcodeInput, setBarcodeInput]               = useState('');
-    const [historySection, setHistorySection]           = useState('menu');
+    const [historySection, setHistorySection]           = useState('paid'); // 'menu' dejaba la lista vacía al entrar
 
     // ── Hooks funcionales ──────────────────────────────────────────────────────
     const { isSyncing, pendingCount: offlinePendingCount, setPendingCount } = useSyncManager({

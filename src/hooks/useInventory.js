@@ -20,7 +20,9 @@ export const useInventory = (user, userData) => {
             if (d.exists()) setStoreProfile(d.data());
         });
         const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name'), limit(1000)), (s) =>
-            setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })))
+            // Filtramos productos soft-deleted (isActive: false).
+            // Productos existentes sin el campo isActive se consideran activos (isActive !== false).
+            setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false))
         );
         const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (s) =>
             setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })))

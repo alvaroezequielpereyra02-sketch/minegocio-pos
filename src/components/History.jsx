@@ -10,7 +10,9 @@ export default function History({ transactions, userData, handleExportCSV, histo
             const matchesStatus = (t.paymentStatus || 'pending') === historySection;
             const matchesSearch = !searchTerm ||
                 t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                t.items?.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                // item.name puede ser null/undefined si el producto fue eliminado o el dato está corrupto.
+                // Sin el ?. encadenado, .toLowerCase() lanza TypeError y crashea el componente.
+                t.items?.some(i => i.name?.toLowerCase()?.includes(searchTerm.toLowerCase()));
             return matchesStatus && matchesSearch;
         });
 

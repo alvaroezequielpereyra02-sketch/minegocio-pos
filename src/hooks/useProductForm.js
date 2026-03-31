@@ -69,9 +69,16 @@ export const useProductForm = ({
             return;
         }
         setIsProcessing(true);
-        const base64 = await compressImage(file);
-        setPreviewImage(base64);
-        setIsProcessing(false);
+        try {
+            const base64 = await compressImage(file);
+            setPreviewImage(base64);
+        } catch (err) {
+            // compressImage puede rechazar si el archivo está corrupto o no es una imagen real.
+            // Sin este catch, setIsProcessing(false) nunca se ejecuta y el spinner queda trabado.
+            showNotification('⚠️ No se pudo procesar la imagen. Verificá que sea JPG, PNG o WebP.');
+        } finally {
+            setIsProcessing(false);
+        }
     }, [showNotification, setIsProcessing]);
 
     return {

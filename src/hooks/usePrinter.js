@@ -28,20 +28,26 @@ export const usePrinter = (onNotify = () => {}) => {
             const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
             setPrinterDevice({ device, characteristic });
-            // ✅ FIX: reemplazado alert() bloqueante por el sistema de notificaciones de la app
             onNotify(`✅ Impresora conectada: ${device.name}`);
         } catch (error) {
-            console.error(error);
-            onNotify("❌ No se pudo conectar la impresora.");
+            // NotFoundError = el usuario cerró el selector sin elegir dispositivo.
+            // No es un error real — no mostrar notificación para no confundir.
+            if (error.name !== 'NotFoundError') {
+                console.error('[usePrinter] connectBluetooth:', error.message);
+                onNotify("❌ No se pudo conectar la impresora.");
+            }
         }
     };
 
     // --- GENERADOR DE TEXTO DEL TICKET ---
     const generateReceiptText = (transaction, storeProfile) => {
         const storeName = storeProfile?.name || 'MiNegocio';
-        const date = transaction.date instanceof Date
-            ? transaction.date.toLocaleString()
-            : new Date().toLocaleString();
+        // Los timestamps de Firestore son { seconds, nanoseconds }, nunca instanceof Date.
+        // Con la comprobación anterior (instanceof Date) siempre era false →
+        // el ticket imprimía la hora de impresión, no la hora real de la venta.
+        const date = transaction.date?.seconds
+            ? new Date(transaction.date.seconds * 1000).toLocaleString('es-AR')
+            : new Date().toLocaleString('es-AR');
 
         let text = INIT;
         text += ALIGN_CENTER + BOLD_ON + storeName.toUpperCase() + '\n' + BOLD_OFF;

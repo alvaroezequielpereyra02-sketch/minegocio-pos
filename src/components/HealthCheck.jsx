@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 import { getOfflineQueue } from '../hooks/useSyncManager';
@@ -226,10 +226,9 @@ export default function HealthCheck() {
     const [running, setRunning]   = useState(false);
     const [lastRun, setLastRun]   = useState(null);
 
-    // Solo admin puede ver esto
-    if (userData?.role !== 'admin') return null;
-
-    const checks = makeChecks(user);
+    // useMemo evita recrear los 6 objetos con sus funciones en cada render.
+    // La array solo cambia si cambia el uid del usuario.
+    const checks = useMemo(() => makeChecks(user), [user]);
 
     const runAll = useCallback(async () => {
         setRunning(true);
@@ -263,6 +262,11 @@ export default function HealthCheck() {
     }, [user]);
 
     // Conteos para el resumen
+    // Early return DESPUÉS de todos los hooks — React exige orden constante de hooks.
+    // Si se pone antes de useCallback/useMemo, cambia el número de hooks por render
+    // cuando el rol cambia y lanza "Rendered fewer hooks than expected".
+    if (userData?.role !== 'admin') return null;
+
     const total  = checks.length;
     const ok     = Object.values(results).filter(r => r.status === 'ok').length;
     const errors = Object.values(results).filter(r => r.status === 'error').length;

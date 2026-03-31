@@ -4,6 +4,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Store, Eye, EyeOff, CheckCircle, XCircle, Loader2, Lock } from 'lucide-react';
 import { db, appId, app } from '../config/firebase';
 
+// getAuth(app) es idempotente — siempre devuelve la misma instancia.
+// Llamarlo fuera del componente evita ejecutarlo en cada render.
+const auth = getAuth(app);
+
 /**
  * ResetPasswordPage
  *
@@ -17,7 +21,7 @@ import { db, appId, app } from '../config/firebase';
  *  3. Al guardar, llama a confirmPasswordReset y redirige al login
  */
 export default function ResetPasswordPage({ oobCode }) {
-    const auth = getAuth(app);
+    // auth disponible como módulo-level constant (ver arriba)
 
     // ── Estado de la verificación del código ──────────────────────────────────
     const [verifyStatus, setVerifyStatus] = useState('loading'); // loading | valid | expired | used
@@ -79,10 +83,12 @@ export default function ResetPasswordPage({ oobCode }) {
         try {
             await confirmPasswordReset(auth, oobCode, password);
             setSubmitStatus('success');
-            // Limpiar los params de la URL y redirigir al login después de 3 segundos
-            setTimeout(() => {
+            // Limpiar los params de la URL y redirigir al login después de 3 segundos.
+            // El cleanup evita el redirect si el componente se desmonta antes.
+            const redirectTimer = setTimeout(() => {
                 window.location.href = window.location.origin;
             }, 3000);
+            return () => clearTimeout(redirectTimer);
         } catch (err) {
             setSubmitStatus('error');
             if (err.code === 'auth/invalid-action-code') {

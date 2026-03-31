@@ -42,6 +42,10 @@ export const useNotifications = (user, userData) => {
         if (userData?.role !== 'admin') return;
 
         try {
+            // Guard: Notification no existe en todos los contextos
+            // (algunos iOS, PWA en segundo plano, browsers muy viejos).
+            if (!('Notification' in window)) return;
+
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') return;
 
