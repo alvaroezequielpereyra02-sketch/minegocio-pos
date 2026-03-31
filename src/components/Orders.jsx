@@ -26,6 +26,7 @@ function OrderWorkModal({ order, onClose }) {
     const [searchResults, setSearchResults] = useState([]);
     const [editingItemIndex, setEditingItemIndex] = useState(null);
     const [manualQty, setManualQty] = useState(0);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Sincronizar estado local
     useEffect(() => {
@@ -56,14 +57,22 @@ function OrderWorkModal({ order, onClose }) {
 
     // ✅ FIX: persiste a Firestore (llamada manualmente o al confirmar)
     const flushChanges = async (items = localItems) => {
-        const newStatus = calculateNewStatus(items);
-        const newTotal = items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-        await updateTransaction(order.id, {
-            items,
-            total: newTotal,
-            fulfillmentStatus: newStatus
-        });
-        setIsDirty(false);
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            const newStatus = calculateNewStatus(items);
+            const newTotal = items.reduce((acc, i) => acc + (i.price * i.qty), 0);
+            await updateTransaction(order.id, {
+                items,
+                total: newTotal,
+                fulfillmentStatus: newStatus
+            });
+            setIsDirty(false);
+        } catch (e) {
+            console.error('[Orders] Error al guardar cambios', { orderId: order.id, error: e.message });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleAddItem = (product) => {
@@ -135,6 +144,8 @@ function OrderWorkModal({ order, onClose }) {
     };
 
     const handleConfirmOrder = async () => {
+        if (isSaving) return;
+
         // Filtrar y limpiar para entrega final
         const finalItems = localItems.map(i => ({
             ...i,
@@ -146,16 +157,23 @@ function OrderWorkModal({ order, onClose }) {
 
         const finalTotal = finalItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
-        // ✅ FIX: una sola escritura a Firestore con el estado final completo.
-        await updateTransaction(order.id, {
-            items: finalItems,
-            total: finalTotal,
-            amountPaid: order.paymentStatus === 'paid' ? finalTotal : (order.amountPaid || 0),
-            fulfillmentStatus: 'ready',
-            deliveryType: order.deliveryType || 'delivery',
-        });
-        setIsDirty(false);
-        onClose();
+        setIsSaving(true);
+        try {
+            // ✅ FIX: una sola escritura a Firestore con el estado final completo.
+            await updateTransaction(order.id, {
+                items: finalItems,
+                total: finalTotal,
+                amountPaid: order.paymentStatus === 'paid' ? finalTotal : (order.amountPaid || 0),
+                fulfillmentStatus: 'ready',
+                deliveryType: order.deliveryType || 'delivery',
+            });
+            setIsDirty(false);
+            onClose();
+        } catch (e) {
+            console.error('[Orders] Error al confirmar pedido', { orderId: order.id, error: e.message });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const getItemStyle = (item) => {
@@ -232,9 +250,12 @@ function OrderWorkModal({ order, onClose }) {
                     {localItems.map((item, idx) => {
                         const packed = item.packedQty || 0;
                         const isEditing = editingItemIndex === idx;
+                        // Usamos id+idx como key: el id garantiza estabilidad para items
+                        // existentes, el idx diferencia duplicados del mismo producto.
+                        const itemKey = `${item.id ?? 'new'}-${idx}`;
 
                         return (
-                            <div key={idx} className={`p-3 rounded-xl border-2 transition-all ${getItemStyle(item)} flex items-center gap-3 shadow-sm`}>
+                            <div key={itemKey} className={`p-3 rounded-xl border-2 transition-all ${getItemStyle(item)} flex items-center gap-3 shadow-sm`}>
                                 {/* CHECK BUTTON */}
                                 <button
                                     onClick={() => handleQuickToggle(idx)}
@@ -291,16 +312,18 @@ function OrderWorkModal({ order, onClose }) {
                     {isDirty && (
                         <button
                             onClick={() => flushChanges()}
-                            className="w-full py-2.5 rounded-xl font-bold text-sm border-2 border-[#8B6914] text-[#8B6914] bg-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                            disabled={isSaving}
+                            className="w-full py-2.5 rounded-xl font-bold text-sm border-2 border-[#8B6914] text-[#8B6914] bg-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            <Save size={16} /> Guardar cambios
+                            <Save size={16} /> {isSaving ? 'Guardando...' : 'Guardar cambios'}
                         </button>
                     )}
                     <button
                         onClick={handleConfirmOrder}
-                        className="w-full py-4 text-white rounded-xl font-black text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 btn-accent"
+                        disabled={isSaving}
+                        className="w-full py-4 text-white rounded-xl font-black text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 btn-accent disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                        <Package size={24} /> Confirmar Armado
+                        <Package size={24} /> {isSaving ? 'Confirmando...' : 'Confirmar Armado'}
                     </button>
                 </div>
             </div>
@@ -398,7 +421,7 @@ export default function Orders() {
 
                 {filteredOrders.map(order => {
                     const status = order.fulfillmentStatus || 'pending';
-                    const itemCount = order.items.length;
+                    const itemCount = order.items?.length ?? 0;
                     const date = order.date?.seconds ? new Date(order.date.seconds * 1000) : new Date();
 
                     return (
