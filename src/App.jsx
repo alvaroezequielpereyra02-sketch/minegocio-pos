@@ -104,7 +104,7 @@ export default function App() {
     const [historySection, setHistorySection]           = useState('menu');
 
     // ── Hooks funcionales ──────────────────────────────────────────────────────
-    const { isSyncing, setPendingCount } = useSyncManager({
+    const { isSyncing, pendingCount: offlinePendingCount, setPendingCount } = useSyncManager({
         user, createTransaction, showNotification,
     });
 
@@ -270,6 +270,7 @@ export default function App() {
                 onEditStore={() => toggleModal('store', true)}
                 supportsPWA={supportsPWA} installApp={installApp}
                 pendingCount={pendingOrders.length}
+                offlinePendingCount={offlinePendingCount}
             />
 
             {!isOnline && (
@@ -514,6 +515,7 @@ export default function App() {
                         userData={userData} onLogout={() => toggleModal('logout', true)}
                         supportsPWA={supportsPWA} installApp={installApp}
                         pendingCount={pendingOrders.length}
+                        offlinePendingCount={offlinePendingCount}
                     />
                 )}
 

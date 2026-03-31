@@ -161,7 +161,7 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
 
             showNotification('✅ Lista de faltantes generada');
         } catch (e) {
-            console.error(e);
+            console.error('[useExports] Error al generar PDF de faltantes', { error: e.message });
             showNotification('❌ Error generando PDF');
         } finally {
             setIsProcessing(false);
@@ -217,7 +217,7 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
             setTimeout(() => {
                 requestConfirm(
                     "¿Limpiar Base de Datos?",
-                    "✅ Reporte descargado.\n\n¿Querés borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
+                    "✅ Reporte descargado.\n\n⚠️ ADVERTENCIA: esta operación solo restaura el stock de las ventas de los últimos 35 días (las que están cargadas en memoria). Ventas más antiguas en Firestore NO tendrán su stock restaurado.\n\n¿Querés borrar el historial de ventas y gastos para liberar espacio?\nEsto NO borra productos ni clientes.",
                     async () => {
                         setIsProcessing(true);
                         try {

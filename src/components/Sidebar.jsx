@@ -37,12 +37,12 @@ function NavButton({ active, onClick, icon, label, badge }) {
 // ── Sidebar desktop ───────────────────────────────────────────────────────────
 export default function Sidebar({
   user, userData, storeProfile, activeTab, setActiveTab,
-  onLogout, onEditStore, supportsPWA, installApp, pendingCount
+  onLogout, onEditStore, supportsPWA, installApp, pendingCount, offlinePendingCount = 0
 }) {
   if (!userData) return null;
 
   const navItems = [
-    { id: 'pos',          icon: <LayoutDashboard size={28} />, label: 'Vender',     adminOnly: false },
+    { id: 'pos',          icon: <LayoutDashboard size={28} />, label: 'Vender',     adminOnly: false, offlineBadge: offlinePendingCount },
     { id: 'orders',       icon: <ClipboardList   size={28} />, label: 'Pedidos',    adminOnly: true, badge: pendingCount },
     { id: 'delivery',     icon: <Truck           size={28} />, label: 'Reparto',    adminOnly: true },
     { id: 'inventory',    icon: <Package         size={28} />, label: 'Inventario', adminOnly: true },
@@ -88,6 +88,12 @@ export default function Sidebar({
                 {item.badge}
               </span>
             )}
+            {item.offlineBadge > 0 && (
+              // Boletas guardadas offline pendientes de sincronizar
+              <span className="ml-auto bg-orange-500 text-white text-xs font-black px-2.5 py-0.5 rounded-full" title="Boletas offline sin sincronizar">
+                {item.offlineBadge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -130,7 +136,7 @@ export default function Sidebar({
 // ── Nav móvil ─────────────────────────────────────────────────────────────────
 export function MobileNav({
   activeTab, setActiveTab, userData,
-  onLogout, supportsPWA, installApp, pendingCount
+  onLogout, supportsPWA, installApp, pendingCount, offlinePendingCount = 0
 }) {
   return (
     // ✅ Un solo objeto style — el doble style en JSX descarta el primero
@@ -144,7 +150,7 @@ export function MobileNav({
       }}
     >
       <div className="flex items-start pt-2.5 h-full overflow-x-auto no-scrollbar flex-1">
-        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={28} />} label="Vender" />
+        <NavButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={<LayoutDashboard size={28} />} label="Vender" badge={offlinePendingCount} />
 
         {userData.role === 'admin' && (
           <NavButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ClipboardList size={28} />} label="Pedidos" badge={pendingCount} />
