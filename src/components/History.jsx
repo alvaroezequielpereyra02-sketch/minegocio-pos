@@ -117,7 +117,7 @@ export default function History({ transactions, userData, handleExportCSV, histo
                                             {/* Contenido — usa todo el ancho */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-baseline mb-0.5">
-                                                    <span className="font-black text-[#1A0F0A] text-xl">${t.total.toLocaleString()}</span>
+                                                    <span className="font-black text-[#1A0F0A] text-xl">${(t.total ?? 0).toLocaleString()}</span>
                                                     <span className="text-xs text-[#A09070] font-medium ml-2 shrink-0">
                                                         {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                     </span>

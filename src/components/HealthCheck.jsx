@@ -259,7 +259,7 @@ export default function HealthCheck() {
 
         setLastRun(new Date());
         setRunning(false);
-    }, [user]);
+    }, [checks]); // checks ya incluye user vía useMemo — no hace falta declararlo dos veces
 
     // Conteos para el resumen
     // Early return DESPUÉS de todos los hooks — React exige orden constante de hooks.

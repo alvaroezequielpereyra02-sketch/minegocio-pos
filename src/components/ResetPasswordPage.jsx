@@ -20,6 +20,30 @@ const auth = getAuth(app);
  *  2. Muestra formulario con el estilo visual de la tienda
  *  3. Al guardar, llama a confirmPasswordReset y redirige al login
  */
+// Definido fuera del componente para evitar unmount/remount en cada
+// keystroke del input de contraseña, lo que causaba un flash visual.
+const PasswordStrength = ({ value }) => {
+    if (!value) return null;
+    const len      = value.length;
+    const hasUpper = /[A-Z]/.test(value);
+    const hasNum   = /[0-9]/.test(value);
+    const score    = (len >= 8 ? 1 : 0) + (len >= 12 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasNum ? 1 : 0);
+
+    const labels = ['Muy débil', 'Débil', 'Regular', 'Fuerte', 'Muy fuerte'];
+    const colors = ['bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-lime-400', 'bg-green-500'];
+
+    return (
+        <div className="mt-2">
+            <div className="flex gap-1">
+                {[0,1,2,3].map(i => (
+                    <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? colors[score] : 'bg-white/20'}`} />
+                ))}
+            </div>
+            <p className="text-[10px] text-white/40 mt-1">{labels[score]}</p>
+        </div>
+    );
+};
+
 export default function ResetPasswordPage({ oobCode }) {
     // auth disponible como módulo-level constant (ver arriba)
 
@@ -101,29 +125,6 @@ export default function ResetPasswordPage({ oobCode }) {
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    // ── UI helpers ────────────────────────────────────────────────────────────
-    const PasswordStrength = ({ value }) => {
-        if (!value) return null;
-        const len      = value.length;
-        const hasUpper = /[A-Z]/.test(value);
-        const hasNum   = /[0-9]/.test(value);
-        const score    = (len >= 8 ? 1 : 0) + (len >= 12 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasNum ? 1 : 0);
-
-        const labels = ['Muy débil', 'Débil', 'Regular', 'Fuerte', 'Muy fuerte'];
-        const colors = ['bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-lime-400', 'bg-green-500'];
-
-        return (
-            <div className="mt-2">
-                <div className="flex gap-1">
-                    {[0,1,2,3].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? colors[score] : 'bg-white/20'}`} />
-                    ))}
-                </div>
-                <p className="text-[10px] text-white/40 mt-1">{labels[score]}</p>
-            </div>
-        );
     };
 
     // ── Render ────────────────────────────────────────────────────────────────

@@ -58,14 +58,14 @@ export const usePrinter = (onNotify = () => {}) => {
         text += `Ticket: ${transaction.id?.substring(0, 8) || 'N/A'}\n`;
         text += "--------------------------------\n";
 
-        transaction.items.forEach(item => {
-            const itemTotal = item.price * (item.qty || item.quantity);
-            text += `${item.qty || item.quantity} x ${item.name.substring(0, 15)}\n`;
+        (transaction.items ?? []).forEach(item => {
+            const itemTotal = (item.price ?? 0) * (item.qty || item.quantity || 0);
+            text += `${item.qty || item.quantity} x ${(item.name ?? 'Producto').substring(0, 15)}\n`;
             text += ALIGN_RIGHT + `$${itemTotal.toLocaleString()}\n` + ALIGN_LEFT;
         });
 
         text += "--------------------------------\n";
-        text += ALIGN_RIGHT + BOLD_ON + `TOTAL: $${transaction.total.toLocaleString()}\n` + BOLD_OFF;
+        text += ALIGN_RIGHT + BOLD_ON + `TOTAL: $${(transaction.total ?? 0).toLocaleString()}\n` + BOLD_OFF;
         text += ALIGN_CENTER + "\nGracias por su compra!\n\n\n";
         text += CUT;
 
