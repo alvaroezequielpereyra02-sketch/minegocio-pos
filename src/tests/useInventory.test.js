@@ -45,6 +45,7 @@ describe('useInventory — addProduct', () => {
         expect(payload.name).toBe('Coca Cola');
         expect(payload.price).toBe(500);
         expect(payload.createdAt).toBeDefined();
+        expect(payload.isActive).toBe(true);
     });
 
     it('retorna el documento creado por addDoc', async () => {

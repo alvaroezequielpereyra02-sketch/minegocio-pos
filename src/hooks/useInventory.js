@@ -81,7 +81,7 @@ export const useInventory = (user, userData) => {
         await batch.commit();
     };
 
-    const addProduct = async (data) => addDoc(collection(db, 'stores', appId, 'products'), { ...data, createdAt: serverTimestamp() });
+    const addProduct = async (data) => addDoc(collection(db, 'stores', appId, 'products'), { ...data, isActive: true, createdAt: serverTimestamp() });
     const updateProduct = async (id, data) => updateDoc(doc(db, 'stores', appId, 'products', id), data);
     // Soft delete: marca el producto como inactivo en lugar de borrarlo físicamente.
     // Preserva el historial de ventas que referencia el producto por ID.
