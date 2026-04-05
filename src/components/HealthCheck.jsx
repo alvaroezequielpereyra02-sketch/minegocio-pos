@@ -1,19 +1,24 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { collection, getDocs, limit, query } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, limit, query } from 'firebase/firestore';
 import { db, appId } from '../config/firebase';
 import { getOfflineQueue } from '../hooks/useSyncManager';
 import { useAuthContext } from '../context/AuthContext';
 import {
     CheckCircle, XCircle, AlertTriangle, RefreshCw, ShieldCheck,
-    Database, Bell, Package, WifiOff, Key, Loader2
+    Database, Bell, Package, WifiOff, Key, Loader2, PenLine
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Definición de checks
-// Cada check es una función async que devuelve { ok, detail }
+// Cada check es una función async que devuelve { ok, detail, warn? }
+// warn=true → muestra ícono amarillo en vez de rojo (no es crítico pero hay que revisar)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const SW_CACHE_VERSION = 'v22'; // debe coincidir con CACHE_VERSION en firebase-messaging-sw.js
+const TOKEN_WARN_DAYS  = 25;    // warning antes de los 30 días de expiración
+
 const makeChecks = (user) => [
+    // ── 1. Firestore Lectura ─────────────────────────────────────────────────
     {
         id: 'firestore_read',
         label: 'Firestore — Lectura',
@@ -22,12 +27,47 @@ const makeChecks = (user) => [
         run: async () => {
             const q = query(collection(db, 'stores', appId, 'products'), limit(1));
             const snap = await getDocs(q);
-            return {
-                ok: true,
-                detail: `OK — ${snap.size} documento(s) accesible(s)`,
-            };
+            return { ok: true, detail: `OK — ${snap.size} documento(s) accesible(s)` };
         },
     },
+
+    // ── 2. Firestore Escritura ────────────────────────────────────────────────
+    // Escribe un documento de prueba y lo borra inmediatamente.
+    // Detecta reglas de Firestore que bloquean escrituras silenciosamente.
+    {
+        id: 'firestore_write',
+        label: 'Firestore — Escritura',
+        description: 'Puede guardar transacciones y datos en la base',
+        icon: PenLine,
+        run: async () => {
+            const testRef = collection(db, 'stores', appId, 'health_checks');
+            const written = await addDoc(testRef, { ts: Date.now(), source: 'health-check' });
+            await deleteDoc(doc(db, 'stores', appId, 'health_checks', written.id));
+            return { ok: true, detail: 'Escritura y borrado exitosos' };
+        },
+    },
+
+    // ── 3. Permiso de notificaciones del browser ──────────────────────────────
+    // El token puede estar en Firestore pero si el permiso está bloqueado,
+    // las notificaciones nunca llegan. Este check detecta ese caso.
+    {
+        id: 'notif_permission',
+        label: 'Permiso de notificaciones',
+        description: 'El navegador tiene autorización para mostrar notificaciones push',
+        icon: Bell,
+        run: async () => {
+            if (!('Notification' in window)) {
+                return { ok: false, detail: 'Este navegador no soporta notificaciones push' };
+            }
+            const perm = Notification.permission;
+            if (perm === 'granted') return { ok: true, detail: 'Permiso concedido' };
+            if (perm === 'denied')  return { ok: false, detail: 'Permiso bloqueado — ir a Configuración del navegador y desbloquearlo' };
+            return { ok: false, warn: true, detail: 'Permiso no solicitado aún — cerrá sesión y volvé a entrar' };
+        },
+    },
+
+    // ── 4. Token FCM en Firestore ─────────────────────────────────────────────
+    // Verifica que el token existe y advierte si está próximo a vencer (30 días).
     {
         id: 'firestore_token',
         label: 'Token FCM registrado',
@@ -40,22 +80,28 @@ const makeChecks = (user) => [
             );
             const tokenDoc = snap.docs.find(d => d.id === user.uid);
             if (!tokenDoc) {
-                return {
-                    ok: false,
-                    detail: 'Token no encontrado — cerrá sesión y volvé a entrar para regenerarlo',
-                };
+                return { ok: false, detail: 'Token no encontrado — cerrá sesión y volvé a entrar para regenerarlo' };
             }
             const data = tokenDoc.data();
             const lastUpdate = data.updatedAt?.toDate?.();
             const daysAgo = lastUpdate
                 ? Math.floor((Date.now() - lastUpdate.getTime()) / 86400000)
-                : '?';
-            return {
-                ok: true,
-                detail: `Token registrado · plataforma: ${data.platform} · actualizado hace ${daysAgo} días`,
-            };
+                : null;
+
+            // Advertencia si el token tiene más de TOKEN_WARN_DAYS días
+            if (daysAgo !== null && daysAgo >= TOKEN_WARN_DAYS) {
+                return {
+                    ok: true,
+                    warn: true,
+                    detail: `Token actualizado hace ${daysAgo} días — próximo a vencer. Cerrá sesión y volvé a entrar para renovarlo`,
+                };
+            }
+            const age = daysAgo !== null ? `actualizado hace ${daysAgo} días` : 'fecha desconocida';
+            return { ok: true, detail: `Token registrado · plataforma: ${data.platform} · ${age}` };
         },
     },
+
+    // ── 5. API /notify ────────────────────────────────────────────────────────
     {
         id: 'notify_api',
         label: 'API /notify',
@@ -63,9 +109,8 @@ const makeChecks = (user) => [
         icon: Bell,
         run: async () => {
             const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 6000);
+            const tid  = setTimeout(() => ctrl.abort(), 6000);
             try {
-                // Enviamos dry_run=true para que el endpoint no dispare FCM real
                 const res = await fetch('/api/notify', {
                     method: 'POST',
                     signal: ctrl.signal,
@@ -79,9 +124,7 @@ const makeChecks = (user) => [
                     }),
                 });
                 clearTimeout(tid);
-                if (res.status === 405) {
-                    return { ok: false, detail: 'La API respondió 405 — verificá el método POST en Vercel' };
-                }
+                if (res.status === 405) return { ok: false, detail: 'La API respondió 405 — verificá el método POST en Vercel' };
                 if (res.status >= 500) {
                     const body = await res.json().catch(() => ({}));
                     return { ok: false, detail: `Error ${res.status}: ${body.error || 'Revisar Vercel Functions logs'}` };
@@ -89,13 +132,13 @@ const makeChecks = (user) => [
                 return { ok: true, detail: `Respondió con HTTP ${res.status}` };
             } catch (err) {
                 clearTimeout(tid);
-                if (err.name === 'AbortError') {
-                    return { ok: false, detail: 'Timeout — la API no respondió en 6s' };
-                }
+                if (err.name === 'AbortError') return { ok: false, detail: 'Timeout — la API no respondió en 6s' };
                 return { ok: false, detail: `Error de red: ${err.message}` };
             }
         },
     },
+
+    // ── 6. Cola offline ───────────────────────────────────────────────────────
     {
         id: 'offline_queue',
         label: 'Cola offline',
@@ -103,16 +146,13 @@ const makeChecks = (user) => [
         icon: WifiOff,
         run: async () => {
             const queue = getOfflineQueue();
-            if (queue.length === 0) {
-                return { ok: true, detail: 'Cola vacía — no hay boletas pendientes' };
-            }
+            if (queue.length === 0) return { ok: true, detail: 'Cola vacía — no hay boletas pendientes' };
             const ids = queue.map(e => e.localId).join(', ');
-            return {
-                ok: false,
-                detail: `${queue.length} boleta(s) sin sincronizar: ${ids}`,
-            };
+            return { ok: false, detail: `${queue.length} boleta(s) sin sincronizar: ${ids}` };
         },
     },
+
+    // ── 7. Variables de entorno ───────────────────────────────────────────────
     {
         id: 'env_vars',
         label: 'Variables de entorno',
@@ -129,18 +169,19 @@ const makeChecks = (user) => [
             ];
             const missing = required.filter(([, v]) => !v).map(([k]) => k);
             if (missing.length > 0) {
-                return {
-                    ok: false,
-                    detail: `Faltan: ${missing.join(', ')} — Verificá Vercel → Settings → Environment Variables`,
-                };
+                return { ok: false, detail: `Faltan: ${missing.join(', ')} — Verificá Vercel → Settings → Environment Variables` };
             }
             return { ok: true, detail: `${required.length} variables presentes` };
         },
     },
+
+    // ── 8. Service Worker ─────────────────────────────────────────────────────
+    // Verifica que el SW está activo Y que es la versión esperada.
+    // Una versión vieja del SW puede servir assets del caché incorrecto.
     {
         id: 'service_worker',
         label: 'Service Worker',
-        description: 'El SW de notificaciones está activo',
+        description: `SW activo y en versión ${SW_CACHE_VERSION}`,
         icon: Package,
         run: async () => {
             if (!('serviceWorker' in navigator)) {
@@ -151,7 +192,21 @@ const makeChecks = (user) => [
                 return { ok: false, detail: 'No hay ningún Service Worker registrado — recargá la app' };
             }
             const state = reg.active?.state || reg.installing?.state || 'desconocido';
-            return { ok: state === 'activated', detail: `Estado: ${state}` };
+            if (state !== 'activated') {
+                return { ok: false, detail: `Estado: ${state} — esperado: activated` };
+            }
+            // Verificar versión del caché
+            const cacheNames = await caches.keys();
+            const expectedCache = `minegocio-pos-${SW_CACHE_VERSION}`;
+            const hasCurrentCache = cacheNames.includes(expectedCache);
+            if (!hasCurrentCache) {
+                return {
+                    ok: true,
+                    warn: true,
+                    detail: `SW activo pero caché ${SW_CACHE_VERSION} no encontrado (cachés: ${cacheNames.join(', ')}) — recargá la app`,
+                };
+            }
+            return { ok: true, detail: `SW activated · caché ${SW_CACHE_VERSION} presente` };
         },
     },
 ];
@@ -170,7 +225,11 @@ function StatusIcon({ status }) {
 
 function CheckRow({ check, result }) {
     const Icon = check.icon;
-    const status = result?.status || 'idle';
+    // warn: ok=true pero con advertencia → ícono amarillo, no rojo
+    const rawStatus = result?.status || 'idle';
+    const isWarn = rawStatus === 'ok' && result?.warn;
+    const status = isWarn ? 'warn' : rawStatus;
+
     const rowBg = {
         idle:    '',
         running: 'bg-blue-50/50',
@@ -267,10 +326,11 @@ export default function HealthCheck() {
     // cuando el rol cambia y lanza "Rendered fewer hooks than expected".
     if (userData?.role !== 'admin') return null;
 
-    const total  = checks.length;
-    const ok     = Object.values(results).filter(r => r.status === 'ok').length;
-    const errors = Object.values(results).filter(r => r.status === 'error').length;
-    const hasRun = lastRun !== null;
+    const total    = checks.length;
+    const ok       = Object.values(results).filter(r => r.status === 'ok' && !r.warn).length;
+    const warnings = Object.values(results).filter(r => r.status === 'ok' && r.warn).length;
+    const errors   = Object.values(results).filter(r => r.status === 'error').length;
+    const hasRun   = lastRun !== null;
 
     return (
         <div className="bg-[#EDE8DC] p-4 rounded-2xl shadow-sm border border-[#D4C9B0]">
@@ -284,11 +344,18 @@ export default function HealthCheck() {
                     </h3>
                     {hasRun && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            errors === 0
-                                ? 'bg-green-100 text-green-700 border-green-200'
-                                : 'bg-red-100 text-red-600 border-red-200'
+                            errors > 0
+                                ? 'bg-red-100 text-red-600 border-red-200'
+                                : warnings > 0
+                                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                : 'bg-green-100 text-green-700 border-green-200'
                         }`}>
-                            {errors === 0 ? `✅ ${ok}/${total} OK` : `⚠️ ${errors} error(es)`}
+                            {errors > 0
+                                ? `⚠️ ${errors} error(es)`
+                                : warnings > 0
+                                ? `⚡ ${ok}/${total} OK · ${warnings} advertencia(s)`
+                                : `✅ ${ok}/${total} OK`
+                            }
                         </span>
                     )}
                 </div>
