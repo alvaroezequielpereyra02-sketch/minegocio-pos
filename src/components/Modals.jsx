@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
     CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
@@ -341,8 +341,11 @@ export function TransactionModal({ onClose, onSave, editingTransaction }) {
         onSave({ items: localItems, total: newTotal });
     };
 
-    // 🛡️ Calculamos el total actual para usar en la validación
-    const currentTotal = localItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
+    // Memoizado para no recalcular en cada render — solo cuando localItems cambia
+    const currentTotal = useMemo(
+        () => localItems.reduce((acc, i) => acc + (i.price * i.qty), 0),
+        [localItems]
+    );
 
     return (
         <div className="fixed inset-0 z-[400] bg-slate-100/90 backdrop-blur-sm flex justify-center items-center">

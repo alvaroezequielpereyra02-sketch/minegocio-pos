@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Package, Search, Clock, CheckCircle, AlertTriangle,
@@ -8,6 +8,16 @@ import {
 
 import { useTransactionsContext } from '../context/TransactionsContext';
 import { useInventoryContext } from '../context/InventoryContext';
+
+// ── Hook de debounce compartido por OrderWorkModal y Orders ───────────────────
+function useDebounce(value, delay = 150) {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const t = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+}
 
 function OrderWorkModal({ order, onClose }) {
     const { updateTransaction } = useTransactionsContext();
@@ -339,6 +349,7 @@ export default function Orders() {
     // 1. CAMBIO: Default 'pending' en vez de 'all'
     const [filterStatus, setFilterStatus] = useState('pending');
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearch = useDebounce(searchTerm, 150);
 
     const [selectedOrderId, setSelectedOrderId] = useState(null);
 
@@ -356,14 +367,14 @@ export default function Orders() {
     const filteredOrders = useMemo(() => {
         return activeOrders.filter(t => {
             const status = t.fulfillmentStatus || 'pending';
-            const matchesSearch = t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                t.id.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = t.clientName?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                t.id.toLowerCase().includes(debouncedSearch.toLowerCase());
 
             if (status !== filterStatus) return false;
 
             return matchesSearch;
         });
-    }, [activeOrders, filterStatus, searchTerm]);
+    }, [activeOrders, filterStatus, debouncedSearch]);
 
     const statusLabels = {
         pending: 'Pendientes',

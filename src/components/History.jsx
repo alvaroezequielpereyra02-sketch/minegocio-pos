@@ -1,18 +1,29 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Download, Search, User, DollarSign, Filter, Clock } from 'lucide-react';
+
+// ── Hook de debounce ──────────────────────────────────────────────────────────
+// Retrasa la actualización del valor hasta que el usuario deja de escribir.
+// Evita recalcular el useMemo de filtrado en cada keystroke.
+function useDebounce(value, delay = 150) {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const t = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
+}
 
 export default function History({ transactions, userData, handleExportCSV, historySection, setHistorySection, onSelectTransaction }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearch = useDebounce(searchTerm, 150);
 
     const groupedTransactions = useMemo(() => {
         const groups = {};
         const filtered = transactions.filter(t => {
             const matchesStatus = (t.paymentStatus || 'pending') === historySection;
-            const matchesSearch = !searchTerm ||
-                t.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                // item.name puede ser null/undefined si el producto fue eliminado o el dato está corrupto.
-                // Sin el ?. encadenado, .toLowerCase() lanza TypeError y crashea el componente.
-                t.items?.some(i => i.name?.toLowerCase()?.includes(searchTerm.toLowerCase()));
+            const matchesSearch = !debouncedSearch ||
+                t.clientName?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                t.items?.some(i => i.name?.toLowerCase()?.includes(debouncedSearch.toLowerCase()));
             return matchesStatus && matchesSearch;
         });
 
@@ -26,7 +37,7 @@ export default function History({ transactions, userData, handleExportCSV, histo
             groups[dateKey].items.push(t);
         });
         return groups;
-    }, [transactions, historySection, searchTerm]);
+    }, [transactions, historySection, debouncedSearch]);
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-[#F5F0E8]">
@@ -117,7 +128,7 @@ export default function History({ transactions, userData, handleExportCSV, histo
                                             {/* Contenido — usa todo el ancho */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-baseline mb-0.5">
-                                                    <span className="font-black text-[#1A0F0A] text-xl">${(t.total ?? 0).toLocaleString()}</span>
+                                                    <span className="font-black text-[#1A0F0A] text-xl">${t.total.toLocaleString()}</span>
                                                     <span className="text-xs text-[#A09070] font-medium ml-2 shrink-0">
                                                         {t.date?.seconds ? new Date(t.date.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                     </span>

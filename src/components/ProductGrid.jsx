@@ -1,10 +1,91 @@
-import React, { useMemo } from 'react';
-import { ShoppingCart, Image as ImageIcon, ScanBarcode, Edit, AlertCircle, Plus } from 'lucide-react';
+import React, { useMemo, useCallback } from 'react';
+import { Image as ImageIcon, ScanBarcode, Edit, AlertCircle, Plus } from 'lucide-react';
+import { FixedSizeGrid } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import { getThumbnailUrl } from '../config/uploadImage';
 
-// React.memo evita re-renderizar la grilla cuando cambia un estado en App
-// que no afecta productos, carrito ni búsqueda (ej: modales, notificaciones, tab activo).
-// Con 500+ productos esto es significativo.
+// ── Constantes de layout ──────────────────────────────────────────────────────
+// Altura fija de cada card — necesaria para FixedSizeGrid.
+const CARD_HEIGHT = 220;
+const GAP = 12; // equivalente a gap-3 de Tailwind
+
+// Replica el comportamiento responsive de grid-cols-2/3/4/5 de Tailwind.
+const getColumnCount = (width) => {
+    if (width >= 1280) return 5; // xl
+    if (width >= 768)  return 4; // md
+    if (width >= 640)  return 3; // sm
+    return 2;                    // base (móvil)
+};
+
+// ── Card individual memorizada ────────────────────────────────────────────────
+// React.memo evita que FixedSizeGrid la recree cuando cambian celdas vecinas.
+const ProductCard = React.memo(function ProductCard({
+    product, qtyInCart, isAdmin, addToCart, onEditProduct,
+    setFaultyProduct, toggleModal, cardWidth,
+}) {
+    const outOfStock = product.stock <= 0;
+    return (
+        <div
+            onClick={() => addToCart(product)}
+            style={{ width: cardWidth, height: CARD_HEIGHT }}
+            className="product-card bg-[#EDE8DC] rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-[#D4C9B0] hover:border-[#8B6914] hover:shadow-lg transition-all active:scale-[0.97] group"
+        >
+            <div className="aspect-square relative overflow-hidden bg-[#F5F0E8]">
+                {product.imageUrl ? (
+                    <img
+                        src={getThumbnailUrl(product.imageUrl, 300)}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon size={28} className="text-slate-200" />
+                    </div>
+                )}
+                {product.imageUrl && (
+                    <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/30 to-transparent" />
+                )}
+                {qtyInCart > 0 && (
+                    <div className="absolute top-2 left-2 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+                        style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
+                        {qtyInCart}
+                    </div>
+                )}
+                {isAdmin && (
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e) => { e.stopPropagation(); setFaultyProduct(product); toggleModal('faulty', true); }}
+                            className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-[#8B6914] shadow-sm hover:bg-white">
+                            <AlertCircle size={12} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); onEditProduct(product); }}
+                            className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-blue-500 shadow-sm hover:bg-white">
+                            <Edit size={12} />
+                        </button>
+                    </div>
+                )}
+            </div>
+            <div className="p-2.5 flex flex-col flex-1">
+                <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight mb-2">{product.name}</h3>
+                <div className="mt-auto flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
+                        {isAdmin && (
+                            <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-500' : 'text-emerald-700'}`}>
+                                {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
+                            </span>
+                        )}
+                    </div>
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
+                        <Plus size={14} strokeWidth={3} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+// ── Componente principal ──────────────────────────────────────────────────────
 const ProductGrid = React.memo(function ProductGrid({
     products, addToCart, searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory, categories,
@@ -13,7 +94,6 @@ const ProductGrid = React.memo(function ProductGrid({
     onEditProduct, setFaultyProduct, toggleModal,
     cart
 }) {
-    // useMemo evita recalcular en cada render cuando las deps no cambiaron
     const activeCategories = useMemo(
         () => categories.filter(c => c.isActive !== false),
         [categories]
@@ -36,6 +116,39 @@ const ProductGrid = React.memo(function ProductGrid({
 
     const isAdmin = userData?.role === 'admin';
 
+    // ── Renderer de celda para FixedSizeGrid ──────────────────────────────────
+    // useCallback con dependencias estables evita que FixedSizeGrid
+    // descarte su caché de celdas en cada render del padre.
+    const CellRenderer = useCallback(({ columnIndex, rowIndex, style, data }) => {
+        const { products, columnCount, cardWidth } = data;
+        const index = rowIndex * columnCount + columnIndex;
+        if (index >= products.length) return null; // celda vacía en la última fila
+
+        const product = products[index];
+        const cellStyle = {
+            ...style,
+            left:   Number(style.left)  + columnIndex * GAP,
+            top:    Number(style.top)   + rowIndex    * GAP,
+            width:  cardWidth,
+            height: CARD_HEIGHT,
+        };
+
+        return (
+            <div style={cellStyle}>
+                <ProductCard
+                    product={product}
+                    qtyInCart={cartQtyMap[product.id] || 0}
+                    isAdmin={isAdmin}
+                    cardWidth={cardWidth}
+                    addToCart={addToCart}
+                    onEditProduct={onEditProduct}
+                    setFaultyProduct={setFaultyProduct}
+                    toggleModal={toggleModal}
+                />
+            </div>
+        );
+    }, [cartQtyMap, isAdmin, addToCart, onEditProduct, setFaultyProduct, toggleModal]);
+
     return (
         <div className="flex-1 flex flex-col min-w-0 h-full">
 
@@ -55,7 +168,6 @@ const ProductGrid = React.memo(function ProductGrid({
                         className="w-full pl-11 pr-4 py-3.5 text-sm font-medium bg-transparent outline-none placeholder:text-slate-300 border-b border-slate-100"
                     />
                 </form>
-
                 <div className="flex gap-2 px-3 py-2.5 overflow-x-auto scrollbar-hide">
                     {[{ id: 'all', name: 'Todo' }, ...activeCategories].map(cat => (
                         <button
@@ -74,85 +186,33 @@ const ProductGrid = React.memo(function ProductGrid({
                 </div>
             </div>
 
-            {/* Grilla */}
-            <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 pb-24">
-                    {filteredProducts.map((product) => {
-                        const qtyInCart = cartQtyMap[product.id] || 0;
-                        const outOfStock = product.stock <= 0;
+            {/* Grilla virtualizada.
+                Con 1000 productos, pasa de ~1000 nodos DOM a ~20-30 visibles en pantalla.
+                AutoSizer mide el contenedor y pasa width/height a FixedSizeGrid. */}
+            <div className="flex-1">
+                <AutoSizer>
+                    {({ width, height }) => {
+                        const columnCount = getColumnCount(width);
+                        const cardWidth   = Math.floor((width - GAP * (columnCount - 1)) / columnCount);
+                        const rowCount    = Math.ceil(filteredProducts.length / columnCount);
+                        const rowHeight   = CARD_HEIGHT + GAP;
 
                         return (
-                            <div
-                                key={product.id}
-                                onClick={() => addToCart(product)}
-                                className="product-card bg-[#EDE8DC] rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-[#D4C9B0] hover:border-[#8B6914] hover:shadow-lg transition-all active:scale-[0.97] group"
+                            <FixedSizeGrid
+                                width={width}
+                                height={height}
+                                columnCount={columnCount}
+                                columnWidth={cardWidth + GAP}
+                                rowCount={rowCount}
+                                rowHeight={rowHeight}
+                                itemData={{ products: filteredProducts, columnCount, cardWidth }}
+                                overscanRowCount={2}
                             >
-                                {/* Imagen */}
-                                <div className="aspect-square relative overflow-hidden bg-[#F5F0E8]">
-                                    {product.imageUrl ? (
-                                        <img
-                                            src={getThumbnailUrl(product.imageUrl, 300)}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <ImageIcon size={28} className="text-slate-200" />
-                                        </div>
-                                    )}
-
-                                    {/* Gradiente inferior */}
-                                    {product.imageUrl && (
-                                        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/30 to-transparent" />
-                                    )}
-
-                                    {/* Badge qty */}
-                                    {qtyInCart > 0 && (
-                                        <div className="absolute top-2 left-2 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
-                                            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
-                                            {qtyInCart}
-                                        </div>
-                                    )}
-
-
-
-                                    {/* Admin buttons */}
-                                    {isAdmin && (
-                                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={(e) => { e.stopPropagation(); setFaultyProduct(product); toggleModal('faulty', true); }}
-                                                className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-[#8B6914] shadow-sm hover:bg-white">
-                                                <AlertCircle size={12} />
-                                            </button>
-                                            <button onClick={(e) => { e.stopPropagation(); onEditProduct(product); }}
-                                                className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-blue-500 shadow-sm hover:bg-white">
-                                                <Edit size={12} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Info */}
-                                <div className="p-2.5 flex flex-col flex-1">
-                                    <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight mb-2">{product.name}</h3>
-                                    <div className="mt-auto flex items-center justify-between">
-                                        <div className="flex flex-col">
-                                            <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
-                                            {isAdmin && (
-                                                <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-500' : 'text-emerald-700'}`}>
-                                                    {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white shrink-0"
-                                            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
-                                            <Plus size={14} strokeWidth={3} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                {CellRenderer}
+                            </FixedSizeGrid>
                         );
-                    })}
-                </div>
+                    }}
+                </AutoSizer>
             </div>
         </div>
     );
