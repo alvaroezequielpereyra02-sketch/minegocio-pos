@@ -40,33 +40,102 @@ export const usePrinter = (onNotify = () => {}) => {
     };
 
     // --- GENERADOR DE TEXTO DEL TICKET ---
+    // Diseñado para impresoras térmicas de 57mm con RawBT.
+    // 57mm = 32 caracteres por línea en fuente estándar.
+    // Se usa padding manual de espacios en lugar de ALIGN_RIGHT para los items,
+    // porque ALIGN_RIGHT via base64/RawBT a veces no se aplica correctamente
+    // y termina pegado al texto anterior (bug visible en el ticket físico).
+    const CHARS_PER_LINE = 32;
+
+    // Rellena con espacios para que 'right' quede pegado al margen derecho.
+    // Si el contenido no entra en una línea, pone 'right' en la línea siguiente.
+    const padRight = (left, right) => {
+        const spaces = CHARS_PER_LINE - left.length - right.length;
+        if (spaces < 1) {
+            // No entra en una sola línea: precio en la siguiente línea indentado
+            return left + '\n' + ' '.repeat(CHARS_PER_LINE - right.length) + right;
+        }
+        return left + ' '.repeat(spaces) + right;
+    };
+
+    // Divide un texto largo en líneas de máximo CHARS_PER_LINE caracteres,
+    // respetando palabras completas cuando es posible.
+    const wrapText = (text, maxLen = CHARS_PER_LINE) => {
+        if (text.length <= maxLen) return [text];
+        const lines = [];
+        let remaining = text;
+        while (remaining.length > maxLen) {
+            // Buscar último espacio antes del límite para cortar por palabra
+            let cut = remaining.lastIndexOf(' ', maxLen);
+            if (cut <= 0) cut = maxLen; // sin espacios → corte duro
+            lines.push(remaining.substring(0, cut).trim());
+            remaining = remaining.substring(cut).trim();
+        }
+        if (remaining) lines.push(remaining);
+        return lines;
+    };
+
+    const SEP = '-'.repeat(CHARS_PER_LINE);
+
     const generateReceiptText = (transaction, storeProfile) => {
         const storeName = storeProfile?.name || 'MiNegocio';
-        // Los timestamps de Firestore son { seconds, nanoseconds }, nunca instanceof Date.
-        // Con la comprobación anterior (instanceof Date) siempre era false →
-        // el ticket imprimía la hora de impresión, no la hora real de la venta.
         const date = transaction.date?.seconds
             ? new Date(transaction.date.seconds * 1000).toLocaleString('es-AR')
             : new Date().toLocaleString('es-AR');
 
         let text = INIT;
+
+        // ── CABECERA ──────────────────────────────────────────────────────────
         text += ALIGN_CENTER + BOLD_ON + storeName.toUpperCase() + '\n' + BOLD_OFF;
-        text += "Ticket de Venta\n";
-        text += "--------------------------------\n";
-        text += ALIGN_LEFT;
+        text += 'Ticket de Venta\n';
+        text += ALIGN_LEFT + SEP + '\n';
+
+        // ── META ──────────────────────────────────────────────────────────────
         text += `Fecha: ${date}\n`;
         text += `Ticket: ${transaction.id?.substring(0, 8) || 'N/A'}\n`;
-        text += "--------------------------------\n";
+        text += SEP + '\n';
 
+        // ── ITEMS ─────────────────────────────────────────────────────────────
+        // Formato por item:
+        //   Nombre del producto (sin truncar, wrapping por palabra si >32 chars)
+        //     2 x $1.500         $3.000
         (transaction.items ?? []).forEach(item => {
-            const itemTotal = (item.price ?? 0) * (item.qty || item.quantity || 0);
-            text += `${item.qty || item.quantity} x ${(item.name ?? 'Producto').substring(0, 15)}\n`;
-            text += ALIGN_RIGHT + `$${itemTotal.toLocaleString()}\n` + ALIGN_LEFT;
+            const qty       = item.qty || item.quantity || 1;
+            const unitPrice = item.price ?? 0;
+            const itemTotal = unitPrice * qty;
+
+            const unitStr  = `$${unitPrice.toLocaleString('es-AR')}`;
+            const totalStr = `$${itemTotal.toLocaleString('es-AR')}`;
+
+            // Nombre completo, con wrap si es muy largo
+            const nameLines = wrapText(item.name ?? 'Producto');
+            nameLines.forEach(line => { text += line + '\n'; });
+
+            // Segunda línea: cantidad × precio unitario → total (alineado a la derecha)
+            const leftPart = `  ${qty} x ${unitStr}`;
+            text += padRight(leftPart, totalStr) + '\n';
         });
 
-        text += "--------------------------------\n";
-        text += ALIGN_RIGHT + BOLD_ON + `TOTAL: $${(transaction.total ?? 0).toLocaleString()}\n` + BOLD_OFF;
-        text += ALIGN_CENTER + "\nGracias por su compra!\n\n\n";
+        // ── TOTAL ─────────────────────────────────────────────────────────────
+        text += SEP + '\n';
+        const totalLine = padRight(BOLD_ON + 'TOTAL:', `$${(transaction.total ?? 0).toLocaleString('es-AR')}` + BOLD_OFF);
+        text += totalLine + '\n';
+        text += SEP + '\n';
+
+        // Método de pago (si está disponible)
+        if (transaction.paymentMethod && transaction.paymentMethod !== 'unspecified') {
+            const metodosLabel = {
+                cash:     'Efectivo',
+                transfer: 'Transferencia',
+                card:     'Tarjeta',
+                digital:  'Digital',
+            };
+            const metodoStr = metodosLabel[transaction.paymentMethod] || transaction.paymentMethod;
+            text += ALIGN_CENTER + `Pago: ${metodoStr}\n`;
+        }
+
+        // ── PIE ───────────────────────────────────────────────────────────────
+        text += ALIGN_CENTER + '\nGracias por su compra!\n\n\n';
         text += CUT;
 
         return text;
