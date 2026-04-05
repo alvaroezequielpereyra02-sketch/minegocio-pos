@@ -89,7 +89,7 @@ const ProductCard = React.memo(function ProductCard({
 const ProductGrid = React.memo(function ProductGrid({
     products, addToCart, searchTerm, setSearchTerm,
     selectedCategory, setSelectedCategory, categories,
-    // subcategories recibido por compatibilidad pero no se usa en la grilla
+    subcategories = [],
     userData, barcodeInput, setBarcodeInput, handleBarcodeSubmit,
     onEditProduct, setFaultyProduct, toggleModal,
     cart
@@ -99,13 +99,32 @@ const ProductGrid = React.memo(function ProductGrid({
         [categories]
     );
 
+    // Subcategorías de la categoría seleccionada (si hay alguna activa)
+    // Solo se muestran cuando hay una categoría concreta seleccionada (no 'all')
+    // y no se está ya dentro de una subcategoría (__sub__: prefix).
+    const activeSubcategories = useMemo(() => {
+        if (!selectedCategory || selectedCategory === 'all' || selectedCategory.startsWith('__sub__:')) return [];
+        return subcategories.filter(s => s.parentId === selectedCategory);
+    }, [subcategories, selectedCategory]);
+
     const filteredProducts = useMemo(() => products.filter(product => {
         const category = categories.find(c => c.id === product.categoryId);
         if (category && category.isActive === false) return false;
         const effectiveSearch = (barcodeInput || searchTerm).toLowerCase();
         const matchesSearch = product.name?.toLowerCase().includes(effectiveSearch) ||
             product.barcode?.toLowerCase().includes(effectiveSearch);
-        const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
+
+        // Soporte para selección de subcategoría: '__sub__:subcategoryId'
+        let matchesCategory;
+        if (selectedCategory === 'all') {
+            matchesCategory = true;
+        } else if (selectedCategory.startsWith('__sub__:')) {
+            const subId = selectedCategory.slice(8);
+            matchesCategory = product.subCategoryId === subId;
+        } else {
+            matchesCategory = product.categoryId === selectedCategory;
+        }
+
         return matchesSearch && matchesCategory;
     }), [products, categories, barcodeInput, searchTerm, selectedCategory]);
 
@@ -187,6 +206,39 @@ const ProductGrid = React.memo(function ProductGrid({
                         </button>
                     ))}
                 </div>
+
+                {/* Segunda fila: subcategorías de la categoría seleccionada */}
+                {activeSubcategories.length > 0 && (
+                    <div className="flex gap-2 px-3 pb-2.5 overflow-x-auto scrollbar-hide border-t border-[#D4C9B0] pt-2">
+                        <button
+                            onClick={() => setSelectedCategory(selectedCategory)}
+                            className={`px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ${
+                                !selectedCategory.startsWith('__sub__:')
+                                    ? 'bg-[#8B6914] text-white shadow-sm'
+                                    : 'bg-[#E8E0CC] text-[#5C4A2A] hover:bg-[#D4C9B0]'
+                            }`}
+                        >
+                            Todas
+                        </button>
+                        {activeSubcategories.map(sub => {
+                            const isActive = selectedCategory === `__sub__:${sub.id}`;
+                            return (
+                                <button
+                                    key={sub.id}
+                                    onClick={() => setSelectedCategory(`__sub__:${sub.id}`)}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ${
+                                        isActive
+                                            ? 'text-white shadow-sm'
+                                            : 'bg-[#E8E0CC] text-[#5C4A2A] hover:bg-[#D4C9B0]'
+                                    }`}
+                                    style={isActive ? { background: 'linear-gradient(135deg, #f97316, #ea580c)' } : {}}
+                                >
+                                    {sub.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Grilla virtualizada.
