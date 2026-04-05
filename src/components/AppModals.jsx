@@ -2,7 +2,7 @@ import React from 'react';
 import {
     ExpenseModal, ProductModal, CategoryModal, CustomerModal,
     StoreModal, AddStockModal, TransactionModal, LogoutConfirmModal,
-    InvitationModal, ConfirmModal, FaultyProductModal, ShoppingListModal,
+    InvitationModal, ConfirmModal, FaultyProductModal, ShoppingListModal, BulkPriceModal,
 } from './Modals';
 
 /**
@@ -58,6 +58,9 @@ export default function AppModals({
     showNotification,
     // Lista de faltantes
     generateShoppingListPDF,
+    // Actualización masiva de precios
+    bulkUpdatePrices,
+    products = [],
 }) {
     return (
         <>
@@ -159,6 +162,16 @@ export default function AppModals({
                     onClose={() => toggleModal('shoppingList', false)}
                     categories={categories}
                     onGenerate={generateShoppingListPDF}
+                />
+            )}
+
+            {modals.bulkPrices && (
+                <BulkPriceModal
+                    onClose={() => toggleModal('bulkPrices', false)}
+                    categories={categories}
+                    subcategories={subcategories}
+                    products={products}
+                    onApply={bulkUpdatePrices}
                 />
             )}
         </>

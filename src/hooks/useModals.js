@@ -17,6 +17,7 @@ export const useModals = () => {
         invitation:   false,
         faulty:       false,
         shoppingList: false,
+        bulkPrices:   false,
     });
 
     const toggleModal = (name, value) =>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useRef, useCallback, useMemo } from 'react';
-import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList, Search } from 'lucide-react';
+import { Store, KeyRound, Plus, LogOut, ShoppingCart, Bell, WifiOff, Tags, ClipboardList, Search, TrendingUp } from 'lucide-react';
 
 // Contextos
 import { useAuthContext }         from './context/AuthContext';
@@ -83,7 +83,7 @@ export default function App() {
         addSubCategory, deleteSubCategory,
         addCustomer, updateCustomer, deleteCustomer,
         addExpense, deleteExpense,
-        updateStoreProfile, generateInvitationCode, registerFaultyProduct,
+        updateStoreProfile, generateInvitationCode, registerFaultyProduct, bulkUpdatePrices,
     } = useInventoryContext();
     const { transactions, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
     const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
@@ -402,6 +402,7 @@ export default function App() {
                                 <h2 className="text-xl font-bold text-slate-800">Inventario</h2>
                                 <div className="flex gap-2">
                                     <button onClick={() => toggleModal('category', true)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium flex gap-1"><Tags size={16} /> Cats</button>
+                                    <button onClick={() => toggleModal('bulkPrices', true)} className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-blue-100 transition-colors"><TrendingUp size={16} /> Precios</button>
                                     <button onClick={() => toggleModal('shoppingList', true)} className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg text-sm font-bold flex gap-1 hover:bg-yellow-100 transition-colors"><ClipboardList size={16} /> Faltantes</button>
                                     <button onClick={() => { setEditingProduct(null); setPreviewImage(''); toggleModal('product', true); }} className="btn-accent px-3 py-2 text-sm font-bold flex gap-1 items-center"><Plus size={16} /> Prod</button>
                                 </div>
@@ -625,6 +626,8 @@ export default function App() {
                 handleSaveExpense={handleSaveExpense}
                 showNotification={showNotification}
                 generateShoppingListPDF={generateShoppingListPDF}
+                bulkUpdatePrices={bulkUpdatePrices}
+                products={products}
             />
         </div>
     );

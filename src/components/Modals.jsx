@@ -3,7 +3,7 @@ import {
     X, Trash2, ScanBarcode, Box, AlertTriangle, LogOut, Plus, Minus,
     CheckCircle, ArrowLeft, Key, Copy, Loader2, AlertCircle, FolderTree,
     ChevronDown, Folder, FolderOpen, Edit, CornerDownRight, Eye, EyeOff, Edit3, Check,
-    FileDown, Filter,
+    FileDown, Filter, TrendingUp, TrendingDown, Percent, Hash, RefreshCw,
 } from 'lucide-react';
 
 // IMPORTANTE: Rutas y nombres corregidos para el build de Vercel
@@ -593,6 +593,542 @@ export function ShoppingListModal({ onClose, categories = [], onGenerate }) {
                         }
                     </button>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BulkPriceModal
+// Actualización masiva de precios/costos por categoría o subcategoría.
+// ─────────────────────────────────────────────────────────────────────────────
+export function BulkPriceModal({ onClose, categories = [], subcategories = [], products = [], onApply }) {
+    // El valor del select puede ser:
+    //   '__all__'           → todos los productos
+    //   'cat:ID'            → solo categoría (todos sus productos sin importar subcategoría)
+    //   'sub:ID'            → solo subcategoría específica
+    const [selection, setSelection] = useState('__all__');
+    const [type,      setType]      = useState('percent');
+    const [value,     setValue]     = useState('');
+    const [field,     setField]     = useState('price');
+    const [roundTo,   setRoundTo]   = useState('10');
+    const [isApplying, setIsApplying] = useState(false);
+    const [result,     setResult]     = useState(null);
+
+    // Resolver qué productos toca la selección actual
+    const affectedProducts = useMemo(() => {
+        if (selection === '__all__') return products;
+        if (selection.startsWith('cat:')) {
+            const catId = selection.slice(4);
+            return products.filter(p => p.categoryId === catId);
+        }
+        if (selection.startsWith('sub:')) {
+            const subId = selection.slice(4);
+            return products.filter(p => p.subCategoryId === subId);
+        }
+        return products;
+    }, [selection, products]);
+
+    // Nombre legible de la selección para mostrar en el preview y confirmación
+    const selectionLabel = useMemo(() => {
+        if (selection === '__all__') return 'Todas las categorías';
+        if (selection.startsWith('cat:')) {
+            const catId = selection.slice(4);
+            return categories.find(c => c.id === catId)?.name || catId;
+        }
+        if (selection.startsWith('sub:')) {
+            const subId = selection.slice(4);
+            return subcategories.find(s => s.id === subId)?.name || subId;
+        }
+        return selection;
+    }, [selection, categories, subcategories]);
+
+    // Preview en tiempo real
+    const previewItems = useMemo(() => {
+        if (!value || isNaN(Number(value))) return [];
+        const numVal   = Number(value);
+        const numRound = Number(roundTo) || 0;
+        const round    = (n) => numRound > 0 ? Math.round(n / numRound) * numRound : Math.round(n);
+        const apply    = (current) => round(Math.max(0, type === 'percent'
+            ? Number(current || 0) * (1 + numVal / 100)
+            : Number(current || 0) + numVal
+        ));
+        return affectedProducts.slice(0, 5).map(p => ({
+            name:     p.name,
+            oldPrice: p.price,
+            newPrice: (field === 'price' || field === 'both') ? apply(p.price) : p.price,
+            oldCost:  p.cost,
+            newCost:  (field === 'cost'  || field === 'both') ? apply(p.cost)  : p.cost,
+        }));
+    }, [affectedProducts, type, value, field, roundTo]);
+
+    const handleApply = async () => {
+        if (!value || isNaN(Number(value))) return;
+        setIsApplying(true);
+        try {
+            // Traducir la selección a los parámetros que espera useInventory
+            let catParam = '__all__';
+            if (selection.startsWith('cat:')) catParam = selection.slice(4);
+            // Para subcategorías, filtramos manualmente — pasamos los IDs directamente
+            if (selection.startsWith('sub:')) catParam = '__sub__:' + selection.slice(4);
+
+            const res = await onApply(catParam, {
+                type, value: Number(value), field, roundTo: Number(roundTo) || 0,
+            });
+            setResult(res);
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
+    const isPositive = Number(value) >= 0;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#EDE8DC] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl border border-[#D4C9B0] animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#D4C9B0]">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            {isPositive ? <TrendingUp size={16} className="text-blue-700" /> : <TrendingDown size={16} className="text-red-600" />}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-[#3D2B1F] text-base leading-none">Actualizar precios</h3>
+                            <p className="text-xs text-[#8B6914] mt-0.5">Aumento o baja masiva por categoría</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#D4C9B0] transition-colors">
+                        <X size={18} className="text-[#5C4A2A]" />
+                    </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+                    {result ? (
+                        /* ── Pantalla de éxito ── */
+                        <div className="flex flex-col items-center py-6 gap-3 text-center">
+                            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                                <CheckCircle size={28} className="text-green-600" />
+                            </div>
+                            <p className="font-bold text-[#3D2B1F] text-base">
+                                ¡{result.updated} producto{result.updated !== 1 ? 's' : ''} actualizado{result.updated !== 1 ? 's' : ''}!
+                            </p>
+                            <p className="text-sm text-[#7A6040]">Los nuevos precios ya están activos.</p>
+                            <button onClick={onClose} className="mt-2 w-full py-3 btn-accent rounded-xl font-black text-sm">Listo</button>
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── Categoría / Subcategoría ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    Categoría o subcategoría
+                                </label>
+                                <select
+                                    value={selection}
+                                    onChange={e => setSelection(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#D4C9B0] text-[#3D2B1F] text-sm outline-none focus:border-[#8B6914]"
+                                >
+                                    <option value="__all__">Todas las categorías ({products.length} productos)</option>
+
+                                    {categories.map(cat => {
+                                        const catCount = products.filter(p => p.categoryId === cat.id).length;
+                                        const catSubs  = subcategories.filter(s => s.parentId === cat.id);
+                                        return (
+                                            <optgroup key={cat.id} label={`── ${cat.name}`}>
+                                                {/* Opción para toda la categoría */}
+                                                <option value={`cat:${cat.id}`}>
+                                                    {cat.name} — completa ({catCount} productos)
+                                                </option>
+                                                {/* Subcategorías hijas */}
+                                                {catSubs.map(sub => {
+                                                    const subCount = products.filter(p => p.subCategoryId === sub.id).length;
+                                                    return (
+                                                        <option key={sub.id} value={`sub:${sub.id}`}>
+                                                            &nbsp;&nbsp;↳ {sub.name} ({subCount} productos)
+                                                        </option>
+                                                    );
+                                                })}
+                                            </optgroup>
+                                        );
+                                    })}
+
+                                    {/* Subcategorías huérfanas (sin categoría padre conocida) */}
+                                    {subcategories.filter(s => !categories.find(c => c.id === s.parentId)).length > 0 && (
+                                        <optgroup label="── Sin categoría padre">
+                                            {subcategories
+                                                .filter(s => !categories.find(c => c.id === s.parentId))
+                                                .map(sub => {
+                                                    const subCount = products.filter(p => p.subCategoryId === sub.id).length;
+                                                    return (
+                                                        <option key={sub.id} value={`sub:${sub.id}`}>
+                                                            {sub.name} ({subCount} productos)
+                                                        </option>
+                                                    );
+                                                })}
+                                        </optgroup>
+                                    )}
+                                </select>
+                            </div>
+
+                            {/* ── Tipo de ajuste ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">Tipo de ajuste</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[{ k: 'percent', icon: <Percent size={15} />, label: 'Porcentaje' }, { k: 'fixed', icon: <Hash size={15} />, label: 'Monto fijo' }].map(opt => (
+                                        <button key={opt.k} onClick={() => setType(opt.k)}
+                                            className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${type === opt.k ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-blue-300'}`}>
+                                            {opt.icon} {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Valor ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    {type === 'percent' ? 'Porcentaje (negativo para bajar)' : 'Monto a sumar (negativo para restar)'}
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B6914] font-bold text-sm">{type === 'percent' ? '%' : '$'}</span>
+                                    <input type="number" value={value} onChange={e => setValue(e.target.value)}
+                                        placeholder={type === 'percent' ? 'Ej: 15 (sube 15%) o -10 (baja 10%)' : 'Ej: 500 (suma $500)'}
+                                        className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white border border-[#D4C9B0] text-[#3D2B1F] text-sm outline-none focus:border-[#8B6914]" />
+                                </div>
+                            </div>
+
+                            {/* ── Campo ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">Qué actualizar</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[{ key: 'price', label: 'Solo precio' }, { key: 'cost', label: 'Solo costo' }, { key: 'both', label: 'Precio y costo' }].map(opt => (
+                                        <button key={opt.key} onClick={() => setField(opt.key)}
+                                            className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${field === opt.key ? 'bg-[#8B6914] border-[#8B6914] text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-[#8B6914]/40'}`}>
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Redondeo ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">Redondear al múltiplo de</label>
+                                <div className="flex gap-2 flex-wrap">
+                                    {['0', '1', '5', '10', '50', '100'].map(r => (
+                                        <button key={r} onClick={() => setRoundTo(r)}
+                                            className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs transition-all ${roundTo === r ? 'bg-[#8B6914] border-[#8B6914] text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-[#8B6914]/40'}`}>
+                                            {r === '0' ? 'Sin redondeo' : `$${r}`}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Preview ── */}
+                            {previewItems.length > 0 && (
+                                <div className="bg-white border border-[#D4C9B0] rounded-xl overflow-hidden">
+                                    <div className="px-3 py-2 bg-[#F5F0E8] border-b border-[#D4C9B0]">
+                                        <p className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider">
+                                            Vista previa — {affectedProducts.length} producto{affectedProducts.length !== 1 ? 's' : ''} en {selectionLabel}
+                                        </p>
+                                    </div>
+                                    <div className="divide-y divide-[#EDE8DC]">
+                                        {previewItems.map((p, i) => (
+                                            <div key={i} className="px-3 py-2.5 flex items-center gap-3">
+                                                <p className="text-xs font-medium text-[#3D2B1F] flex-1 truncate">{p.name}</p>
+                                                <div className="flex items-center gap-1.5 text-xs shrink-0">
+                                                    {(field === 'price' || field === 'both') && (
+                                                        <span className={`font-bold ${p.newPrice !== p.oldPrice ? (p.newPrice > p.oldPrice ? 'text-green-700' : 'text-red-600') : 'text-slate-400'}`}>
+                                                            ${p.oldPrice?.toLocaleString('es-AR')} → ${p.newPrice?.toLocaleString('es-AR')}
+                                                        </span>
+                                                    )}
+                                                    {field === 'both' && <span className="text-slate-300">|</span>}
+                                                    {(field === 'cost' || field === 'both') && (
+                                                        <span className="text-slate-500">costo: ${p.newCost?.toLocaleString('es-AR')}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {affectedProducts.length > 5 && (
+                                            <p className="px-3 py-2 text-xs text-[#A09070] text-center">
+                                                y {affectedProducts.length - 5} producto{affectedProducts.length - 5 !== 1 ? 's' : ''} más...
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+
+                {!result && (
+                    <div className="px-5 py-4 border-t border-[#D4C9B0]">
+                        <button onClick={handleApply}
+                            disabled={isApplying || !value || isNaN(Number(value)) || affectedProducts.length === 0}
+                            className="w-full py-3.5 btn-accent rounded-xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-all">
+                            {isApplying
+                                ? <><RefreshCw size={16} className="animate-spin" /> Aplicando...</>
+                                : <><TrendingUp size={16} /> Aplicar a {affectedProducts.length} producto{affectedProducts.length !== 1 ? 's' : ''}</>}
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+    const [categoryId, setCategoryId] = useState('__all__');
+    const [type,       setType]       = useState('percent'); // 'percent' | 'fixed'
+    const [value,      setValue]      = useState('');
+    const [field,      setField]      = useState('price');   // 'price' | 'cost' | 'both'
+    const [roundTo,    setRoundTo]    = useState('10');
+    const [isApplying, setIsApplying] = useState(false);
+    const [result,     setResult]     = useState(null);      // { updated } | null
+
+    // Preview: cuántos productos se van a tocar
+    const affectedProducts = useMemo(() => {
+        if (categoryId === '__all__') return products;
+        return products.filter(p => p.categoryId === categoryId);
+    }, [categoryId, products]);
+
+    // Preview de precios con los valores actuales del form
+    const previewItems = useMemo(() => {
+        if (!value || isNaN(Number(value))) return [];
+        const numVal  = Number(value);
+        const numRound = Number(roundTo) || 0;
+
+        const round = (n) => {
+            if (!numRound || numRound <= 0) return Math.round(n);
+            return Math.round(n / numRound) * numRound;
+        };
+        const apply = (current) => {
+            const base = Number(current || 0);
+            const next = type === 'percent' ? base * (1 + numVal / 100) : base + numVal;
+            return round(Math.max(0, next));
+        };
+
+        return affectedProducts.slice(0, 5).map(p => ({
+            name: p.name,
+            oldPrice: p.price,
+            newPrice: (field === 'price' || field === 'both') ? apply(p.price) : p.price,
+            oldCost:  p.cost,
+            newCost:  (field === 'cost'  || field === 'both') ? apply(p.cost)  : p.cost,
+        }));
+    }, [affectedProducts, type, value, field, roundTo]);
+
+    const handleApply = async () => {
+        if (!value || isNaN(Number(value))) return;
+        setIsApplying(true);
+        try {
+            const res = await onApply(categoryId, {
+                type,
+                value:   Number(value),
+                field,
+                roundTo: Number(roundTo) || 0,
+            });
+            setResult(res);
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
+    const catName = categoryId === '__all__'
+        ? 'Todas las categorías'
+        : categories.find(c => c.id === categoryId)?.name || categoryId;
+
+    const isPositive = Number(value) >= 0;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200] backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#EDE8DC] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl border border-[#D4C9B0] animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#D4C9B0]">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            {isPositive ? <TrendingUp size={16} className="text-blue-700" /> : <TrendingDown size={16} className="text-red-600" />}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-[#3D2B1F] text-base leading-none">Actualizar precios</h3>
+                            <p className="text-xs text-[#8B6914] mt-0.5">Aumento o baja masiva por categoría</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#D4C9B0] transition-colors">
+                        <X size={18} className="text-[#5C4A2A]" />
+                    </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+
+                    {result ? (
+                        /* ── Pantalla de éxito ── */
+                        <div className="flex flex-col items-center py-6 gap-3 text-center">
+                            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                                <CheckCircle size={28} className="text-green-600" />
+                            </div>
+                            <p className="font-bold text-[#3D2B1F] text-base">
+                                ¡{result.updated} producto{result.updated !== 1 ? 's' : ''} actualizado{result.updated !== 1 ? 's' : ''}!
+                            </p>
+                            <p className="text-sm text-[#7A6040]">Los nuevos precios ya están activos.</p>
+                            <button onClick={onClose} className="mt-2 w-full py-3 btn-accent rounded-xl font-black text-sm">
+                                Listo
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── Categoría ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    Categoría
+                                </label>
+                                <select
+                                    value={categoryId}
+                                    onChange={e => setCategoryId(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#D4C9B0] text-[#3D2B1F] text-sm outline-none focus:border-[#8B6914]"
+                                >
+                                    <option value="__all__">Todas las categorías ({products.length} productos)</option>
+                                    {categories.map(c => {
+                                        const count = products.filter(p => p.categoryId === c.id).length;
+                                        return (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name} ({count} productos)
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            {/* ── Tipo de ajuste ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    Tipo de ajuste
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setType('percent')}
+                                        className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${type === 'percent' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-blue-300'}`}
+                                    >
+                                        <Percent size={15} /> Porcentaje
+                                    </button>
+                                    <button
+                                        onClick={() => setType('fixed')}
+                                        className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${type === 'fixed' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-blue-300'}`}
+                                    >
+                                        <Hash size={15} /> Monto fijo
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ── Valor ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    {type === 'percent' ? 'Porcentaje (negativo para bajar)' : 'Monto a sumar (negativo para restar)'}
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B6914] font-bold text-sm">
+                                        {type === 'percent' ? '%' : '$'}
+                                    </span>
+                                    <input
+                                        type="number"
+                                        value={value}
+                                        onChange={e => setValue(e.target.value)}
+                                        placeholder={type === 'percent' ? 'Ej: 15 (sube 15%) o -10 (baja 10%)' : 'Ej: 500 (suma $500)'}
+                                        className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white border border-[#D4C9B0] text-[#3D2B1F] text-sm outline-none focus:border-[#8B6914]"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ── Campo a actualizar ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    Qué actualizar
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { key: 'price', label: 'Solo precio' },
+                                        { key: 'cost',  label: 'Solo costo' },
+                                        { key: 'both',  label: 'Precio y costo' },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.key}
+                                            onClick={() => setField(opt.key)}
+                                            className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${field === opt.key ? 'bg-[#8B6914] border-[#8B6914] text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-[#8B6914]/40'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Redondeo ── */}
+                            <div>
+                                <label className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider block mb-1.5">
+                                    Redondear al múltiplo de
+                                </label>
+                                <div className="flex gap-2 flex-wrap">
+                                    {['0', '1', '5', '10', '50', '100'].map(r => (
+                                        <button
+                                            key={r}
+                                            onClick={() => setRoundTo(r)}
+                                            className={`px-3 py-1.5 rounded-lg border-2 font-bold text-xs transition-all ${roundTo === r ? 'bg-[#8B6914] border-[#8B6914] text-white' : 'bg-white border-[#D4C9B0] text-[#3D2B1F] hover:border-[#8B6914]/40'}`}
+                                        >
+                                            {r === '0' ? 'Sin redondeo' : `$${r}`}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Preview ── */}
+                            {previewItems.length > 0 && (
+                                <div className="bg-white border border-[#D4C9B0] rounded-xl overflow-hidden">
+                                    <div className="px-3 py-2 bg-[#F5F0E8] border-b border-[#D4C9B0]">
+                                        <p className="text-xs font-bold text-[#5C4A2A] uppercase tracking-wider">
+                                            Vista previa — {affectedProducts.length} producto{affectedProducts.length !== 1 ? 's' : ''} en {catName}
+                                        </p>
+                                    </div>
+                                    <div className="divide-y divide-[#EDE8DC]">
+                                        {previewItems.map((p, i) => (
+                                            <div key={i} className="px-3 py-2.5 flex items-center gap-3">
+                                                <p className="text-xs font-medium text-[#3D2B1F] flex-1 truncate">{p.name}</p>
+                                                <div className="flex items-center gap-1.5 text-xs shrink-0">
+                                                    {(field === 'price' || field === 'both') && (
+                                                        <span className={`font-bold ${p.newPrice !== p.oldPrice ? (p.newPrice > p.oldPrice ? 'text-green-700' : 'text-red-600') : 'text-slate-400'}`}>
+                                                            ${p.oldPrice?.toLocaleString('es-AR')} → ${p.newPrice?.toLocaleString('es-AR')}
+                                                        </span>
+                                                    )}
+                                                    {field === 'both' && <span className="text-slate-300">|</span>}
+                                                    {(field === 'cost' || field === 'both') && (
+                                                        <span className="text-slate-500">
+                                                            costo: ${p.newCost?.toLocaleString('es-AR')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {affectedProducts.length > 5 && (
+                                            <p className="px-3 py-2 text-xs text-[#A09070] text-center">
+                                                y {affectedProducts.length - 5} producto{affectedProducts.length - 5 !== 1 ? 's' : ''} más...
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                {!result && (
+                    <div className="px-5 py-4 border-t border-[#D4C9B0]">
+                        <button
+                            onClick={handleApply}
+                            disabled={isApplying || !value || isNaN(Number(value)) || affectedProducts.length === 0}
+                            className="w-full py-3.5 btn-accent rounded-xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-all"
+                        >
+                            {isApplying
+                                ? <><RefreshCw size={16} className="animate-spin" /> Aplicando...</>
+                                : <><TrendingUp size={16} /> Aplicar a {affectedProducts.length} producto{affectedProducts.length !== 1 ? 's' : ''}</>
+                            }
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
