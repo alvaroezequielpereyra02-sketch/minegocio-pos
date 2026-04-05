@@ -125,10 +125,13 @@ const ProductGrid = React.memo(function ProductGrid({
         if (index >= products.length) return null; // celda vacía en la última fila
 
         const product = products[index];
+        // FixedSizeGrid ya posiciona cada celda en:
+        //   left = columnIndex * columnWidth  (donde columnWidth = cardWidth + GAP)
+        //   top  = rowIndex    * rowHeight    (donde rowHeight  = CARD_HEIGHT + GAP)
+        // Solo sobreescribimos width y height para recortar el GAP visual.
+        // NO agregar columnIndex*GAP ni rowIndex*GAP — eso duplica el espacio.
         const cellStyle = {
             ...style,
-            left:   Number(style.left)  + columnIndex * GAP,
-            top:    Number(style.top)   + rowIndex    * GAP,
             width:  cardWidth,
             height: CARD_HEIGHT,
         };
@@ -193,7 +196,10 @@ const ProductGrid = React.memo(function ProductGrid({
                 <AutoSizer>
                     {({ width, height }) => {
                         const columnCount = getColumnCount(width);
-                        const cardWidth   = Math.floor((width - GAP * (columnCount - 1)) / columnCount);
+                        // Math.floor(width / columnCount) garantiza que
+                        // columnCount * columnWidth ≤ width → sin overflow lateral.
+                        const columnWidth = Math.floor(width / columnCount);
+                        const cardWidth   = columnWidth - GAP;
                         const rowCount    = Math.ceil(filteredProducts.length / columnCount);
                         const rowHeight   = CARD_HEIGHT + GAP;
 

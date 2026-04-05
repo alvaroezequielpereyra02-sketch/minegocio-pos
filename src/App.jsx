@@ -312,7 +312,7 @@ export default function App() {
 
                     {/* POS */}
                     {activeTab === 'pos' && (
-                        <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-0 lg:pb-4">
+                        <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-20 lg:pb-4">
                             <ProductGrid
                                 products={products} addToCart={addToCart}
                                 searchTerm={searchTerm} setSearchTerm={setSearchTerm}
