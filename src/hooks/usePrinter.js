@@ -17,26 +17,7 @@ export const usePrinter = (onNotify = () => {}) => {
 
     // --- 1. CONEXIÓN WEB BLUETOOTH ---
     const connectBluetooth = async () => {
-        // Guard: Web Bluetooth no está soportado (iOS Safari, Firefox, Edge legacy, etc.)
-        // En estos browsers navigator.bluetooth directamente no existe.
-        if (!('bluetooth' in navigator)) {
-            onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
-            return;
-        }
-
         try {
-            // ──────────────────────────────────────────────────────────────────
-            // Comportamiento en Android Chrome cuando el Bluetooth está APAGADO:
-            //
-            //   requestDevice() dispara automáticamente el diálogo nativo del
-            //   sistema "¿Activar Bluetooth?" SIN necesitar código extra.
-            //
-            //   • Usuario acepta  → BT se enciende, aparece el selector de impresoras
-            //   • Usuario rechaza → lanza NotFoundError (mismo error que cancelar el picker)
-            //
-            // Por eso NO hace falta un step previo de "verificar si BT está on":
-            // el browser ya lo maneja mostrando el diálogo nativo.
-            // ──────────────────────────────────────────────────────────────────
             const device = await navigator.bluetooth.requestDevice({
                 filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
                 optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
@@ -49,29 +30,12 @@ export const usePrinter = (onNotify = () => {}) => {
             setPrinterDevice({ device, characteristic });
             onNotify(`✅ Impresora conectada: ${device.name}`);
         } catch (error) {
-            // NotFoundError tiene DOS causas posibles:
-            //   a) Usuario canceló el selector de dispositivos → sin notificación
-            //   b) Usuario rechazó el diálogo "¿Activar Bluetooth?" → tampoco notificar,
-            //      porque ya vio el diálogo del sistema y eligió no activarlo.
-            // En ambos casos la acción correcta es no molestar con un error extra.
-            if (error.name === 'NotFoundError') return;
-
-            // NotSupportedError: el dispositivo no tiene adaptador BT o está deshabilitado
-            // a nivel de hardware/SO (raro, pero posible en tablets sin BT).
-            if (error.name === 'NotSupportedError') {
-                onNotify('❌ Bluetooth no disponible en este dispositivo.');
-                return;
+            // NotFoundError = el usuario cerró el selector sin elegir dispositivo.
+            // No es un error real — no mostrar notificación para no confundir.
+            if (error.name !== 'NotFoundError') {
+                console.error('[usePrinter] connectBluetooth:', error.message);
+                onNotify("❌ No se pudo conectar la impresora.");
             }
-
-            // SecurityError: el contexto no es seguro (HTTP) o falta user gesture.
-            if (error.name === 'SecurityError') {
-                onNotify('❌ Permiso de Bluetooth denegado. Revisá la configuración del sitio.');
-                return;
-            }
-
-            // Cualquier otro error (GATT connection failed, service not found, etc.)
-            console.error('[usePrinter] connectBluetooth:', error.name, error.message);
-            onNotify('❌ No se pudo conectar la impresora. Verificá que esté encendida y cercana.');
         }
     };
 
@@ -186,7 +150,7 @@ export const usePrinter = (onNotify = () => {}) => {
             if (printerDevice) {
                 await printBluetooth(transaction, storeProfile);
             } else {
-                await printRawBT(transaction, storeProfile);
+                printRawBT(transaction, storeProfile);
             }
         } catch (error) {
             console.error("Error en impresión:", error);
@@ -195,24 +159,7 @@ export const usePrinter = (onNotify = () => {}) => {
         }
     };
 
-    const printRawBT = async (transaction, storeProfile) => {
-        // Verificar disponibilidad de Bluetooth antes de enviar a RawBT.
-        // getAvailability() devuelve false si el adaptador BT no existe o está
-        // desactivado a nivel de sistema. Si está apagado por el usuario, en
-        // Android Chrome devuelve false también.
-        if ('bluetooth' in navigator) {
-            try {
-                const available = await navigator.bluetooth.getAvailability();
-                if (!available) {
-                    onNotify('📶 Bluetooth apagado. Activalo para imprimir con RawBT.');
-                    return;
-                }
-            } catch {
-                // getAvailability puede fallar en contextos restrictivos.
-                // En ese caso continuamos e intentamos enviar igual.
-            }
-        }
-
+    const printRawBT = (transaction, storeProfile) => {
         const text = generateReceiptText(transaction, storeProfile);
         const base64 = btoa(text);
 
