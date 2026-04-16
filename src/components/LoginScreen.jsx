@@ -70,7 +70,7 @@ export default function LoginScreen({
     };
 
     return (
-        <div className="min-h-screen login-bg flex items-center justify-center p-4">
+        <main className="min-h-screen login-bg flex items-center justify-center p-4" aria-label="Inicio de sesión">
             <div className="w-full max-w-sm">
 
                 {/* Logo y nombre de tienda */}
@@ -194,6 +194,6 @@ export default function LoginScreen({
                     )}
                 </div>
             </div>
-        </div>
+        </main>
     );
 }
