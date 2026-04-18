@@ -1,0 +1,126 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MiNegocio POS — Reglas de seguridad de Firestore
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Roles del sistema (manejados via Firebase Custom Claims):
+//   admin  → dueño/administrador de la tienda. Acceso total.
+//   client → empleado o cliente registrado. Acceso restringido.
+//
+// Estructura de colecciones:
+//   users/{uid}                              → perfil de cada usuario
+//   stores/{storeId}/products/{id}           → catálogo de productos
+//   stores/{storeId}/categories/{id}         → categorías
+//   stores/{storeId}/subcategories/{id}      → subcategorías
+//   stores/{storeId}/customers/{id}          → clientes
+//   stores/{storeId}/expenses/{id}           → gastos
+//   stores/{storeId}/transactions/{id}       → ventas / boletas
+//   stores/{storeId}/settings/profile        → perfil de la tienda
+//   stores/{storeId}/invitation_codes/{id}   → códigos de invitación
+//   stores/{storeId}/fcm_tokens/{uid}        → tokens de push notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Funciones de ayuda ────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'admin';
+    }
+
+    // FIX: solo verifica que sea número — el stock negativo es válido
+    // porque el sistema opera por demanda (pedidos se registran incluso
+    // con stock 0, el panel de Faltantes muestra qué reponer).
+    function onlyUpdatingStock() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+        && request.resource.data.stock is number;
+    }
+
+    // ── Usuarios ──────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:  if isAuthenticated();
+      allow write: if request.auth.uid == userId;
+    }
+
+    // ── Tienda ────────────────────────────────────────────────────────────────
+    match /stores/{storeId} {
+
+      // FIX: era "if true" — no hay razón para exponer el perfil sin autenticación.
+      match /settings/profile {
+        allow read:  if isAuthenticated();
+        allow write: if isAdmin();
+      }
+
+      // Productos
+      match /products/{productId} {
+        allow read:   if isAuthenticated();
+        allow create: if isAdmin();
+        allow update: if isAdmin() || (isAuthenticated() && onlyUpdatingStock());
+        allow delete: if isAdmin();
+      }
+
+      // Categorías y subcategorías
+      match /categories/{categoryId} {
+        allow read:  if isAuthenticated();
+        allow write: if isAdmin();
+      }
+
+      match /subcategories/{subId} {
+        allow read:  if isAuthenticated();
+        allow write: if isAdmin();
+      }
+
+      // Clientes
+      match /customers/{customerId} {
+        allow read:  if isAdmin() || (isAuthenticated() && (
+                       request.auth.uid == customerId ||
+                       resource.data.userId == request.auth.uid
+                     ));
+        allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == customerId);
+      }
+
+      // Gastos
+      match /expenses/{expenseId} {
+        allow read, write: if isAdmin();
+      }
+
+      // Transacciones / Boletas
+      // FIX: el create ahora valida que el clientId corresponda al usuario que
+      // realiza la operación (a menos que sea admin, que puede crear en nombre
+      // de cualquier cliente). Evita que un cliente cree boletas con clientId ajeno.
+      match /transactions/{transactionId} {
+        allow read:   if isAdmin() || (isAuthenticated() && resource.data.clientId == request.auth.uid);
+        allow create: if isAuthenticated()
+                        && (isAdmin() || request.resource.data.clientId == request.auth.uid);
+        allow update, delete: if isAdmin();
+      }
+
+      // Códigos de invitación
+      // FIX: era "allow read: if true" — cualquier visitante podía listar
+      // todos los códigos activos y usarlos sin invitación real.
+      // Ahora se requiere autenticación para leer.
+      match /invitation_codes/{codeId} {
+        allow read:           if isAuthenticated();
+        allow create, delete: if isAdmin();
+        allow update:         if isAuthenticated();
+      }
+
+      // Tokens FCM (notificaciones push)
+      match /fcm_tokens/{userId} {
+        allow read:  if isAdmin();
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Health Checks
+      match /health_checks/{doc} {
+        allow read, write, delete: if isAdmin();
+      }
+    }
+  }
+}
