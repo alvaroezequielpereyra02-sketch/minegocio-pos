@@ -466,7 +466,8 @@ export default function TransactionDetail({
 
     // Imprime ticket térmico.
     // Si hay impresora Bluetooth pareada → la usa directamente.
-    // Si no → intenta RawBT (app Android). En ambos casos printTicket() hace el routing.
+    // Si hay impresora conectada → imprime directo.
+    // Si no → abre el selector BT nativo, conecta y luego imprime en un solo gesto.
     const handleThermalPrint = async () => {
         if (!printer) return;
         try {
@@ -642,24 +643,33 @@ export default function TransactionDetail({
                                                 {printer.isPrinting ? 'Imprimiendo...' : 'Ticket Térmico'}
                                             </div>
                                             <div className="text-xs text-slate-500">
-                                                {printer.isConnected ? 'Impresora Bluetooth conectada' : 'Vía RawBT (Android)'}
+                                                {printer.isConnected
+                                                    ? `Conectado a ${printer.printerName || 'impresora BT'}`
+                                                    : 'Tocá para seleccionar impresora Bluetooth'
+                                                }
                                             </div>
                                         </div>
                                         {/* Indicador de estado */}
                                         <div className={`w-2 h-2 rounded-full shrink-0 ${printer.isConnected ? 'bg-green-500' : 'bg-slate-300'}`} />
                                     </button>
 
-                                    {/* Botón secundario: conectar/desconectar Bluetooth */}
+                                    {/* Botón secundario: conectar o desconectar */}
                                     <div className="border-t border-[#D4C9B0]">
-                                        <button
-                                            onClick={handleConnectBluetooth}
-                                            className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                            {printer.isConnected
-                                                ? <><BluetoothConnected size={13} /> Impresora BT conectada</>
-                                                : <><Bluetooth size={13} /> Conectar impresora Bluetooth</>
-                                            }
-                                        </button>
+                                        {printer.isConnected ? (
+                                            <button
+                                                onClick={() => printer.disconnectBluetooth?.()}
+                                                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                            >
+                                                <BluetoothConnected size={13} /> Desconectar impresora
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={handleConnectBluetooth}
+                                                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                            >
+                                                <Bluetooth size={13} /> Conectar impresora Bluetooth
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}

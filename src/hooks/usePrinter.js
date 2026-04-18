@@ -16,34 +16,13 @@ export const usePrinter = (onNotify = () => {}) => {
     const [printerDevice, setPrinterDevice] = useState(null);
 
     // --- 1. CONEXIÓN WEB BLUETOOTH ---
-    const connectBluetooth = async () => {
-        try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
-                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-            });
-
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-            const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-            setPrinterDevice({ device, characteristic });
-            onNotify(`✅ Impresora conectada: ${device.name}`);
-        } catch (error) {
-            // NotFoundError = el usuario cerró el selector sin elegir dispositivo.
-            // No es un error real — no mostrar notificación para no confundir.
-            if (error.name !== 'NotFoundError') {
-                console.error('[usePrinter] connectBluetooth:', error.message);
-                onNotify("❌ No se pudo conectar la impresora.");
-            }
-        }
-    };
+    // --- 1. CONEXIÓN Y TICKET ---
 
     // --- GENERADOR DE TEXTO DEL TICKET ---
-    // Diseñado para impresoras térmicas de 57mm con RawBT.
+    // Diseñado para impresoras térmicas de 57mm (ESC/POS via Web Bluetooth directo).
     // 57mm = 32 caracteres por línea en fuente estándar.
     // Se usa padding manual de espacios en lugar de ALIGN_RIGHT para los items,
-    // porque ALIGN_RIGHT via base64/RawBT a veces no se aplica correctamente
+    // porque ALIGN_RIGHT a veces no se aplica correctamente en impresoras térmicas baratas
     // y termina pegado al texto anterior (bug visible en el ticket físico).
     const CHARS_PER_LINE = 32;
 
@@ -141,69 +120,115 @@ export const usePrinter = (onNotify = () => {}) => {
         return text;
     };
 
-    // --- NUEVA FUNCIÓN: printTicket (La que busca Modals.jsx) ---
+    // --- IMPRESIÓN PRINCIPAL ---
+    // Flujo unificado sin RawBT:
+    //   1. Si ya hay impresora conectada → imprime directo
+    //   2. Si no hay impresora → abre el selector BT nativo, conecta y luego imprime
+    //      en un solo gesto (el usuario no necesita tocar "Conectar" por separado)
+    //
+    // Esto elimina la dependencia de RawBT (app paga) sin perder ninguna funcionalidad.
+    // printBluetooth() ya enviaba ESC/POS directo por GATT — era la misma ruta final.
     const printTicket = async (transaction, storeProfile) => {
+        if (!('bluetooth' in navigator)) {
+            onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
+            return;
+        }
+
         setIsPrinting(true);
         try {
-            // Si hay un dispositivo Bluetooth conectado, usamos ese.
-            // Si no, usamos el método RawBT (ideal para móviles).
-            if (printerDevice) {
-                await printBluetooth(transaction, storeProfile);
+            // Si no hay dispositivo conectado, conectar primero y luego imprimir
+            if (!printerDevice) {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+
+                // Guardar para futuras impresiones en la misma sesión
+                const newDevice = { device, characteristic };
+                setPrinterDevice(newDevice);
+                onNotify(`✅ Conectado a ${device.name}`);
+
+                // Imprimir inmediatamente con el dispositivo recién conectado
+                await sendToPrinter(newDevice, transaction, storeProfile);
             } else {
-                printRawBT(transaction, storeProfile);
+                await sendToPrinter(printerDevice, transaction, storeProfile);
             }
         } catch (error) {
-            console.error("Error en impresión:", error);
+            if (error.name === 'NotFoundError') {
+                // Usuario canceló el selector BT — sin notificación
+                return;
+            }
+            if (error.name === 'NotSupportedError') {
+                onNotify('❌ Bluetooth no disponible en este dispositivo.');
+                return;
+            }
+            if (error.name === 'SecurityError') {
+                onNotify('❌ Permiso de Bluetooth denegado. Revisá la configuración del sitio.');
+                return;
+            }
+            console.error('[usePrinter] printTicket:', error.name, error.message);
+            onNotify('❌ Error al imprimir. Verificá que la impresora esté encendida y cerca.');
         } finally {
             setIsPrinting(false);
         }
     };
 
-    const printRawBT = (transaction, storeProfile) => {
-        const text = generateReceiptText(transaction, storeProfile);
-        const base64 = btoa(text);
-
-        // ✅ Detectamos si RawBT está instalado usando un iframe oculto.
-        // Si el scheme rawbt:// no está registrado, el iframe no dispara nada
-        // y mostramos un mensaje al usuario en lugar de silencio.
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-
-        let appOpened = false;
-        const handleBlur = () => { appOpened = true; };
-        window.addEventListener('blur', handleBlur);
-
-        iframe.src = `rawbt:base64,${base64}`;
-
-        setTimeout(() => {
-            window.removeEventListener('blur', handleBlur);
-            document.body.removeChild(iframe);
-            if (!appOpened) {
-                // ✅ FIX: reemplazado alert() por onNotify
-                onNotify('⚠️ No se encontró la app RawBT. Instalala desde Play Store.');
-            }
-        }, 1500);
-    };
-
-    const printBluetooth = async (transaction, storeProfile) => {
-        if (!printerDevice) return;
+    // Función interna — envía el ticket a un dispositivo GATT ya conectado
+    const sendToPrinter = async (device, transaction, storeProfile) => {
         const text = generateReceiptText(transaction, storeProfile);
         const encoder = new TextEncoder();
         const data = encoder.encode(text);
         const chunkSize = 512;
         for (let i = 0; i < data.length; i += chunkSize) {
             const chunk = data.slice(i, i + chunkSize);
-            await printerDevice.characteristic.writeValue(chunk);
+            await device.characteristic.writeValue(chunk);
         }
+    };
+
+    // Mantener connectBluetooth para el botón secundario "Conectar impresora"
+    // (permite pre-parear sin imprimir, o cambiar de impresora)
+    const connectBluetooth = async () => {
+        if (!('bluetooth' in navigator)) {
+            onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
+            return;
+        }
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+
+            setPrinterDevice({ device, characteristic });
+            onNotify(`✅ Impresora conectada: ${device.name}`);
+        } catch (error) {
+            if (error.name === 'NotFoundError') return;
+            if (error.name === 'NotSupportedError') { onNotify('❌ Bluetooth no disponible en este dispositivo.'); return; }
+            if (error.name === 'SecurityError') { onNotify('❌ Permiso denegado. Revisá la configuración del sitio.'); return; }
+            console.error('[usePrinter] connectBluetooth:', error.name, error.message);
+            onNotify('❌ No se pudo conectar la impresora. Verificá que esté encendida y cercana.');
+        }
+    };
+
+    const disconnectBluetooth = () => {
+        if (printerDevice?.device?.gatt?.connected) {
+            printerDevice.device.gatt.disconnect();
+        }
+        setPrinterDevice(null);
+        onNotify('🔌 Impresora desconectada.');
     };
 
     return {
         connectBluetooth,
-        printBluetooth,
-        printRawBT,
-        printTicket, // <--- EXPORTADA CORRECTAMENTE
+        disconnectBluetooth,
+        printTicket,
         isPrinting,
-        isConnected: !!printerDevice
+        isConnected: !!printerDevice,
+        printerName: printerDevice?.device?.name || null,
     };
 };
