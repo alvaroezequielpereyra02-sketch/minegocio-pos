@@ -55,8 +55,6 @@ export const useInventory = (user, userData) => {
         }
         return () => { unsubs2.forEach(fn => fn()); };
     }, [user, userData?.role]);
-    
-    }, [user, userData?.role]);
 
     // --- NUEVA ACCIÓN: REGISTRO DE FALLAS ---
     const registerFaultyProduct = async (product, qty, reason) => {
