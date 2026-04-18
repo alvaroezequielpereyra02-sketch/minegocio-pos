@@ -24,8 +24,9 @@ const FONT_2X     = ESC + '!' + '\x30';
 const FONT_NORMAL = ESC + '!' + '\x00';
 
 export const usePrinter = (onNotify = () => {}) => {
-    const [isPrinting, setIsPrinting]   = useState(false);
-    const [printerDevice, setPrinterDevice] = useState(null);
+    const [isPrinting, setIsPrinting]         = useState(false);
+    const [isConnecting, setIsConnecting]     = useState(false);
+    const [printerDevice, setPrinterDevice]   = useState(null);
 
     // ── HELPERS DE FORMATO ────────────────────────────────────────────────────
     // 57mm = 32 chars/línea en fuente normal. Con FONT_2X (doble ancho) = 16 chars.
@@ -147,11 +148,12 @@ export const usePrinter = (onNotify = () => {}) => {
         t += ALIGN_CENTER + SEP_DASHED + '\n';
 
         // ── FEED + CORTE ──────────────────────────────────────────────────────
-        // Avance de 120 dots (~9mm) antes del corte.
-        // Resuelve el problema donde tickets cortos (1 ítem) quedan cortados
-        // antes de salir lo suficiente — el usuario tenía que tirar del rollo.
-        t += '\n\n';
-        t += FEED_DOTS(120);
+        // 3 saltos + FEED_DOTS(250) → avanza ~18mm antes del corte.
+        // Con 120 dots la línea de perforaciones quedaba debajo del cabezal
+        // de corte. 250 dots (a 203 DPI) asegura que el contenido pase por
+        // encima del punto de corte en impresoras de 57mm y 80mm.
+        t += '\n\n\n';
+        t += FEED_DOTS(250);
         t += CUT;
 
         return t;
@@ -179,6 +181,7 @@ export const usePrinter = (onNotify = () => {}) => {
         setIsPrinting(true);
         try {
             if (!printerDevice) {
+                setIsConnecting(true);
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
                     optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
@@ -188,12 +191,14 @@ export const usePrinter = (onNotify = () => {}) => {
                 const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
                 const newDevice      = { device, characteristic };
                 setPrinterDevice(newDevice);
+                setIsConnecting(false);
                 onNotify(`✅ Conectado a ${device.name}`);
                 await sendToPrinter(newDevice, transaction, storeProfile);
             } else {
                 await sendToPrinter(printerDevice, transaction, storeProfile);
             }
         } catch (error) {
+            setIsConnecting(false);
             if (error.name === 'NotFoundError') return;
             if (error.name === 'NotSupportedError') { onNotify('❌ Bluetooth no disponible en este dispositivo.'); return; }
             if (error.name === 'SecurityError') { onNotify('❌ Permiso de Bluetooth denegado. Revisá la configuración del sitio.'); return; }
@@ -210,6 +215,7 @@ export const usePrinter = (onNotify = () => {}) => {
             onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
             return;
         }
+        setIsConnecting(true);
         try {
             const device         = await navigator.bluetooth.requestDevice({
                 filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
@@ -226,6 +232,8 @@ export const usePrinter = (onNotify = () => {}) => {
             if (error.name === 'SecurityError') { onNotify('❌ Permiso denegado. Revisá la configuración del sitio.'); return; }
             console.error('[usePrinter] connectBluetooth:', error.name, error.message);
             onNotify('❌ No se pudo conectar la impresora. Verificá que esté encendida y cercana.');
+        } finally {
+            setIsConnecting(false);
         }
     };
 
@@ -243,6 +251,7 @@ export const usePrinter = (onNotify = () => {}) => {
         disconnectBluetooth,
         printTicket,
         isPrinting,
+        isConnecting,
         isConnected: !!printerDevice,
         printerName: printerDevice?.device?.name || null,
     };

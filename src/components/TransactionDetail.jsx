@@ -623,56 +623,62 @@ export default function TransactionDetail({
                                 </button>
                             </div>
 
-                            {/* Impresora Térmica — UI mejorada */}
+                            {/* Impresora Térmica — UI con estado de conexión */}
                             {printer && (
                                 <div className="rounded-xl overflow-hidden border border-[#D4C9B0]">
 
-                                    {/* Estado de conexión — barra superior */}
-                                    <div className={`flex items-center gap-2 px-3 py-2 text-xs font-bold ${
-                                        printer.isConnected
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-slate-100 text-slate-500'
+                                    {/* Barra de estado superior */}
+                                    <div className={`flex items-center gap-2 px-3 py-2 text-xs font-bold transition-colors ${
+                                        printer.isConnecting ? 'bg-amber-500 text-white'
+                                        : printer.isConnected ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-100 text-slate-500'
                                     }`}>
-                                        {printer.isConnected
-                                            ? <><BluetoothConnected size={12} /> {printer.printerName || 'Impresora BT'}</>
-                                            : <><Bluetooth size={12} /> Sin impresora conectada</>
-                                        }
-                                        {/* Dot indicador */}
-                                        <div className={`ml-auto w-2 h-2 rounded-full ${printer.isConnected ? 'bg-green-300 animate-pulse' : 'bg-slate-300'}`} />
+                                        {printer.isConnecting ? (
+                                            <><Loader2 size={12} className="animate-spin" /> Buscando impresora...</>
+                                        ) : printer.isConnected ? (
+                                            <><BluetoothConnected size={12} /> {printer.printerName || 'Impresora BT'}</>
+                                        ) : (
+                                            <><Bluetooth size={12} /> Sin impresora conectada</>
+                                        )}
+                                        <div className={`ml-auto w-2 h-2 rounded-full ${
+                                            printer.isConnecting ? 'bg-white animate-pulse'
+                                            : printer.isConnected ? 'bg-green-300 animate-pulse'
+                                            : 'bg-slate-300'
+                                        }`} />
                                     </div>
 
                                     {/* Botón principal: imprimir */}
                                     <button
                                         onClick={handleThermalPrint}
-                                        disabled={printer.isPrinting}
+                                        disabled={printer.isPrinting || printer.isConnecting}
                                         className="w-full flex items-center gap-3 p-4 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-60"
                                     >
-                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                                            printer.isConnected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'
+                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                            printer.isConnecting ? 'bg-amber-100 text-amber-600'
+                                            : printer.isConnected ? 'bg-blue-100 text-blue-600'
+                                            : 'bg-slate-100 text-slate-400'
                                         }`}>
-                                            {printer.isPrinting
+                                            {printer.isPrinting || printer.isConnecting
                                                 ? <Loader2 size={22} className="animate-spin" />
                                                 : <Printer size={22} />
                                             }
                                         </div>
                                         <div className="text-left flex-1">
                                             <div className="font-bold text-[#3D2B1F] text-sm">
-                                                {printer.isPrinting ? 'Imprimiendo...' : 'Imprimir Ticket'}
+                                                {printer.isPrinting ? 'Imprimiendo...'
+                                                 : printer.isConnecting ? 'Seleccioná tu impresora...'
+                                                 : 'Imprimir Ticket'}
                                             </div>
                                             <div className="text-xs text-slate-500 mt-0.5">
-                                                {printer.isConnected
-                                                    ? 'Listo para imprimir'
-                                                    : 'Tocá para elegir impresora y imprimir'
-                                                }
+                                                {printer.isPrinting ? 'Enviando a la impresora'
+                                                 : printer.isConnecting ? 'El diálogo del sistema abrirá en un momento'
+                                                 : printer.isConnected ? 'Listo para imprimir'
+                                                 : 'Tocá para elegir impresora y imprimir'}
                                             </div>
                                         </div>
-                                        <div className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                                            printer.isConnected
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-slate-100 text-slate-400'
-                                        }`}>
-                                            BT
-                                        </div>
+                                        <div className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 ${
+                                            printer.isConnected ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                                        }`}>BT</div>
                                     </button>
 
                                     {/* Acciones secundarias */}
@@ -681,7 +687,8 @@ export default function TransactionDetail({
                                             <>
                                                 <button
                                                     onClick={handleConnectBluetooth}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    disabled={printer.isConnecting}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
                                                 >
                                                     <Bluetooth size={12} /> Cambiar
                                                 </button>
@@ -695,9 +702,13 @@ export default function TransactionDetail({
                                         ) : (
                                             <button
                                                 onClick={handleConnectBluetooth}
-                                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+                                                disabled={printer.isConnecting}
+                                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
                                             >
-                                                <Bluetooth size={12} /> Conectar impresora Bluetooth
+                                                {printer.isConnecting
+                                                    ? <><Loader2 size={12} className="animate-spin" /> Buscando...</>
+                                                    : <><Bluetooth size={12} /> Conectar impresora Bluetooth</>
+                                                }
                                             </button>
                                         )}
                                     </div>
