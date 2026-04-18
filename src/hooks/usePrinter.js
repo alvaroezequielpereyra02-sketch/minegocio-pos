@@ -1,52 +1,51 @@
 import { useState } from 'react';
 
+// ─────────────────────────────────────────────────────────────────────────────
 // COMANDOS ESC/POS
-const ESC = '\x1B';
-const GS = '\x1D';
-const INIT = ESC + '@';
-const CUT = GS + 'V' + '\x41' + '\x00';
-const BOLD_ON = ESC + 'E' + '\x01';
-const BOLD_OFF = ESC + 'E' + '\x00';
+// ─────────────────────────────────────────────────────────────────────────────
+const ESC  = '\x1B';
+const GS   = '\x1D';
+const INIT = ESC + '@';            // Reset completo de la impresora
+
+// Feed de N puntos antes del corte (soluciona ticket corto que hay que tirar)
+// 120 dots ≈ 9mm de avance — suficiente para cualquier impresora de 57mm/80mm
+const FEED_DOTS  = (n) => GS + 'J' + String.fromCharCode(n);
+const CUT        = GS + 'V' + '\x42' + '\x00'; // corte parcial
+
+const BOLD_ON      = ESC + 'E' + '\x01';
+const BOLD_OFF     = ESC + 'E' + '\x00';
+const ALIGN_LEFT   = ESC + 'a' + '\x00';
 const ALIGN_CENTER = ESC + 'a' + '\x01';
-const ALIGN_LEFT = ESC + 'a' + '\x00';
-const ALIGN_RIGHT = ESC + 'a' + '\x02';
+
+// Doble alto + doble ancho: simula "logo tipográfico" que ocupa todo el ancho
+// del ticket. Las impresoras BT de bajo costo no soportan impresión de imágenes,
+// pero FONT_2X imprime el nombre de la tienda de forma prominente y profesional.
+const FONT_2X     = ESC + '!' + '\x30';
+const FONT_NORMAL = ESC + '!' + '\x00';
 
 export const usePrinter = (onNotify = () => {}) => {
-    const [isPrinting, setIsPrinting] = useState(false);
+    const [isPrinting, setIsPrinting]   = useState(false);
     const [printerDevice, setPrinterDevice] = useState(null);
 
-    // --- 1. CONEXIÓN WEB BLUETOOTH ---
-    // --- 1. CONEXIÓN Y TICKET ---
+    // ── HELPERS DE FORMATO ────────────────────────────────────────────────────
+    // 57mm = 32 chars/línea en fuente normal. Con FONT_2X (doble ancho) = 16 chars.
+    const CHARS_PER_LINE    = 32;
+    const CHARS_PER_LINE_2X = 16;
 
-    // --- GENERADOR DE TEXTO DEL TICKET ---
-    // Diseñado para impresoras térmicas de 57mm (ESC/POS via Web Bluetooth directo).
-    // 57mm = 32 caracteres por línea en fuente estándar.
-    // Se usa padding manual de espacios en lugar de ALIGN_RIGHT para los items,
-    // porque ALIGN_RIGHT a veces no se aplica correctamente en impresoras térmicas baratas
-    // y termina pegado al texto anterior (bug visible en el ticket físico).
-    const CHARS_PER_LINE = 32;
-
-    // Rellena con espacios para que 'right' quede pegado al margen derecho.
-    // Si el contenido no entra en una línea, pone 'right' en la línea siguiente.
     const padRight = (left, right) => {
         const spaces = CHARS_PER_LINE - left.length - right.length;
-        if (spaces < 1) {
-            // No entra en una sola línea: precio en la siguiente línea indentado
+        if (spaces < 1)
             return left + '\n' + ' '.repeat(CHARS_PER_LINE - right.length) + right;
-        }
         return left + ' '.repeat(spaces) + right;
     };
 
-    // Divide un texto largo en líneas de máximo CHARS_PER_LINE caracteres,
-    // respetando palabras completas cuando es posible.
     const wrapText = (text, maxLen = CHARS_PER_LINE) => {
         if (text.length <= maxLen) return [text];
         const lines = [];
         let remaining = text;
         while (remaining.length > maxLen) {
-            // Buscar último espacio antes del límite para cortar por palabra
             let cut = remaining.lastIndexOf(' ', maxLen);
-            if (cut <= 0) cut = maxLen; // sin espacios → corte duro
+            if (cut <= 0) cut = maxLen;
             lines.push(remaining.substring(0, cut).trim());
             remaining = remaining.substring(cut).trim();
         }
@@ -54,121 +53,150 @@ export const usePrinter = (onNotify = () => {}) => {
         return lines;
     };
 
-    const SEP = '-'.repeat(CHARS_PER_LINE);
+    const SEP_SOLID  = '\u2550'.repeat(CHARS_PER_LINE); // ══════ (grueso visual)
+    const SEP_DASHED = '-'.repeat(CHARS_PER_LINE);       // ------ (fino)
 
+    // ── GENERADOR DEL TICKET ──────────────────────────────────────────────────
     const generateReceiptText = (transaction, storeProfile) => {
-        const storeName = storeProfile?.name || 'MiNegocio';
+        const storeName = (storeProfile?.name || 'MiNegocio').toUpperCase();
         const date = transaction.date?.seconds
-            ? new Date(transaction.date.seconds * 1000).toLocaleString('es-AR')
+            ? new Date(transaction.date.seconds * 1000).toLocaleString('es-AR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              })
             : new Date().toLocaleString('es-AR');
 
-        let text = INIT;
+        let t = INIT;
 
-        // ── CABECERA ──────────────────────────────────────────────────────────
-        text += ALIGN_CENTER + BOLD_ON + storeName.toUpperCase() + '\n' + BOLD_OFF;
-        text += 'Ticket de Venta\n';
-        text += ALIGN_LEFT + SEP + '\n';
+        // ── CABECERA: "LOGO TIPOGRÁFICO" ──────────────────────────────────────
+        // FONT_2X imprime cada carácter al doble de tamaño.
+        // Con 16 chars por línea el nombre se parte automáticamente si es largo.
+        t += ALIGN_CENTER + FONT_2X + BOLD_ON;
+        wrapText(storeName, CHARS_PER_LINE_2X).forEach(line => { t += line + '\n'; });
+        t += BOLD_OFF + FONT_NORMAL;
+        t += ALIGN_CENTER + 'Distribuidora\n'; // subtitulo opcional
+        t += '\n';
 
         // ── META ──────────────────────────────────────────────────────────────
-        text += `Fecha: ${date}\n`;
-        text += `Ticket: ${transaction.id?.substring(0, 8) || 'N/A'}\n`;
-        text += SEP + '\n';
+        t += ALIGN_LEFT + SEP_SOLID + '\n';
+        t += `Fecha:   ${date}\n`;
+        t += `Ticket:  #${(transaction.id?.substring(0, 8) || 'N/A').toUpperCase()}\n`;
+        if (transaction.clientName && transaction.clientName !== 'Anónimo') {
+            t += `Cliente: ${transaction.clientName}\n`;
+        }
+        t += SEP_SOLID + '\n';
+
+        // ── ENCABEZADO DE TABLA ───────────────────────────────────────────────
+        t += BOLD_ON + padRight('PRODUCTO', 'TOTAL') + BOLD_OFF + '\n';
+        t += SEP_DASHED + '\n';
 
         // ── ITEMS ─────────────────────────────────────────────────────────────
-        // Formato por item:
-        //   Nombre del producto (sin truncar, wrapping por palabra si >32 chars)
-        //     2 x $1.500         $3.000
-        (transaction.items ?? []).forEach(item => {
+        const items = transaction.items ?? [];
+        items.forEach((item, idx) => {
             const qty       = item.qty || item.quantity || 1;
             const unitPrice = item.price ?? 0;
             const itemTotal = unitPrice * qty;
+            const totalStr  = `$${itemTotal.toLocaleString('es-AR')}`;
+            const unitStr   = `$${unitPrice.toLocaleString('es-AR')}`;
 
-            const unitStr  = `$${unitPrice.toLocaleString('es-AR')}`;
-            const totalStr = `$${itemTotal.toLocaleString('es-AR')}`;
-
-            // Nombre completo, con wrap si es muy largo
             const nameLines = wrapText(item.name ?? 'Producto');
-            nameLines.forEach(line => { text += line + '\n'; });
-
-            // Segunda línea: cantidad × precio unitario → total (alineado a la derecha)
-            const leftPart = `  ${qty} x ${unitStr}`;
-            text += padRight(leftPart, totalStr) + '\n';
+            // Primera línea: nombre + total alineado a la derecha
+            t += padRight(nameLines[0], totalStr) + '\n';
+            // Continuación si el nombre era largo
+            nameLines.slice(1).forEach(l => { t += '  ' + l + '\n'; });
+            // Detalle qty × precio unitario solo cuando hay más de 1 unidad
+            if (qty > 1) {
+                t += `  ${qty} x ${unitStr}\n`;
+            }
+            // Separador fino entre items (no después del último)
+            if (idx < items.length - 1) t += SEP_DASHED + '\n';
         });
 
         // ── TOTAL ─────────────────────────────────────────────────────────────
-        text += SEP + '\n';
-        const totalLine = padRight(BOLD_ON + 'TOTAL:', `$${(transaction.total ?? 0).toLocaleString('es-AR')}` + BOLD_OFF);
-        text += totalLine + '\n';
-        text += SEP + '\n';
+        t += SEP_SOLID + '\n';
+        // "TOTAL" en tamaño normal + monto en doble tamaño centrado
+        t += BOLD_ON + ALIGN_CENTER + 'TOTAL\n' + BOLD_OFF;
+        const totalAmount = `$${(transaction.total ?? 0).toLocaleString('es-AR')}`;
+        t += ALIGN_CENTER + FONT_2X + BOLD_ON + totalAmount + '\n' + BOLD_OFF + FONT_NORMAL;
+        t += ALIGN_LEFT + SEP_SOLID + '\n';
 
-        // Método de pago (si está disponible)
+        // ── MÉTODO + ESTADO DE PAGO ───────────────────────────────────────────
         if (transaction.paymentMethod && transaction.paymentMethod !== 'unspecified') {
             const metodosLabel = {
-                cash:     'Efectivo',
-                transfer: 'Transferencia',
-                card:     'Tarjeta',
-                digital:  'Digital',
+                cash: 'Efectivo', transfer: 'Transferencia',
+                card: 'Tarjeta',  digital: 'Digital',
             };
             const metodoStr = metodosLabel[transaction.paymentMethod] || transaction.paymentMethod;
-            text += ALIGN_CENTER + `Pago: ${metodoStr}\n`;
+            t += ALIGN_CENTER + `[ Pago: ${metodoStr} ]\n`;
+        }
+
+        if (transaction.paymentStatus === 'pending') {
+            t += ALIGN_CENTER + BOLD_ON + '\n*** PENDIENTE DE PAGO ***\n' + BOLD_OFF;
+        } else if (transaction.paymentStatus === 'partial') {
+            const paid = transaction.amountPaid ?? 0;
+            const remaining = (transaction.total ?? 0) - paid;
+            t += ALIGN_CENTER + `Abonado: $${paid.toLocaleString('es-AR')}\n`;
+            t += ALIGN_CENTER + BOLD_ON + `Saldo:   $${remaining.toLocaleString('es-AR')}\n` + BOLD_OFF;
         }
 
         // ── PIE ───────────────────────────────────────────────────────────────
-        text += ALIGN_CENTER + '\nGracias por su compra!\n\n\n';
-        text += CUT;
+        t += '\n';
+        t += ALIGN_CENTER + SEP_DASHED + '\n';
+        t += ALIGN_CENTER + 'Gracias por su compra!\n';
+        t += ALIGN_CENTER + storeName + '\n';
+        t += ALIGN_CENTER + SEP_DASHED + '\n';
 
-        return text;
+        // ── FEED + CORTE ──────────────────────────────────────────────────────
+        // Avance de 120 dots (~9mm) antes del corte.
+        // Resuelve el problema donde tickets cortos (1 ítem) quedan cortados
+        // antes de salir lo suficiente — el usuario tenía que tirar del rollo.
+        t += '\n\n';
+        t += FEED_DOTS(120);
+        t += CUT;
+
+        return t;
     };
 
-    // --- IMPRESIÓN PRINCIPAL ---
-    // Flujo unificado sin RawBT:
-    //   1. Si ya hay impresora conectada → imprime directo
-    //   2. Si no hay impresora → abre el selector BT nativo, conecta y luego imprime
-    //      en un solo gesto (el usuario no necesita tocar "Conectar" por separado)
-    //
-    // Esto elimina la dependencia de RawBT (app paga) sin perder ninguna funcionalidad.
-    // printBluetooth() ya enviaba ESC/POS directo por GATT — era la misma ruta final.
+    // ── ENVÍO A LA IMPRESORA (GATT) ───────────────────────────────────────────
+    const sendToPrinter = async (device, transaction, storeProfile) => {
+        const text = generateReceiptText(transaction, storeProfile);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const chunkSize = 512;
+        for (let i = 0; i < data.length; i += chunkSize) {
+            await device.characteristic.writeValue(data.slice(i, i + chunkSize));
+        }
+    };
+
+    // ── IMPRIMIR TICKET (flujo unificado sin RawBT) ───────────────────────────
+    // Si hay impresora conectada → imprime directo.
+    // Si no → abre el selector BT nativo, conecta y luego imprime en un solo gesto.
     const printTicket = async (transaction, storeProfile) => {
         if (!('bluetooth' in navigator)) {
             onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
             return;
         }
-
         setIsPrinting(true);
         try {
-            // Si no hay dispositivo conectado, conectar primero y luego imprimir
             if (!printerDevice) {
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
                     optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
                 });
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                const server         = await device.gatt.connect();
+                const service        = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
                 const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-                // Guardar para futuras impresiones en la misma sesión
-                const newDevice = { device, characteristic };
+                const newDevice      = { device, characteristic };
                 setPrinterDevice(newDevice);
                 onNotify(`✅ Conectado a ${device.name}`);
-
-                // Imprimir inmediatamente con el dispositivo recién conectado
                 await sendToPrinter(newDevice, transaction, storeProfile);
             } else {
                 await sendToPrinter(printerDevice, transaction, storeProfile);
             }
         } catch (error) {
-            if (error.name === 'NotFoundError') {
-                // Usuario canceló el selector BT — sin notificación
-                return;
-            }
-            if (error.name === 'NotSupportedError') {
-                onNotify('❌ Bluetooth no disponible en este dispositivo.');
-                return;
-            }
-            if (error.name === 'SecurityError') {
-                onNotify('❌ Permiso de Bluetooth denegado. Revisá la configuración del sitio.');
-                return;
-            }
+            if (error.name === 'NotFoundError') return;
+            if (error.name === 'NotSupportedError') { onNotify('❌ Bluetooth no disponible en este dispositivo.'); return; }
+            if (error.name === 'SecurityError') { onNotify('❌ Permiso de Bluetooth denegado. Revisá la configuración del sitio.'); return; }
             console.error('[usePrinter] printTicket:', error.name, error.message);
             onNotify('❌ Error al imprimir. Verificá que la impresora esté encendida y cerca.');
         } finally {
@@ -176,34 +204,20 @@ export const usePrinter = (onNotify = () => {}) => {
         }
     };
 
-    // Función interna — envía el ticket a un dispositivo GATT ya conectado
-    const sendToPrinter = async (device, transaction, storeProfile) => {
-        const text = generateReceiptText(transaction, storeProfile);
-        const encoder = new TextEncoder();
-        const data = encoder.encode(text);
-        const chunkSize = 512;
-        for (let i = 0; i < data.length; i += chunkSize) {
-            const chunk = data.slice(i, i + chunkSize);
-            await device.characteristic.writeValue(chunk);
-        }
-    };
-
-    // Mantener connectBluetooth para el botón secundario "Conectar impresora"
-    // (permite pre-parear sin imprimir, o cambiar de impresora)
+    // ── CONECTAR (botón secundario, para pre-parear o cambiar impresora) ──────
     const connectBluetooth = async () => {
         if (!('bluetooth' in navigator)) {
             onNotify('❌ Tu navegador no soporta Bluetooth. Usá Chrome en Android.');
             return;
         }
         try {
-            const device = await navigator.bluetooth.requestDevice({
+            const device         = await navigator.bluetooth.requestDevice({
                 filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
                 optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
             });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            const server         = await device.gatt.connect();
+            const service        = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
             const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
             setPrinterDevice({ device, characteristic });
             onNotify(`✅ Impresora conectada: ${device.name}`);
         } catch (error) {
@@ -215,6 +229,7 @@ export const usePrinter = (onNotify = () => {}) => {
         }
     };
 
+    // ── DESCONECTAR ───────────────────────────────────────────────────────────
     const disconnectBluetooth = () => {
         if (printerDevice?.device?.gatt?.connected) {
             printerDevice.device.gatt.disconnect();
