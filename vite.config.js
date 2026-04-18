@@ -29,6 +29,11 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // firebase/auth se separa en su propio chunk pequeño (~30KB gzip).
+            // Carga en el bundle inicial para el login screen.
+            // El resto de Firebase (Firestore, Messaging, Storage) se carga
+            // de forma diferida desde firebase.js via import() dinámico.
+            if (id.includes('firebase/auth') || id.includes('@firebase/auth')) return 'firebase-auth';
             if (id.includes('firebase') || id.includes('@firebase')) return 'firebase';
             if (id.includes('html2pdf') || id.includes('jspdf') || id.includes('html2canvas')) return 'html2pdf';
             if (id.includes('recharts')) return 'recharts';

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, limit, query } from 'firebase/firestore';
-import { db, appId } from '../config/firebase';
+import { getDb, appId } from '../config/firebase';
 import { getOfflineQueue } from '../hooks/useSyncManager';
 import { useAuthContext } from '../context/AuthContext';
 import {
@@ -25,21 +25,20 @@ const makeChecks = (user) => [
         description: 'Puede leer el catálogo de productos',
         icon: Database,
         run: async () => {
+            const db = await getDb();
             const q = query(collection(db, 'stores', appId, 'products'), limit(1));
             const snap = await getDocs(q);
             return { ok: true, detail: `OK — ${snap.size} documento(s) accesible(s)` };
         },
     },
 
-    // ── 2. Firestore Escritura ────────────────────────────────────────────────
-    // Escribe un documento de prueba y lo borra inmediatamente.
-    // Detecta reglas de Firestore que bloquean escrituras silenciosamente.
     {
         id: 'firestore_write',
         label: 'Firestore — Escritura',
         description: 'Puede guardar transacciones y datos en la base',
         icon: PenLine,
         run: async () => {
+            const db = await getDb();
             const testRef = collection(db, 'stores', appId, 'health_checks');
             const written = await addDoc(testRef, { ts: Date.now(), source: 'health-check' });
             await deleteDoc(doc(db, 'stores', appId, 'health_checks', written.id));
@@ -75,6 +74,7 @@ const makeChecks = (user) => [
         icon: Bell,
         run: async () => {
             if (!user?.uid) return { ok: false, detail: 'No hay usuario autenticado' };
+            const db = await getDb();
             const snap = await getDocs(
                 query(collection(db, 'stores', appId, 'fcm_tokens'), limit(10))
             );

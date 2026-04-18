@@ -3,7 +3,7 @@ import {
     collection, query, orderBy, limit, where, onSnapshot, Timestamp,
     updateDoc, doc, serverTimestamp, writeBatch, getDoc, increment
 } from 'firebase/firestore';
-import { db, appId } from '../config/firebase';
+import { getDb, appId } from '../config/firebase';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // calcBalance — función pura exportada
@@ -118,181 +118,126 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     // más un límite de 500 como techo de seguridad para tiendas con mucho volumen.
     useEffect(() => {
         if (!user || !userData) return;
-
-        let q;
-        if (userData.role === 'admin') {
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - 35);
-            q = query(
-                collection(db, 'stores', appId, 'transactions'),
-                where('date', '>=', Timestamp.fromDate(cutoff)),
-                orderBy('date', 'desc'),
-                limit(500)
-            );
-        } else {
-            q = query(
-                collection(db, 'stores', appId, 'transactions'),
-                where('clientId', '==', user.uid),
-                orderBy('date', 'desc'),
-                limit(50)
-            );
-        }
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        let unsubscribe = () => {};
+        getDb().then(db => {
+            let q;
+            if (userData.role === 'admin') {
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - 35);
+                q = query(
+                    collection(db, 'stores', appId, 'transactions'),
+                    where('date', '>=', Timestamp.fromDate(cutoff)),
+                    orderBy('date', 'desc'),
+                    limit(500)
+                );
+            } else {
+                q = query(
+                    collection(db, 'stores', appId, 'transactions'),
+                    where('clientId', '==', user.uid),
+                    orderBy('date', 'desc'),
+                    limit(50)
+                );
+            }
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            });
         });
-
         return () => unsubscribe();
     }, [user, userData]);
 
     // 2. Crear Transacción (Venta)
     // 2. Crear Transacción (Venta)
     const createTransaction = async (saleData, cartItems) => {
-        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' para evitar errores de Firebase
         const cleanSaleData = Object.fromEntries(
             Object.entries(saleData).filter(([_, value]) => value !== undefined)
         );
-
+        const db = await getDb();
         const batch = writeBatch(db);
-
-        // A) Crear el documento de venta
         const transactionRef = doc(collection(db, 'stores', appId, 'transactions'));
         batch.set(transactionRef, cleanSaleData);
-
-        // B) Descontar Stock (Atómico)
         cartItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(-item.qty) });
         });
-
-        // C) Actualizar o CREAR cliente (si corresponde)
         if (cleanSaleData.clientId && cleanSaleData.clientId !== 'anonimo') {
             const customerRef = doc(db, 'stores', appId, 'customers', cleanSaleData.clientId);
-
-            // 🔄 CAMBIO CLAVE: Usamos set con { merge: true } en lugar de update
             batch.set(customerRef, {
                 name: cleanSaleData.clientName || 'Cliente',
                 email: user?.email || '',
                 externalOrdersCount: increment(1),
                 lastPurchase: serverTimestamp()
-            }, { merge: true }); // <--- Esto evita el error "No document to update"
+            }, { merge: true });
         }
-
         await batch.commit();
-
-        const fullTransaction = {
-            ...cleanSaleData,
-            id: transactionRef.id,
-            date: { seconds: Date.now() / 1000 }
-        };
-
+        const fullTransaction = { ...cleanSaleData, id: transactionRef.id, date: { seconds: Date.now() / 1000 } };
         setLastTransactionId(fullTransaction);
         return fullTransaction;
     };
 
-    // 3. Actualizar Transacción (¡CON AJUSTE DE STOCK INTELIGENTE!)
     const updateTransaction = async (id, data) => {
-        // 🛡️ LIMPIEZA: Eliminamos campos 'undefined' para evitar errores de Firebase
         const cleanData = Object.fromEntries(
             Object.entries(data).filter(([_, value]) => value !== undefined)
         );
-
-        // ESCUDO DE SEGURIDAD: Evita la sobrescritura con ceros o boletas vacías
         if (cleanData.items && cleanData.items.length === 0 && cleanData.total === 0) {
             console.error("Bloqueo preventivo: Se intentó guardar una boleta vacía.");
             return;
         }
-
+        const db = await getDb();
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
-
-        // Si solo actualizamos campos simples (como el estado de pago o status de reparto)
         if (!cleanData.items) {
             await updateDoc(transactionRef, cleanData);
             return;
         }
-
         const batch = writeBatch(db);
-
-        // 1. Obtener la transacción original antes de modificarla
         const oldTransactionSnap = await getDoc(transactionRef);
         if (!oldTransactionSnap.exists()) throw new Error("La transacción no existe.");
-
         const oldItems = oldTransactionSnap.data().items || [];
         const newItems = cleanData.items;
-
-        // 2. Revertir el stock (devolver lo viejo a la estantería)
         oldItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(item.qty) });
         });
-
-        // 3. Aplicar el nuevo stock (restar lo nuevo)
         newItems.forEach(item => {
             const productRef = doc(db, 'stores', appId, 'products', item.id);
             batch.update(productRef, { stock: increment(-item.qty) });
         });
-
-        // 4. Guardar los cambios finales en el documento (usando cleanData)
         batch.update(transactionRef, cleanData);
-
         await batch.commit();
     };
 
-    // 4. Borrar Transacción
     const deleteTransaction = async (id) => {
+        const db = await getDb();
         const transactionRef = doc(db, 'stores', appId, 'transactions', id);
         const transactionSnap = await getDoc(transactionRef);
-
-        // Salir sin crear ningún batch si la transacción no existe
         if (!transactionSnap.exists()) return;
-
         const batch = writeBatch(db);
         const transactionData = transactionSnap.data();
-
         if (transactionData.type === 'sale' && transactionData.items) {
             transactionData.items.forEach(item => {
                 const productRef = doc(db, 'stores', appId, 'products', item.id);
                 batch.update(productRef, { stock: increment(item.qty) });
             });
         }
-
         batch.delete(transactionRef);
         await batch.commit();
     };
 
     const purgeTransactions = async () => {
-        // ✅ FIX: Firestore permite máximo 500 operaciones por batch.
-        // Con 500 transacciones y ~5 items cada una → ~3000 ops → el batch explotaba.
-        // Solución: acumular todas las operaciones y ejecutarlas en lotes de 450
-        // (margen de seguridad sobre el límite de 500).
         const BATCH_LIMIT = 450;
-
-        // Construir lista plana de operaciones
-        const ops = []; // { type: 'delete'|'update', ref, data? }
+        const db = await getDb();
+        const ops = [];
         transactions.forEach(t => {
             if (t.type === 'sale' && t.items) {
                 t.items.forEach(item => {
-                    ops.push({
-                        type: 'update',
-                        ref: doc(db, 'stores', appId, 'products', item.id),
-                        data: { stock: increment(item.qty) }
-                    });
+                    ops.push({ type: 'update', ref: doc(db, 'stores', appId, 'products', item.id), data: { stock: increment(item.qty) } });
                 });
             }
-            ops.push({
-                type: 'delete',
-                ref: doc(db, 'stores', appId, 'transactions', t.id)
-            });
+            ops.push({ type: 'delete', ref: doc(db, 'stores', appId, 'transactions', t.id) });
         });
-
-        // Ejecutar en lotes de BATCH_LIMIT
         for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
             const chunk = ops.slice(i, i + BATCH_LIMIT);
             const batch = writeBatch(db);
-            chunk.forEach(op => {
-                if (op.type === 'delete') batch.delete(op.ref);
-                else batch.update(op.ref, op.data);
-            });
+            chunk.forEach(op => { if (op.type === 'delete') batch.delete(op.ref); else batch.update(op.ref, op.data); });
             await batch.commit();
         }
     };

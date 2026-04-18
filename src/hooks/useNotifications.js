@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { getToken } from 'firebase/messaging';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db, appId, getMessagingInstance } from '../config/firebase';
+import { getDb, appId, getMessagingInstance } from '../config/firebase';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
@@ -26,6 +26,7 @@ export const useNotifications = (user, userData) => {
     const saveToken = useCallback(async (token) => {
         if (!user) return;
         try {
+            const db = await getDb();
             await setDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid), {
                 token,
                 uid: user.uid,
@@ -71,6 +72,7 @@ export const useNotifications = (user, userData) => {
             // y el caso donde un admin no recibe notificaciones por token vencido
             if (tokenSavedRef.current) return;
 
+            const db = await getDb();
             const existingDoc = await getDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid));
             if (existingDoc.exists()) {
                 const existing = existingDoc.data();

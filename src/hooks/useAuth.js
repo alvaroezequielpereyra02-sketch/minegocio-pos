@@ -12,8 +12,7 @@ import {
     collection, query, where, getDocs, getDocsFromServer, updateDoc
 } from 'firebase/firestore';
 
-// ✅ Importamos las instancias ya inicializadas en lugar de crearlas en cada render
-import { auth, db, appId } from '../config/firebase';
+import { auth, getDb, appId } from '../config/firebase';
 
 export const useAuth = () => {
     const [user, setUser]               = useState(null);
@@ -66,7 +65,10 @@ export const useAuth = () => {
 
             if (firebaseUser) {
                 setUser(firebaseUser);
-                unsubUserData = onSnapshot(
+                // Firestore se cargó en segundo plano desde el inicio — getDb() es
+                // instantáneo en este punto porque onAuthStateChanged tarda ~200-400ms.
+                getDb().then(db => {
+                    unsubUserData = onSnapshot(
                     doc(db, 'users', firebaseUser.uid),
                     async (userDoc) => {
                         clearTimeout(authTimeout);
@@ -86,7 +88,8 @@ export const useAuth = () => {
                             });
                         } else if (navigator.onLine) {
                             setTimeout(async () => {
-                                const retryDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                                const db2 = await getDb();
+                                const retryDoc = await getDoc(doc(db2, 'users', firebaseUser.uid));
                                 if (!retryDoc.exists()) {
                                     signOut(auth);
                                     setUserData(null);
@@ -104,6 +107,7 @@ export const useAuth = () => {
                     },
                     () => { clearTimeout(authTimeout); setAuthLoading(false); }
                 );
+                }); // end getDb().then()
             } else {
                 clearTimeout(authTimeout);
                 setUser(null);
@@ -146,6 +150,7 @@ export const useAuth = () => {
 
     const validateInviteCode = async (code) => {
         if (!code) throw new Error("Código de invitación requerido.");
+        const db = await getDb();
         const codesRef = collection(db, 'stores', appId, 'invitation_codes');
         const q = query(codesRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
         const snapshot = await getDocsFromServer(q);
@@ -172,9 +177,9 @@ export const useAuth = () => {
                 // el usuario ya existe en Auth pero sin documento → loop infinito de carga
                 // y no puede re-registrarse con el mismo email.
                 // Solución: eliminar el usuario de Auth en el catch para mantener consistencia.
-                await setDoc(doc(db, 'users', uid), newUserData);
-                await setDoc(doc(db, 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
-                await updateDoc(doc(db, 'stores', appId, 'invitation_codes', inviteDoc.id), {
+                await setDoc(doc(await getDb(), 'users', uid), newUserData);
+                await setDoc(doc(await getDb(), 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
+                await updateDoc(doc(await getDb(), 'stores', appId, 'invitation_codes', inviteDoc.id), {
                     status: 'used', usedBy: uid, usedAt: serverTimestamp()
                 });
             } catch (firestoreError) {

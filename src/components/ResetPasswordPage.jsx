@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAuth, confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { Store, Eye, EyeOff, CheckCircle, XCircle, Loader2, Lock } from 'lucide-react';
-import { db, appId, app } from '../config/firebase';
+import { getDb, appId, app } from '../config/firebase';
 
 // getAuth(app) es idempotente — siempre devuelve la misma instancia.
 // Llamarlo fuera del componente evita ejecutarlo en cada render.
@@ -73,7 +73,8 @@ export default function ResetPasswordPage({ oobCode }) {
 
     // ── 1. Cargar perfil de la tienda ─────────────────────────────────────────
     useEffect(() => {
-        getDoc(doc(db, 'stores', appId, 'settings', 'profile'))
+        getDb()
+            .then(db => getDoc(doc(db, 'stores', appId, 'settings', 'profile')))
             .then(d => { if (d.exists()) setStoreProfile(d.data()); })
             .catch(() => {}); // silencioso — usa el fallback
     }, []);

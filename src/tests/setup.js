@@ -2,10 +2,12 @@ import '@testing-library/jest-dom';
 
 // ── Mock de Firebase ──────────────────────────────────────────────────────────
 vi.mock('../config/firebase', () => ({
-    db:      {},
+    getDb:   () => Promise.resolve({}),
     auth:    {},
     appId:   'tienda-test',
     storage: {},
+    getStorageInstance: () => Promise.resolve({}),
+    getMessagingInstance: () => Promise.resolve(null),
 }));
 
 vi.mock('firebase/firestore', () => ({
