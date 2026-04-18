@@ -8,15 +8,31 @@ import { serverTimestamp } from 'firebase/firestore';
 
 export const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
 
+// FIX: TTL de 7 días para entradas de la cola offline.
+// Sin expiración, boletas fallidas se acumulan indefinidamente
+// hasta llenar los ~5MB de localStorage.
+const QUEUE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 // ── Helpers de cola (compartidos con useCheckout) ─────────────────────────────
 export const getOfflineQueue = () => {
-    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
-    catch { return []; }
+    try {
+        const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+        // FIX: filtrar entradas expiradas al leer la cola.
+        // savedAt se agrega en addToOfflineQueue; entradas antiguas sin savedAt se conservan.
+        const fresh = queue.filter(e => !e.savedAt || (Date.now() - e.savedAt) < QUEUE_TTL_MS);
+        if (fresh.length !== queue.length) {
+            // Persistir inmediatamente si se eliminaron entradas expiradas
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(fresh));
+        }
+        return fresh;
+    } catch { return []; }
 };
+
 export const addToOfflineQueue = (entry) => {
     try {
         const q = getOfflineQueue();
-        q.push(entry);
+        // FIX: agregar timestamp para poder aplicar el TTL al leer
+        q.push({ ...entry, savedAt: Date.now() });
         localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
     } catch (e) {
         // QuotaExceededError: el localStorage (~5MB por origen) está lleno.
@@ -28,6 +44,7 @@ export const addToOfflineQueue = (entry) => {
         throw e; // re-throw para que useCheckout pueda mostrar error al usuario
     }
 };
+
 const removeFromOfflineQueue = (id) => {
     localStorage.setItem(OFFLINE_QUEUE_KEY,
         JSON.stringify(getOfflineQueue().filter(e => e.localId !== id)));
@@ -40,11 +57,9 @@ const removeFromOfflineQueue = (id) => {
  *
  *  TEST (import.meta.env.MODE === 'test'):
  *    Siempre hace el ping para que los mocks de fetch funcionen.
- *    Vitest expone MODE='test' exactamente para este propósito.
  *
  *  DESKTOP (producción, no Android):
  *    navigator.onLine es confiable en PC — retorna true sin ping.
- *    Evita latencia innecesaria (~50-100ms) en cada cobro.
  *
  *  ANDROID (producción):
  *    navigator.onLine miente con WiFi sin internet real.
@@ -54,13 +69,9 @@ const isAndroid = () => /android/i.test(navigator.userAgent);
 const isTestEnv = () => import.meta.env?.MODE === 'test';
 
 export const checkRealInternet = () => {
-    // Si el navegador dice offline, confiamos siempre
     if (!navigator.onLine) return Promise.resolve(false);
-
-    // En desktop (producción) navigator.onLine es suficiente → respuesta instantánea
     if (!isTestEnv() && !isAndroid()) return Promise.resolve(true);
 
-    // En Android (producción) y en tests: ping real
     const projectId = import.meta.env?.VITE_FIREBASE_PROJECT_ID;
     const pingUrl = projectId
         ? `https://${projectId}.firebaseapp.com/__/firebase/init.json`
@@ -83,16 +94,15 @@ export const useSyncManager = ({ user, createTransaction, showNotification }) =>
     const [pendingCount, setPendingCount] = useState(() => getOfflineQueue().length);
 
     // Refs sincrónicos — siempre tienen el valor más reciente
-    const createRef      = useRef(createTransaction);
-    const notifyRef      = useRef(showNotification);
-    createRef.current    = createTransaction;
-    notifyRef.current    = showNotification;
+    const createRef   = useRef(createTransaction);
+    const notifyRef   = useRef(showNotification);
+    createRef.current = createTransaction;
+    notifyRef.current = showNotification;
 
     const syncQueue = useCallback(async () => {
         const queue = getOfflineQueue();
         if (queue.length === 0) { setPendingCount(0); return; }
 
-        // Verificar conexión real antes de intentar subir
         const online = await checkRealInternet();
         if (!online) return;
 

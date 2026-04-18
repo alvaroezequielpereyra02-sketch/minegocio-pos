@@ -103,6 +103,17 @@ export default function App() {
     const [barcodeInput, setBarcodeInput]               = useState('');
     const [historySection, setHistorySection]           = useState('paid'); // 'menu' dejaba la lista vacía al entrar
 
+    // FIX: filtro de clientes centralizado en useMemo — antes estaba duplicado
+    // dos veces en el JSX. Si cambia el criterio de búsqueda ahora hay un solo lugar.
+    const filteredCustomers = useMemo(() =>
+        customers.filter(c =>
+            !customerSearch ||
+            c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+            c.phone?.includes(customerSearch) ||
+            c.address?.toLowerCase().includes(customerSearch.toLowerCase())
+        ),
+    [customers, customerSearch]);
+
     // ── Hooks funcionales ──────────────────────────────────────────────────────
     const { isSyncing, pendingCount: offlinePendingCount, setPendingCount } = useSyncManager({
         user, createTransaction, showNotification,
@@ -449,16 +460,9 @@ export default function App() {
                                     )}
                                 </div>
                             </div>
-                            {/* Lista */}
+                            {/* Lista — usa filteredCustomers (useMemo, declarado arriba) */}
                             <div className="flex-1 overflow-y-auto rounded-xl border border-[#D4C9B0] divide-y divide-[#E8E0CC] bg-[#EDE8DC]">
-                                {customers
-                                    .filter(c =>
-                                        !customerSearch ||
-                                        c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                        c.phone?.includes(customerSearch) ||
-                                        c.address?.toLowerCase().includes(customerSearch.toLowerCase())
-                                    )
-                                    .map(c => (
+                                {filteredCustomers.map(c => (
                                     <div key={c.id} className="p-4 flex justify-between items-center hover:bg-[#F5F0E8] transition-colors">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className="w-9 h-9 rounded-full bg-[#8B6914]/15 border border-[#8B6914]/20 flex items-center justify-center shrink-0">
@@ -479,12 +483,7 @@ export default function App() {
                                         </div>
                                     </div>
                                 ))}
-                                {customers.filter(c =>
-                                    !customerSearch ||
-                                    c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                    c.phone?.includes(customerSearch) ||
-                                    c.address?.toLowerCase().includes(customerSearch.toLowerCase())
-                                ).length === 0 && (
+                                {filteredCustomers.length === 0 && (
                                     <div className="flex flex-col items-center justify-center py-16 text-[#A09070]">
                                         <span className="text-4xl mb-3">🔍</span>
                                         <p className="text-sm font-medium">No se encontraron clientes</p>

@@ -35,6 +35,11 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
         chartDataMap[key] = { name: key, total: 0 };
     }
 
+    // FIX: pre-indexar categorías con Map para evitar O(n×m×k).
+    // categories.find() dentro de loops anidados hacía hasta 100.000 comparaciones
+    // con 500 transacciones × 10 ítems × 20 categorías. Map.get() es O(1).
+    const catMap = new Map(categories.map(c => [c.id, c.name]));
+
     const categoryStats = {};
     let filteredExpenses = 0;
 
@@ -77,11 +82,8 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
                 if (t.items) {
                     t.items.forEach(item => {
                         costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
-                        let catName = 'Varios';
-                        if (item.categoryId) {
-                            const cat = categories.find(c => c.id === item.categoryId);
-                            if (cat) catName = cat.name;
-                        }
+                        // FIX: O(1) con Map en lugar de O(n) con .find()
+                        const catName = (item.categoryId && catMap.get(item.categoryId)) || 'Varios';
                         if (!categoryStats[catName]) categoryStats[catName] = 0;
                         categoryStats[catName] += (Number(item.price || 0) * Number(item.qty || 0));
                     });
@@ -112,10 +114,9 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
     const [transactions, setTransactions] = useState([]);
     const [lastTransactionId, setLastTransactionId] = useState(null);
 
-    // 1. Cargar Transacciones
-    // ✅ Filtramos por fecha en Firestore en lugar de traer 5000 docs y filtrar en cliente.
-    // Traemos 35 días siempre (5 días de margen sobre el máximo de 30 días del balance),
-    // más un límite de 500 como techo de seguridad para tiendas con mucho volumen.
+    // Cargar Transacciones
+    // Filtramos por fecha en Firestore: 35 días (5 de margen sobre los 30 del balance),
+    // con límite de 500 como techo de seguridad para tiendas con mucho volumen.
     useEffect(() => {
         if (!user || !userData) return;
         let unsubscribe = () => {};
@@ -145,8 +146,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         return () => unsubscribe();
     }, [user, userData]);
 
-    // 2. Crear Transacción (Venta)
-    // 2. Crear Transacción (Venta)
+    // Crear Transacción (Venta)
     const createTransaction = async (saleData, cartItems) => {
         const cleanSaleData = Object.fromEntries(
             Object.entries(saleData).filter(([_, value]) => value !== undefined)
@@ -242,7 +242,7 @@ export const useTransactions = (user, userData, products = [], expenses = [], ca
         }
     };
 
-    // 5. CÁLCULO DE BALANCE
+    // CÁLCULO DE BALANCE
     // Delega en calcBalance (función pura exportada) para que los tests
     // puedan importarla directamente sin renderizar el hook.
     const balance = useMemo(() =>

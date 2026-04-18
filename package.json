@@ -15,7 +15,6 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.2",
     "firebase": "^12.11.0",
-    "firebase-admin": "^13.6.1",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
@@ -32,6 +31,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.16",
+    "firebase-admin": "^13.6.1",
     "jsdom": "^28.1.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^4.2.2",

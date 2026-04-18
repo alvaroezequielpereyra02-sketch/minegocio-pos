@@ -56,7 +56,7 @@ export const useInventory = (user, userData) => {
         return () => { unsubs2.forEach(fn => fn()); };
     }, [user, userData?.role]);
 
-    // --- NUEVA ACCIÓN: REGISTRO DE FALLAS ---
+    // --- REGISTRO DE FALLAS ---
     const registerFaultyProduct = async (product, qty, reason) => {
         if (!product || !qty) return;
         const db = await getDb();
@@ -126,24 +126,75 @@ export const useInventory = (user, userData) => {
         const db = await getDb();
         await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: increment(qty) });
     };
+
     const addCategory = async (name) => {
         const db = await getDb();
         return addDoc(collection(db, 'stores', appId, 'categories'), { name, isActive: true, createdAt: serverTimestamp() });
     };
-    const updateCategory = async (id, data) => { const db = await getDb(); return updateDoc(doc(db, 'stores', appId, 'categories', id), data); };
-    const deleteCategory = async (id) => { const db = await getDb(); return deleteDoc(doc(db, 'stores', appId, 'categories', id)); };
-    const addSubCategory = async (parentId, name) => { const db = await getDb(); return addDoc(collection(db, 'stores', appId, 'subcategories'), { parentId, name, createdAt: serverTimestamp() }); };
-    const deleteSubCategory = async (id) => { const db = await getDb(); return deleteDoc(doc(db, 'stores', appId, 'subcategories', id)); };
-    const addCustomer = async (data) => { const db = await getDb(); return addDoc(collection(db, 'stores', appId, 'customers'), { ...data, createdAt: serverTimestamp() }); };
-    const updateCustomer = async (id, data) => { const db = await getDb(); return updateDoc(doc(db, 'stores', appId, 'customers', id), data); };
-    const deleteCustomer = async (id) => { const db = await getDb(); return deleteDoc(doc(db, 'stores', appId, 'customers', id)); };
-    const addExpense = async (data) => { const db = await getDb(); return addDoc(collection(db, 'stores', appId, 'expenses'), { ...data, date: serverTimestamp() }); };
-    const deleteExpense = async (id) => { const db = await getDb(); return deleteDoc(doc(db, 'stores', appId, 'expenses', id)); };
-    const updateStoreProfile = async (data) => { const db = await getDb(); return setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data, { merge: true }); };
-    const generateInvitationCode = async () => {
-        const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const updateCategory = async (id, data) => {
         const db = await getDb();
-        await addDoc(collection(db, 'stores', appId, 'invitation_codes'), { code, status: 'active', createdAt: serverTimestamp() });
+        return updateDoc(doc(db, 'stores', appId, 'categories', id), data);
+    };
+
+    // FIX: antes de borrar, verifica que no haya productos activos usando esta categoría.
+    // Evita categoryId huérfanos (inconsistencia entre hard-delete de cat y soft-delete de productos).
+    const deleteCategory = async (id) => {
+        const orphans = products.filter(p => p.categoryId === id && p.isActive !== false);
+        if (orphans.length > 0) {
+            throw new Error(`No se puede borrar: ${orphans.length} producto(s) usan esta categoría.`);
+        }
+        const db = await getDb();
+        return deleteDoc(doc(db, 'stores', appId, 'categories', id));
+    };
+
+    const addSubCategory = async (parentId, name) => {
+        const db = await getDb();
+        return addDoc(collection(db, 'stores', appId, 'subcategories'), { parentId, name, createdAt: serverTimestamp() });
+    };
+    const deleteSubCategory = async (id) => {
+        const db = await getDb();
+        return deleteDoc(doc(db, 'stores', appId, 'subcategories', id));
+    };
+
+    const addCustomer = async (data) => {
+        const db = await getDb();
+        return addDoc(collection(db, 'stores', appId, 'customers'), { ...data, createdAt: serverTimestamp() });
+    };
+    const updateCustomer = async (id, data) => {
+        const db = await getDb();
+        return updateDoc(doc(db, 'stores', appId, 'customers', id), data);
+    };
+    const deleteCustomer = async (id) => {
+        const db = await getDb();
+        return deleteDoc(doc(db, 'stores', appId, 'customers', id));
+    };
+
+    const addExpense = async (data) => {
+        const db = await getDb();
+        return addDoc(collection(db, 'stores', appId, 'expenses'), { ...data, date: serverTimestamp() });
+    };
+    const deleteExpense = async (id) => {
+        const db = await getDb();
+        return deleteDoc(doc(db, 'stores', appId, 'expenses', id));
+    };
+
+    const updateStoreProfile = async (data) => {
+        const db = await getDb();
+        return setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data, { merge: true });
+    };
+
+    // FIX: reemplaza Math.random() (predecible) por crypto.getRandomValues()
+    // (criptográficamente seguro). Genera 6 bytes aleatorios → base36 → 8 chars en mayúsculas.
+    const generateInvitationCode = async () => {
+        const arr = new Uint8Array(6);
+        crypto.getRandomValues(arr);
+        const code = Array.from(arr, b => b.toString(36)).join('').toUpperCase().slice(0, 8);
+        const db = await getDb();
+        await addDoc(collection(db, 'stores', appId, 'invitation_codes'), {
+            code,
+            status: 'active',
+            createdAt: serverTimestamp(),
+        });
         return code;
     };
 
