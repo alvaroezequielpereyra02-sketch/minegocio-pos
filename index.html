@@ -6,11 +6,29 @@
   <link rel="icon" type="image/svg+xml" href="/logo192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <!-- Preconnect: abre TCP+TLS con origenes criticos antes de Firebase y Google Fonts (~330-375ms LCP savings) -->
+  <!-- Preconnects: warmup de TCP+TLS para los origenes criticos del primer segundo de carga.
+       - fonts.googleapis.com: sin crossorigin (sirve CSS, no es CORS)
+       - fonts.gstatic.com: con crossorigin (sirve woff2, si es CORS)
+       - firebaseapp.com: con crossorigin (sirve JS via CORS para el iframe de Auth)
+       - apis.google.com: sin crossorigin (JS cargado como script normal) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://apis.google.com" />
-  <link rel="preconnect" href="https://minegocio-pos-e35bf.firebaseapp.com" />
+  <link rel="preconnect" href="https://minegocio-pos-e35bf.firebaseapp.com" crossorigin />
+
+  <!-- Google Fonts — carga NO bloqueante.
+       media="print" hace que el browser descargue el CSS sin bloquear el render.
+       onload cambia el media a "all" una vez descargado, aplicando la fuente.
+       El <noscript> garantiza que usuarios sin JS igual obtengan la fuente. -->
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" />
+  <link rel="stylesheet" media="print"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"
+        onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" />
+  </noscript>
   <meta name="theme-color" content="#2C1810" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
