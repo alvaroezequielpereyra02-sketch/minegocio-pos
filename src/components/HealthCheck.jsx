@@ -3,8 +3,7 @@ import {
     collection, getDocs, getDocsFromServer,
     addDoc, deleteDoc, doc, limit, query,
 } from 'firebase/firestore';
-import { ref, getMetadata } from 'firebase/storage';
-import { getDb, getStorageInstance, appId } from '../config/firebase';
+import { getDb, appId } from '../config/firebase';
 import { getOfflineQueue } from '../hooks/useSyncManager';
 import { useAuthContext } from '../context/AuthContext';
 import {
@@ -85,28 +84,44 @@ const makeChecks = (user) => [
         },
     },
 
-    // ── 3. Firebase Storage ───────────────────────────────────────────────────
-    // Intenta acceder a un path que no existe. Si Storage responde con
-    // "object-not-found" → conectividad OK. "unauthorized" → reglas incorrectas.
+    // ── 3. Cloudinary — Variables y conectividad ────────────────────────────
+    // Las imágenes de productos van a Cloudinary (uploadImage.js), no a Firebase Storage.
+    // Verifica que las variables estén configuradas y que la API responda,
+    // usando el endpoint público /ping que no requiere autenticación.
     {
-        id: 'storage',
-        label: 'Firebase Storage',
-        description: 'Puede acceder al almacenamiento de imágenes de productos',
+        id: 'cloudinary',
+        label: 'Cloudinary — Imágenes',
+        description: 'Las variables de Cloudinary están configuradas y el servicio responde',
         icon: Image,
         run: async () => {
-            const storage = await getStorageInstance();
-            const testRef = ref(storage, `stores/${appId}/.healthcheck`);
+            const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+            const uploadPreset = import.meta.env.VITE_CLOUDINARY_PRESET;
+
+            if (!cloudName || !uploadPreset) {
+                const missing = [
+                    !cloudName    && 'VITE_CLOUDINARY_CLOUD_NAME',
+                    !uploadPreset && 'VITE_CLOUDINARY_PRESET',
+                ].filter(Boolean);
+                return { ok: false, detail: `Faltan variables: ${missing.join(', ')} — verificá Vercel → Environment Variables` };
+            }
+
+            const ctrl = new AbortController();
+            const tid  = setTimeout(() => ctrl.abort(), 5000);
             try {
-                await getMetadata(testRef);
-                return { ok: true, detail: 'Storage accesible' };
-            } catch (e) {
-                if (e.code === 'storage/object-not-found') {
-                    return { ok: true, detail: 'Storage accesible (objeto de prueba no existe, comportamiento esperado)' };
+                const res = await fetch(
+                    `https://api.cloudinary.com/v1_1/${cloudName}/ping`,
+                    { signal: ctrl.signal }
+                );
+                clearTimeout(tid);
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || json.status !== 'ok') {
+                    return { ok: false, detail: `Cloudinary respondió HTTP ${res.status} — cloud_name "${cloudName}" podría ser incorrecto` };
                 }
-                if (e.code === 'storage/unauthorized') {
-                    return { ok: false, detail: 'Sin permisos — verificá storage.rules y que la autenticación sea válida' };
-                }
-                throw e;
+                return { ok: true, detail: `cloud_name: ${cloudName} · upload_preset: ${uploadPreset}` };
+            } catch (err) {
+                clearTimeout(tid);
+                if (err.name === 'AbortError') return { ok: false, detail: 'Timeout — Cloudinary no respondió en 5s' };
+                return { ok: false, detail: `Error de red: ${err.message}` };
             }
         },
     },
