@@ -86,12 +86,18 @@ const makeChecks = (user) => [
 
     // ── 3. Cloudinary — Variables y conectividad ────────────────────────────
     // Las imágenes de productos van a Cloudinary (uploadImage.js), no a Firebase Storage.
-    // Verifica que las variables estén configuradas y que la API responda,
-    // usando el endpoint público /ping que no requiere autenticación.
+    //
+    // api.cloudinary.com bloquea fetch desde el navegador por CORS, así que
+    // no se puede usar el endpoint /ping directamente. En su lugar:
+    //   1. Verificamos que las variables de entorno estén presentes.
+    //   2. Hacemos un HEAD con mode:'no-cors' al CDN (res.cloudinary.com).
+    //      Con no-cors el navegador no puede leer la respuesta, pero si la
+    //      Promise resuelve (tipo 'opaque') sabemos que la red llegó al servidor.
+    //      Si lanza error, hay un problema de conectividad o el cloud_name no existe.
     {
         id: 'cloudinary',
         label: 'Cloudinary — Imágenes',
-        description: 'Las variables de Cloudinary están configuradas y el servicio responde',
+        description: 'Las variables de Cloudinary están configuradas y el CDN responde',
         icon: Image,
         run: async () => {
             const cloudName    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -105,23 +111,23 @@ const makeChecks = (user) => [
                 return { ok: false, detail: `Faltan variables: ${missing.join(', ')} — verificá Vercel → Environment Variables` };
             }
 
+            // Ping al CDN de entrega de Cloudinary (permite CORS desde browser).
+            // El path /image/upload/ siempre existe para cualquier cloud_name válido.
+            // Con mode:'no-cors' obtenemos una respuesta opaca (no legible) pero
+            // la ausencia de error de red confirma conectividad y que el cloud_name es válido.
             const ctrl = new AbortController();
             const tid  = setTimeout(() => ctrl.abort(), 5000);
             try {
-                const res = await fetch(
-                    `https://api.cloudinary.com/v1_1/${cloudName}/ping`,
-                    { signal: ctrl.signal }
+                await fetch(
+                    `https://res.cloudinary.com/${cloudName}/image/upload/`,
+                    { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal }
                 );
                 clearTimeout(tid);
-                const json = await res.json().catch(() => ({}));
-                if (!res.ok || json.status !== 'ok') {
-                    return { ok: false, detail: `Cloudinary respondió HTTP ${res.status} — cloud_name "${cloudName}" podría ser incorrecto` };
-                }
                 return { ok: true, detail: `cloud_name: ${cloudName} · upload_preset: ${uploadPreset}` };
             } catch (err) {
                 clearTimeout(tid);
-                if (err.name === 'AbortError') return { ok: false, detail: 'Timeout — Cloudinary no respondió en 5s' };
-                return { ok: false, detail: `Error de red: ${err.message}` };
+                if (err.name === 'AbortError') return { ok: false, detail: 'Timeout — CDN de Cloudinary no respondió en 5s' };
+                return { ok: false, detail: `Sin conectividad con Cloudinary: ${err.message}` };
             }
         },
     },

@@ -117,6 +117,12 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == userId;
       }
 
+      // Rate limiting — escrita solo desde Admin SDK (servidor)
+      // El Admin SDK bypasea estas reglas, así que solo bloquean acceso directo del cliente.
+      match /rate_limits/{doc} {
+        allow read, write: if false;
+      }
+
       // Health Checks
       match /health_checks/{doc} {
         allow read, write, delete: if isAdmin();

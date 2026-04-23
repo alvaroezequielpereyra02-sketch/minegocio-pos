@@ -1,4 +1,5 @@
 import { formatExportDate } from '../utils/dateHelpers';
+import { escHtml, csvCell, escCsv } from '../utils/sanitize';
 
 /**
  * Encapsula la generación de PDF (stock negativo) y exportación CSV.
@@ -68,7 +69,7 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
                     <!-- Encabezado de categoría -->
                     <div style="background: linear-gradient(135deg, #1e40af, #1d4ed8); padding: 10px 16px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
                         <span style="font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1px;">
-                            📦 ${group.name}
+                            📦 ${escHtml(group.name)}
                         </span>
                         <span style="font-size: 11px; color: rgba(255,255,255,0.7); margin-left: 8px;">
                             (${group.products.length} producto${group.products.length !== 1 ? 's' : ''})
@@ -86,8 +87,8 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
                             ${group.products.map((p, i) => `
                                 <tr style="background: ${i % 2 === 0 ? '#ffffff' : '#f8faff'};">
                                     <td style="padding: 11px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-                                        <span style="font-weight: bold; display: block; color: #1e293b;">${p.name}</span>
-                                        <span style="font-size: 10px; color: #94a3b8;">${p.barcode || 'Sin código'}</span>
+                                        <span style="font-weight: bold; display: block; color: #1e293b;">${escHtml(p.name)}</span>
+                                        <span style="font-size: 10px; color: #94a3b8;">${escHtml(p.barcode) || 'Sin código'}</span>
                                     </td>
                                     <td style="padding: 11px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: center;">
                                         <span style="font-weight: bold; color: #ef4444;">${p.stock}</span>
@@ -109,11 +110,11 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 28px; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px;">
                         <div>
                             ${storeProfile.logoUrl
-                                ? `<img src="${storeProfile.logoUrl}" crossorigin="anonymous"
+                                ? `<img src="${escHtml(storeProfile.logoUrl)}" crossorigin="anonymous"
                                         style="height: 56px; width: auto; object-fit: contain; margin-bottom: 8px;"
                                         onerror="this.style.display='none';" />`
                                 : ''}
-                            <h1 style="font-size: 22px; font-weight: bold; color: #1e40af; margin: 0;">${storeProfile.name}</h1>
+                            <h1 style="font-size: 22px; font-weight: bold; color: #1e40af; margin: 0;">${escHtml(storeProfile.name)}</h1>
                         </div>
                         <div style="text-align: right;">
                             <h2 style="font-size: 20px; font-weight: 800; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 1.5px;">Lista de Faltantes</h2>
@@ -127,7 +128,7 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
                     <!-- RESUMEN -->
                     <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-size: 12px; color: #9a3412; line-height: 1.6;">
-                            <strong>Filtro:</strong> ${filterLabel}<br/>
+                            <strong>Filtro:</strong> ${escHtml(filterLabel)}<br/>
                             <strong>Total de productos a reponer:</strong> ${totalProducts}
                         </div>
                         <div style="font-size: 11px; color: #c2410c; text-align: right;">
@@ -140,7 +141,7 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
 
                     <!-- PIE -->
                     <div style="margin-top: 40px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-                        Generado automáticamente por ${storeProfile.name} • ${new Date().toLocaleString('es-AR')}
+                        Generado automáticamente por ${escHtml(storeProfile.name)} • ${new Date().toLocaleString('es-AR')}
                     </div>
                 </div>`;
 
@@ -180,7 +181,8 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
             csv += "INVENTARIO ACTUAL DE PRODUCTOS\n";
             csv += "Nombre,Código,Precio,Costo,Stock,Categoría\n";
             products.forEach(p => {
-                csv += `"${p.name}","${p.barcode || ''}",${p.price},${p.cost || 0},${p.stock},"${p.categoryId || ''}"\n`;
+                csv += `${csvCell(p.name)},${csvCell(p.barcode)},${p.price},${p.cost || 0},${p.stock},${csvCell(p.categoryId)}
+`;
             });
             csv += `\nGenerado el,${new Date().toLocaleString()}\n\n`;
             csv += "METRICAS DEL PERIODO\n";
@@ -190,11 +192,13 @@ export const useExports = ({ products, categories = [], transactions, expenses, 
             csv += `GANANCIA NETA,$${balance.periodNet}\n\n`;
             csv += "VENTAS POR CATEGORIA\n";
             csv += "Categoría,Monto Vendido\n";
-            balance.salesByCategory.forEach(cat => { csv += `${cat.name},$${cat.value}\n`; });
+            balance.salesByCategory.forEach(cat => { csv += `${csvCell(cat.name)},$${cat.value}
+`; });
             csv += "\nGASTOS DETALLADOS\n";
             csv += "Fecha,Descripción,Monto\n";
             expenses.forEach(e => {
-                csv += `${formatExportDate(e.date)},${e.description},${e.amount}\n`;
+                csv += `${escCsv(formatExportDate(e.date))},${csvCell(e.description)},${e.amount}
+`;
             });
             csv += "\nDETALLE DE TRANSACCIONES\n";
             csv += "Fecha,Cliente,Estado,Método,Total,Pagado,Items\n";
