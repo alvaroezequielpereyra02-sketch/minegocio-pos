@@ -70,11 +70,15 @@ const Cart = memo(function Cart({
                   </button>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex flex-col items-end gap-1">
                   <div className="text-sm font-bold text-slate-800">${(item.price * item.qty)?.toLocaleString()}</div>
-                  <button onClick={() => removeFromCart(item.id)}
-                    className="text-slate-200 hover:text-red-400 transition-colors mt-0.5 flex items-center justify-end w-full">
-                    <Trash2 size={12} />
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg bg-red-100 text-red-600 hover:bg-red-600 hover:text-white active:scale-95 transition-all"
+                    aria-label="Quitar producto del carrito"
+                    title="Quitar"
+                  >
+                    <Trash2 size={15} />
                   </button>
                 </div>
               </div>
