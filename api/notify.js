@@ -31,11 +31,12 @@ const db        = getFirestore();
 const messaging = getMessaging();
 
 // ── Whitelist de storeIds permitidos ─────────────────────────────────────
-// Evita que un atacante externo apunte el endpoint a otra tienda de Firebase.
-// Si en el futuro la app es multi-tenant, mover esto a una colección Firestore.
-const ALLOWED_STORE_IDS = new Set([
-    process.env.FIREBASE_PROJECT_ID, // el proyecto activo
-]);
+// El cliente envía storeId = VITE_STORE_ID (ej: "minegocio-pos-e35bf").
+// El servidor lo valida contra las variables de entorno de Vercel.
+// Se aceptan ambas variables por si difieren entre proyectos.
+const ALLOWED_STORE_IDS = new Set(
+    [process.env.FIREBASE_PROJECT_ID, process.env.VITE_STORE_ID].filter(Boolean)
+);
 
 // ── Errores FCM que indican token inválido → borrarlo de Firestore ────────
 const INVALID_TOKEN_ERRORS = [
@@ -91,7 +92,8 @@ function validateBody(body) {
         return { ok: false, error: 'storeId requerido' };
     }
     if (!ALLOWED_STORE_IDS.has(cleanStoreId)) {
-        // No revelar la whitelist en el error — podría ayudar a un atacante a enumerar storeIds
+        // Log en servidor para diagnóstico (no se expone al cliente)
+        console.warn(`[notify] storeId rechazado: "${cleanStoreId}" — whitelist: [${[...ALLOWED_STORE_IDS].join(', ')}]`);
         return { ok: false, error: 'storeId no autorizado' };
     }
 
