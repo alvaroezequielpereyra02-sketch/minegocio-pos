@@ -29,9 +29,9 @@ export const useNotifications = (user, userData) => {
             const db = await getDb();
             await setDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid), {
                 token,
-                uid: user.uid,
-                role: userData?.role || 'unknown',
-                platform: getPlatform(),
+                uid:       user.uid,
+                role:      userData?.role || 'unknown',
+                platform:  getPlatform(),
                 updatedAt: serverTimestamp()
             });
             tokenSavedRef.current = true;
@@ -40,14 +40,26 @@ export const useNotifications = (user, userData) => {
     }, [user, userData?.role]);
 
     const requestAndSaveToken = useCallback(async () => {
-        if (userData?.role !== 'admin') return;
+        // FIX: antes solo procesaba admins. Ahora cualquier usuario autenticado
+        // puede recibir notificaciones (ofertas para clientes, pedidos para admins).
+        // La distinción de QUÉ notificaciones recibe cada uno la maneja el servidor
+        // en notify.js (solo admins) y notify-offer.js (todos).
+        if (!user) return;
 
         try {
-            // Guard: Notification no existe en todos los contextos
-            // (algunos iOS, PWA en segundo plano, browsers muy viejos).
             if (!('Notification' in window)) return;
 
-            const permission = await Notification.requestPermission();
+            // Para clientes: pedir permiso silenciosamente sin interrumpir el flujo.
+            // Si ya denegaron, no volver a preguntar.
+            const currentPermission = Notification.permission;
+            if (currentPermission === 'denied') return;
+
+            // Solo pedimos permiso explícitamente si no está concedido.
+            // En iOS PWA el prompt es obligatorio y bloqueante — lo hacemos igual para todos.
+            let permission = currentPermission;
+            if (permission !== 'granted') {
+                permission = await Notification.requestPermission();
+            }
             if (permission !== 'granted') return;
 
             if (!('serviceWorker' in navigator)) return;
@@ -63,25 +75,21 @@ export const useNotifications = (user, userData) => {
                 serviceWorkerRegistration: registration
             });
 
-            if (!token) {
-                return;
-            }
+            if (!token) return;
 
-            // ✅ Verificamos si el token guardado es diferente al actual o si expiró
-            // Esto cubre: token rotado por FCM, primer uso en este dispositivo,
-            // y el caso donde un admin no recibe notificaciones por token vencido
             if (tokenSavedRef.current) return;
 
+            // Verificar si el token cambió o expiró antes de escribir en Firestore
             const db = await getDb();
             const existingDoc = await getDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid));
             if (existingDoc.exists()) {
-                const existing = existingDoc.data();
-                const lastUpdate = existing.updatedAt?.toDate?.() || new Date(0);
-                const daysSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
-                const tokenChanged = existing.token !== token;
+                const existing      = existingDoc.data();
+                const lastUpdate    = existing.updatedAt?.toDate?.() || new Date(0);
+                const daysSince     = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+                const tokenChanged  = existing.token !== token;
+                const roleChanged   = existing.role !== userData?.role;
 
-                // Guardamos si: token cambió, o pasaron más de 30 días, o el rol cambió
-                if (!tokenChanged && daysSinceUpdate < TOKEN_REFRESH_DAYS && existing.role === userData?.role) {
+                if (!tokenChanged && daysSince < TOKEN_REFRESH_DAYS && !roleChanged) {
                     tokenSavedRef.current = true;
                     return;
                 }
@@ -93,9 +101,10 @@ export const useNotifications = (user, userData) => {
         }
     }, [user, userData?.role, saveToken]);
 
+    // Ejecutar al autenticarse (cualquier rol)
     useEffect(() => {
-        if (userData?.role === 'admin') requestAndSaveToken();
-    }, [userData?.role, requestAndSaveToken]);
+        if (user) requestAndSaveToken();
+    }, [user, requestAndSaveToken]);
 
     return { requestAndSaveToken };
 };
