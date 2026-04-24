@@ -34,6 +34,7 @@ const History           = lazy(() => import('./components/History'));
 const TransactionDetail = lazy(() => import('./components/TransactionDetail'));
 const Orders            = lazy(() => import('./components/Orders'));
 const Delivery          = lazy(() => import('./components/Delivery'));
+const Offers            = lazy(() => import('./components/Offers'));
 
 const TabLoader = () => (
     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 animate-in fade-in zoom-in">
@@ -86,7 +87,8 @@ export default function App() {
         updateStoreProfile, generateInvitationCode, registerFaultyProduct, bulkUpdatePrices,
     } = useInventoryContext();
     const { transactions, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
-    const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod } = useCartContext();
+    const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod,
+            offers, sending: offerSending, activeOfferMap, addOffer, updateOffer, deleteOffer, publishOffer } = useCartContext();
     const printer = usePrinter(showNotification);
 
     // ── Estados UI locales ─────────────────────────────────────────────────────
@@ -395,6 +397,19 @@ export default function App() {
                         <Suspense fallback={<TabLoader />}>
                             <Orders />
                         </Suspense>
+                    )}
+
+                    {/* Ofertas */}
+                    {activeTab === 'offers' && userData.role === 'admin' && (
+                        <div className="flex-1 overflow-hidden">
+                            <Suspense fallback={<TabLoader />}>
+                                <Offers
+                                    showNotification={showNotification}
+                                    requestConfirm={requestConfirm}
+                                    products={products}
+                                />
+                            </Suspense>
+                        </div>
                     )}
 
                     {/* Reparto */}

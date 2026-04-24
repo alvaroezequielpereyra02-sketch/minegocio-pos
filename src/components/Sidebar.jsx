@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Store, LayoutDashboard, Package, Users, History,
-  TrendingUp, LogOut, ClipboardList, Truck, Download
+  TrendingUp, LogOut, ClipboardList, Truck, Download, Tag
 } from 'lucide-react';
 
 // ── NavButton móvil ───────────────────────────────────────────────────────────
@@ -48,6 +48,7 @@ export default function Sidebar({
     { id: 'inventory',    icon: <Package         size={28} />, label: 'Inventario', adminOnly: true },
     { id: 'customers',    icon: <Users           size={28} />, label: 'Clientes',   adminOnly: true },
     { id: 'dashboard',    icon: <TrendingUp      size={28} />, label: 'Balance',    adminOnly: true },
+    { id: 'offers',       icon: <Tag             size={28} />, label: 'Ofertas',    adminOnly: true },
     { id: 'transactions', icon: <History         size={28} />, label: 'Historial',  adminOnly: false },
   ].filter(item => !item.adminOnly || userData.role === 'admin');
 
@@ -168,7 +169,10 @@ export function MobileNav({
           <NavButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={28} />} label="Clientes" />
         )}
         {userData.role === 'admin' && (
-          <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={28} />} label="Balance" />
+          <>
+            <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={28} />} label="Balance" />
+            <NavButton active={activeTab === 'offers'} onClick={() => setActiveTab('offers')} icon={<Tag size={28} />} label="Ofertas" />
+          </>
         )}
       </div>
 

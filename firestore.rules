@@ -117,6 +117,14 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == userId;
       }
 
+      // Ofertas
+      // Los clientes pueden leer ofertas activas.
+      // Solo el admin puede crear, editar o borrar.
+      match /offers/{offerId} {
+        allow read:  if isAuthenticated() && (isAdmin() || resource.data.active == true);
+        allow write: if isAdmin();
+      }
+
       // Rate limiting — escrita solo desde Admin SDK (servidor)
       // El Admin SDK bypasea estas reglas, así que solo bloquean acceso directo del cliente.
       match /rate_limits/{doc} {

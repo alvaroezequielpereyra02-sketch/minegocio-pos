@@ -26,13 +26,17 @@ export const useCheckout = ({
 
     const buildPayload = () => {
         // Usamos i.price directamente — ya tiene el precio mayorista aplicado si corresponde
+        // Guardamos originalPrice y offerId para el historial de ventas.
+        // Esto permite que el Balance y los exports reflejen el descuento correctamente.
         const itemsWithCost = cart.map(i => {
             const p = products.find(x => x.id === i.id);
             return {
                 id: i.id, name: i.name,
                 qty: Number(i.qty),
-                price: Number(i.price),
-                cost: p ? Number(p.cost || 0) : 0,
+                price:         Number(i.price),
+                originalPrice: i.originalPrice ? Number(i.originalPrice) : Number(i.price),
+                offerId:       i.offerId ?? null,
+                cost:          p ? Number(p.cost || 0) : 0,
                 isWholesale: i.isWholesale || false,
             };
         });

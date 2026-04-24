@@ -13,7 +13,33 @@ const getEffectivePrice = (product, qty) => {
     return { price: product.price, isWholesale: false };
 };
 
-export const useCart = (products = []) => {
+/**
+ * applyOfferDiscount(basePrice, offerEntry) → { finalPrice, originalPrice, offerTitle }
+ *
+ * Calcula el precio final aplicando el descuento de la oferta.
+ * El precio original se conserva para mostrarlo tachado en el carrito
+ * y guardarlo en la transacción para el historial.
+ */
+const applyOfferDiscount = (basePrice, offerEntry) => {
+    if (!offerEntry || !offerEntry.discountValue) {
+        return { finalPrice: basePrice, originalPrice: null, offerTitle: null };
+    }
+    let finalPrice;
+    if (offerEntry.discountType === 'fixed') {
+        finalPrice = Math.max(0, basePrice - offerEntry.discountValue);
+    } else {
+        // percent
+        finalPrice = Math.max(0, basePrice * (1 - offerEntry.discountValue / 100));
+    }
+    return {
+        finalPrice:    Math.round(finalPrice),
+        originalPrice: basePrice,
+        offerTitle:    offerEntry.offerTitle,
+        offerId:       offerEntry.offerId,
+    };
+};
+
+export const useCart = (products = [], activeOfferMap = new Map()) => {
     const [cart, setCart] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('unspecified');
 
@@ -27,11 +53,24 @@ export const useCart = (products = []) => {
                     const newQty = item.qty + 1;
                     const source = products.find(p => p.id === item.id) || item;
                     const { price, isWholesale } = getEffectivePrice(source, newQty);
-                    return { ...item, qty: newQty, price, isWholesale };
+                    const offerEntry = activeOfferMap.get(item.id);
+                    const { finalPrice, originalPrice, offerTitle, offerId } = applyOfferDiscount(price, offerEntry);
+                    return { ...item, qty: newQty, price: finalPrice, originalPrice, offerTitle, offerId, isWholesale };
                 });
             }
             const { price, isWholesale } = getEffectivePrice(product, 1);
-            return [...prev, { ...product, qty: 1, price, isWholesale, imageUrl: product.imageUrl }];
+            const offerEntry = activeOfferMap.get(product.id);
+            const { finalPrice, originalPrice, offerTitle, offerId } = applyOfferDiscount(price, offerEntry);
+            return [...prev, {
+                ...product,
+                qty: 1,
+                price: finalPrice,
+                originalPrice,
+                offerTitle,
+                offerId,
+                isWholesale,
+                imageUrl: product.imageUrl,
+            }];
         });
     }, [products]);
 
@@ -44,7 +83,9 @@ export const useCart = (products = []) => {
                 if (newQty <= 0) return null;
                 const source = products.find(p => p.id === id) || item;
                 const { price, isWholesale } = getEffectivePrice(source, newQty);
-                return { ...item, qty: newQty, price, isWholesale };
+                const offerEntry = activeOfferMap.get(id);
+                const { finalPrice, originalPrice, offerTitle, offerId } = applyOfferDiscount(price, offerEntry);
+                return { ...item, qty: newQty, price: finalPrice, originalPrice, offerTitle, offerId, isWholesale };
             }).filter(Boolean)
         );
     }, [products]);
@@ -57,7 +98,9 @@ export const useCart = (products = []) => {
             if (item.id !== id) return item;
             const source = products.find(p => p.id === id) || item;
             const { price, isWholesale } = getEffectivePrice(source, qty);
-            return { ...item, qty, price, isWholesale };
+            const offerEntry = activeOfferMap.get(id);
+            const { finalPrice, originalPrice, offerTitle, offerId } = applyOfferDiscount(price, offerEntry);
+            return { ...item, qty, price: finalPrice, originalPrice, offerTitle, offerId, isWholesale };
         }));
     }, [products]);
 
