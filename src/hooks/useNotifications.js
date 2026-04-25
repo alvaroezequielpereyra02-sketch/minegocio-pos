@@ -1,11 +1,15 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { getToken } from 'firebase/messaging';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getDb, appId, getMessagingInstance } from '../config/firebase';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
-// Token FCM expira aproximadamente cada 60 días — refrescamos si pasó más de 30 días
+// ── Colecciones separadas por rol ─────────────────────────────────────────────
+// Deben coincidir con las constantes en api/_firebase.js
+const ADMIN_TOKENS_COLLECTION = 'fcm_tokens';        // admins → reciben pedidos
+const USER_TOKENS_COLLECTION  = 'fcm_tokens_users';  // clientes → reciben ofertas
+
 const TOKEN_REFRESH_DAYS = 30;
 
 const getPlatform = () => {
@@ -18,50 +22,49 @@ const getPlatform = () => {
 export const useNotifications = (user, userData) => {
     const tokenSavedRef = useRef(false);
 
-    // Si el rol cambia, forzar re-guardado del token con rol actualizado
-    useEffect(() => {
-        tokenSavedRef.current = false;
+    // Forzar re-guardado si el rol cambia
+    useEffect(() => { tokenSavedRef.current = false; }, [userData?.role]);
+
+    const getTokenCollection = useCallback(() => {
+        return userData?.role === 'admin'
+            ? ADMIN_TOKENS_COLLECTION
+            : USER_TOKENS_COLLECTION;
     }, [userData?.role]);
 
     const saveToken = useCallback(async (token) => {
         if (!user) return;
         try {
-            const db = await getDb();
-            await setDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid), {
+            const db         = await getDb();
+            const collection = getTokenCollection();
+            await setDoc(doc(db, 'stores', appId, collection, user.uid), {
                 token,
                 uid:       user.uid,
                 role:      userData?.role || 'unknown',
                 platform:  getPlatform(),
-                updatedAt: serverTimestamp()
+                updatedAt: serverTimestamp(),
             });
             tokenSavedRef.current = true;
-            if (import.meta.env.DEV) console.log('✅ FCM token guardado correctamente.');
-        } catch (e) { console.error('Error al guardar token:', e); }
-    }, [user, userData?.role]);
+            if (import.meta.env.DEV) {
+                console.log(`✅ FCM token guardado en ${collection} (rol: ${userData?.role})`);
+            }
+        } catch (e) {
+            console.error('Error al guardar token FCM:', e);
+        }
+    }, [user, userData?.role, getTokenCollection]);
 
     const requestAndSaveToken = useCallback(async () => {
-        // FIX: antes solo procesaba admins. Ahora cualquier usuario autenticado
-        // puede recibir notificaciones (ofertas para clientes, pedidos para admins).
-        // La distinción de QUÉ notificaciones recibe cada uno la maneja el servidor
-        // en notify.js (solo admins) y notify-offer.js (todos).
         if (!user) return;
+        if (tokenSavedRef.current) return;
 
         try {
             if (!('Notification' in window)) return;
+            if (Notification.permission === 'denied') return;
 
-            // Para clientes: pedir permiso silenciosamente sin interrumpir el flujo.
-            // Si ya denegaron, no volver a preguntar.
-            const currentPermission = Notification.permission;
-            if (currentPermission === 'denied') return;
-
-            // Solo pedimos permiso explícitamente si no está concedido.
-            // En iOS PWA el prompt es obligatorio y bloqueante — lo hacemos igual para todos.
-            let permission = currentPermission;
+            let permission = Notification.permission;
             if (permission !== 'granted') {
                 permission = await Notification.requestPermission();
             }
             if (permission !== 'granted') return;
-
             if (!('serviceWorker' in navigator)) return;
 
             await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
@@ -72,36 +75,40 @@ export const useNotifications = (user, userData) => {
 
             const token = await getToken(messaging, {
                 vapidKey: VAPID_KEY,
-                serviceWorkerRegistration: registration
+                serviceWorkerRegistration: registration,
             });
-
             if (!token) return;
 
-            if (tokenSavedRef.current) return;
-
-            // Verificar si el token cambió o expiró antes de escribir en Firestore
-            const db = await getDb();
-            const existingDoc = await getDoc(doc(db, 'stores', appId, 'fcm_tokens', user.uid));
-            if (existingDoc.exists()) {
-                const existing      = existingDoc.data();
-                const lastUpdate    = existing.updatedAt?.toDate?.() || new Date(0);
-                const daysSince     = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
-                const tokenChanged  = existing.token !== token;
-                const roleChanged   = existing.role !== userData?.role;
-
-                if (!tokenChanged && daysSince < TOKEN_REFRESH_DAYS && !roleChanged) {
-                    tokenSavedRef.current = true;
-                    return;
+            // Verificar si el token sigue vigente antes de escribir.
+            // Si la lectura falla por permisos, guardamos directamente — es mejor
+            // escribir un token idéntico que no tener token registrado.
+            try {
+                const db         = await getDb();
+                const collection = getTokenCollection();
+                const { getDoc } = await import('firebase/firestore');
+                const snap = await getDoc(doc(db, 'stores', appId, collection, user.uid));
+                if (snap.exists()) {
+                    const data      = snap.data();
+                    const lastUpdate = data.updatedAt?.toDate?.() || new Date(0);
+                    const daysSince  = (Date.now() - lastUpdate.getTime()) / 86_400_000;
+                    const sameToken  = data.token === token;
+                    const sameRole   = data.role === userData?.role;
+                    if (sameToken && sameRole && daysSince < TOKEN_REFRESH_DAYS) {
+                        tokenSavedRef.current = true;
+                        return;
+                    }
                 }
+            } catch {
+                // permission-denied en lectura: ignorar y guardar igual
             }
 
             await saveToken(token);
+
         } catch (e) {
             console.error('❌ Error FCM:', e);
         }
-    }, [user, userData?.role, saveToken]);
+    }, [user, userData?.role, getTokenCollection, saveToken]);
 
-    // Ejecutar al autenticarse (cualquier rol)
     useEffect(() => {
         if (user) requestAndSaveToken();
     }, [user, requestAndSaveToken]);

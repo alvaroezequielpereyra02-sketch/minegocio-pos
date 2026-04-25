@@ -111,9 +111,19 @@ service cloud.firestore {
         allow update:         if isAuthenticated();
       }
 
-      // Tokens FCM (notificaciones push)
+      // Tokens FCM — administradores (pedidos)
+      // Solo admins guardan y leen de esta colección.
+      // El Admin SDK del servidor lee todos sin restricción.
       match /fcm_tokens/{userId} {
-        allow read:  if isAdmin();
+        allow read:  if isAdmin() || request.auth.uid == userId;
+        allow write: if isAdmin() && request.auth.uid == userId;
+      }
+
+      // Tokens FCM — usuarios/clientes (ofertas)
+      // Los clientes guardan su propio token aquí.
+      // El Admin SDK lee todos para enviar notificaciones de ofertas.
+      match /fcm_tokens_users/{userId} {
+        allow read:  if isAuthenticated() && request.auth.uid == userId;
         allow write: if isAuthenticated() && request.auth.uid == userId;
       }
 

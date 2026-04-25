@@ -93,7 +93,7 @@ export const useOffers = () => {
     const publishOffer = async (offer) => {
         setSending(offer.id);
         try {
-            const res = await fetch('/api/notify-offer', {
+            const res = await fetch('/api/notify-users', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({

@@ -131,7 +131,7 @@ export const useCheckout = ({
             if (saleData.clientRole === 'client') {
                 const ctrl = new AbortController();
                 const tid  = setTimeout(() => ctrl.abort(), 8000);
-                fetch('/api/notify', {
+                fetch('/api/notify-admin', {
                     method: 'POST', signal: ctrl.signal,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ transactionId: result.id, clientName: saleData.clientName, total: saleData.total, storeId: appId })

@@ -210,17 +210,17 @@ const makeChecks = (user) => [
         },
     },
 
-    // ── 7. API /notify ────────────────────────────────────────────────────────
+    // ── 7. API /notify-admin ─────────────────────────────────────────────────
     {
         id: 'notify_api',
-        label: 'API /notify',
-        description: 'El endpoint serverless de notificaciones responde correctamente',
+        label: 'API /notify-admin',
+        description: 'El endpoint de notificaciones de pedidos (admin) responde correctamente',
         icon: Bell,
         run: async () => {
             const ctrl = new AbortController();
             const tid  = setTimeout(() => ctrl.abort(), 6000);
             try {
-                const res = await fetch('/api/notify', {
+                const res = await fetch('/api/notify-admin', {
                     method: 'POST',
                     signal: ctrl.signal,
                     headers: { 'Content-Type': 'application/json' },
