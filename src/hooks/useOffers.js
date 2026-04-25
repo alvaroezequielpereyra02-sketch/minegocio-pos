@@ -31,21 +31,29 @@ export const useOffers = (userRole = 'client') => {
     const [sending, setSending] = useState(null);
 
     useEffect(() => {
+        // Esperar a que el rol esté definido antes de suscribirse.
+        // Durante la carga de auth, userRole es undefined — si usáramos la query
+        // de cliente (where + orderBy) en ese momento y el índice no existe,
+        // el snapshot falla con failed-precondition y el admin queda sin datos.
+        if (userRole === undefined) return;
+
         let unsub = () => {};
         getDb().then(db => {
             // Admins ven todas las ofertas (activas e inactivas) para poder editarlas.
             // Clientes solo leen las activas — coincide con la regla de Firestore
-            // que filtra por resource.data.active == true para no-admins.
-            // Sin el where() en la query, Firestore deniega la query completa.
+            // (resource.data.active == true) y requiere el índice compuesto
+            // offers: active ASC + createdAt DESC.
             const offersQuery = userRole === 'admin'
                 ? query(collection(db, 'stores', appId, 'offers'), orderBy('createdAt', 'desc'))
                 : query(collection(db, 'stores', appId, 'offers'), where('active', '==', true), orderBy('createdAt', 'desc'));
-            unsub = onSnapshot(offersQuery,
-                (snap) => setOffers(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+            unsub = onSnapshot(
+                offersQuery,
+                (snap) => setOffers(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+                (err)  => console.error('[useOffers] Snapshot error:', err.code, err.message)
             );
         });
         return () => unsub();
-    }, []);
+    }, [userRole]);
 
     // Mapa indexado por productId — se recalcula solo cuando cambia offers
     const activeOfferMap = useMemo(() => {

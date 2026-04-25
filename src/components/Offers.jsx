@@ -340,10 +340,17 @@ export default function Offers({ showNotification, requestConfirm, products = []
                 await addOffer(data);
                 showNotification('✅ Oferta creada');
             }
+            // Solo cerrar el form si la operación fue exitosa
             setShowForm(false);
             setEditingOffer(null);
         } catch (e) {
-            showNotification('❌ Error: ' + e.message);
+            // Mostrar error sin cerrar el form — el admin puede corregir y reintentar
+            const msg = e?.code === 'permission-denied'
+                ? 'Sin permisos — verificá que las reglas de Firestore estén desplegadas'
+                : e.message;
+            showNotification('❌ Error al guardar: ' + msg);
+            console.error('[Offers] handleSave error:', e);
+            // NO cerramos el form aquí — el admin no pierde los datos
         } finally {
             setSaving(false);
         }
