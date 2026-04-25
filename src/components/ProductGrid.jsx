@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Image as ImageIcon, ScanBarcode, Edit, AlertCircle, Plus } from 'lucide-react';
+import { Image as ImageIcon, ScanBarcode, Edit, AlertCircle, Plus, Tag } from 'lucide-react';
 import { FixedSizeGrid } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { getThumbnailUrl } from '../config/uploadImage';
@@ -21,14 +21,30 @@ const getColumnCount = (width) => {
 // React.memo evita que FixedSizeGrid la recree cuando cambian celdas vecinas.
 const ProductCard = React.memo(function ProductCard({
     product, qtyInCart, isAdmin, addToCart, onEditProduct,
-    setFaultyProduct, toggleModal, cardWidth,
+    setFaultyProduct, toggleModal, cardWidth, offerEntry,
 }) {
     const outOfStock = product.stock <= 0;
+    const hasOffer   = !!offerEntry;
+    const discountLabel = hasOffer
+        ? offerEntry.discountType === 'percent'
+            ? `-${offerEntry.discountValue}%`
+            : `-$${offerEntry.discountValue}`
+        : null;
+    // Precio con descuento solo para mostrar — el precio real lo aplica useCart al agregar
+    const discountedPrice = hasOffer
+        ? offerEntry.discountType === 'percent'
+            ? Math.round(product.price * (1 - offerEntry.discountValue / 100))
+            : Math.max(0, product.price - offerEntry.discountValue)
+        : null;
     return (
         <div
             onClick={() => addToCart(product)}
             style={{ width: cardWidth, height: CARD_HEIGHT }}
-            className="product-card bg-[#EDE8DC] rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-[#D4C9B0] hover:border-[#8B6914] hover:shadow-lg transition-all active:scale-[0.97] group"
+            className={`product-card bg-[#EDE8DC] rounded-2xl overflow-hidden flex flex-col cursor-pointer border transition-all active:scale-[0.97] group ${
+                hasOffer
+                    ? 'border-red-400 hover:border-red-500 hover:shadow-lg ring-1 ring-red-300'
+                    : 'border-[#D4C9B0] hover:border-[#8B6914] hover:shadow-lg'
+            }`}
         >
             <div className="aspect-square relative overflow-hidden bg-[#F5F0E8]">
                 {product.imageUrl ? (
@@ -51,6 +67,13 @@ const ProductCard = React.memo(function ProductCard({
                         {qtyInCart}
                     </div>
                 )}
+                {hasOffer && (
+                    <div className="absolute top-2 left-2 flex items-center gap-0.5 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg"
+                        style={{ top: qtyInCart > 0 ? '28px' : '8px' }}>
+                        <Tag size={8} />
+                        {discountLabel}
+                    </div>
+                )}
                 {isAdmin && (
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={(e) => { e.stopPropagation(); setFaultyProduct(product); toggleModal('faulty', true); }}
@@ -68,7 +91,14 @@ const ProductCard = React.memo(function ProductCard({
                 <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight mb-2">{product.name}</h3>
                 <div className="mt-auto flex items-center justify-between">
                     <div className="flex flex-col">
-                        <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
+                        {hasOffer ? (
+                            <>
+                                <span className="text-[10px] text-slate-400 line-through leading-none">${product.price?.toLocaleString()}</span>
+                                <span className="text-base font-black text-red-500 leading-none">${discountedPrice?.toLocaleString()}</span>
+                            </>
+                        ) : (
+                            <span className="text-base font-black text-black leading-none">${product.price?.toLocaleString()}</span>
+                        )}
                         {isAdmin && (
                             <span className={`text-[10px] font-semibold mt-0.5 ${outOfStock ? 'text-red-500' : 'text-emerald-700'}`}>
                                 {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
@@ -92,7 +122,7 @@ const ProductGrid = React.memo(function ProductGrid({
     subcategories = [],
     userData, barcodeInput, setBarcodeInput, handleBarcodeSubmit,
     onEditProduct, setFaultyProduct, toggleModal,
-    cart
+    cart, activeOfferMap = new Map(),
 }) {
     const activeCategories = useMemo(
         () => categories.filter(c => c.isActive !== false),
@@ -127,6 +157,16 @@ const ProductGrid = React.memo(function ProductGrid({
 
         return matchesSearch && matchesCategory;
     }), [products, categories, barcodeInput, searchTerm, selectedCategory]);
+
+    // Productos con oferta activa van primero — llaman la atención al entrar a la pestaña
+    const sortedProducts = useMemo(() => {
+        if (!activeOfferMap.size) return filteredProducts;
+        return [...filteredProducts].sort((a, b) => {
+            const aHas = activeOfferMap.has(a.id) ? 0 : 1;
+            const bHas = activeOfferMap.has(b.id) ? 0 : 1;
+            return aHas - bHas;
+        });
+    }, [filteredProducts, activeOfferMap]);
 
     const cartQtyMap = useMemo(() =>
         (cart || []).reduce((acc, item) => { acc[item.id] = item.qty; return acc; }, {}),
@@ -166,6 +206,7 @@ const ProductGrid = React.memo(function ProductGrid({
                     onEditProduct={onEditProduct}
                     setFaultyProduct={setFaultyProduct}
                     toggleModal={toggleModal}
+                    offerEntry={data.activeOfferMap?.get(product.id) ?? null}
                 />
             </div>
         );
@@ -252,7 +293,7 @@ const ProductGrid = React.memo(function ProductGrid({
                         // columnCount * columnWidth ≤ width → sin overflow lateral.
                         const columnWidth = Math.floor(width / columnCount);
                         const cardWidth   = columnWidth - GAP;
-                        const rowCount    = Math.ceil(filteredProducts.length / columnCount);
+                        const rowCount    = Math.ceil(sortedProducts.length / columnCount);
                         const rowHeight   = CARD_HEIGHT + GAP;
 
                         return (
@@ -263,7 +304,7 @@ const ProductGrid = React.memo(function ProductGrid({
                                 columnWidth={cardWidth + GAP}
                                 rowCount={rowCount}
                                 rowHeight={rowHeight}
-                                itemData={{ products: filteredProducts, columnCount, cardWidth }}
+                                itemData={{ products: sortedProducts, columnCount, cardWidth, activeOfferMap }}
                                 overscanRowCount={2}
                             >
                                 {CellRenderer}

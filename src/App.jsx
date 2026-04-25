@@ -328,6 +328,7 @@ export default function App() {
                         <div className="flex flex-col h-full lg:flex-row gap-4 overflow-hidden relative p-4 pb-20 lg:pb-4">
                             <ProductGrid
                                 products={products} addToCart={addToCart}
+                                activeOfferMap={activeOfferMap}
                                 searchTerm={searchTerm} setSearchTerm={setSearchTerm}
                                 selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
                                 categories={categories} subcategories={subcategories}

@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from 'react';
+import { useAuthContext } from './AuthContext';
 import { useCart } from '../hooks/useCart';
 import { useOffers } from '../hooks/useOffers';
 import { useInventoryContext } from './InventoryContext';
@@ -9,10 +10,12 @@ import { useInventoryContext } from './InventoryContext';
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-    const { products } = useInventoryContext();
+    const { products }   = useInventoryContext();
+    const { userData }   = useAuthContext();
 
-    // Ofertas: genera activeOfferMap (Map<productId, discountEntry>)
-    const offersData = useOffers();
+    // Ofertas: pasa el rol para que useOffers use la query correcta
+    // (admins ven todas, clientes solo las activas — coincide con las reglas de Firestore)
+    const offersData = useOffers(userData?.role);
 
     // Carrito: recibe activeOfferMap para aplicar descuentos automáticamente
     const cartData = useCart(products, offersData.activeOfferMap);

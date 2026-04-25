@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    collection, query, orderBy, onSnapshot,
+    collection, query, orderBy, where, onSnapshot,
     addDoc, updateDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
 import { getDb, appId } from '../config/firebase';
@@ -26,15 +26,21 @@ import { getDb, appId } from '../config/firebase';
  *   Solo incluye ofertas activas y no vencidas.
  *   Si un producto tiene múltiples ofertas activas, gana la de mayor descuento.
  */
-export const useOffers = () => {
+export const useOffers = (userRole = 'client') => {
     const [offers, setOffers]   = useState([]);
     const [sending, setSending] = useState(null);
 
     useEffect(() => {
         let unsub = () => {};
         getDb().then(db => {
-            unsub = onSnapshot(
-                query(collection(db, 'stores', appId, 'offers'), orderBy('createdAt', 'desc')),
+            // Admins ven todas las ofertas (activas e inactivas) para poder editarlas.
+            // Clientes solo leen las activas — coincide con la regla de Firestore
+            // que filtra por resource.data.active == true para no-admins.
+            // Sin el where() en la query, Firestore deniega la query completa.
+            const offersQuery = userRole === 'admin'
+                ? query(collection(db, 'stores', appId, 'offers'), orderBy('createdAt', 'desc'))
+                : query(collection(db, 'stores', appId, 'offers'), where('active', '==', true), orderBy('createdAt', 'desc'));
+            unsub = onSnapshot(offersQuery,
                 (snap) => setOffers(snap.docs.map(d => ({ id: d.id, ...d.data() })))
             );
         });
