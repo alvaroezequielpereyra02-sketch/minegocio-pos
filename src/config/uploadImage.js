@@ -7,7 +7,7 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PRESET;
 // --- 1. FUNCIÓN DE SUBIDA ---
 // CAMBIO IMPORTANTE: Renombramos de 'uploadProductImage' a 'uploadImage' 
 // para que coincida con lo que esperan Modals.jsx y App.jsx
-export const uploadImage = async (base64Image, productName = 'producto') => {
+export const uploadImage = async (base64Image, productName = 'producto', folder = 'productos') => {
     if (!base64Image || base64Image.startsWith('http')) return base64Image;
 
     try {
@@ -17,7 +17,7 @@ export const uploadImage = async (base64Image, productName = 'producto') => {
 
         // Limpieza básica del nombre para el public_id
         const cleanName = productName ? productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'img';
-        formData.append('public_id', `productos/${cleanName}_${Date.now()}`);
+        formData.append('public_id', `${folder}/${cleanName}_${Date.now()}`);
 
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
             method: 'POST',

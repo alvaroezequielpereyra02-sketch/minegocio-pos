@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { uploadImage } from '../config/uploadImage';
 import {
     Tag, Send, Plus, Trash2, ToggleLeft, ToggleRight,
-    Bell, BellOff, Calendar, Percent, Image, Edit3, X, CheckCircle, Search,
+    Bell, BellOff, Calendar, Percent, Upload, Edit3, X, CheckCircle, Search, Loader2, ImageOff,
 } from 'lucide-react';
 
 // ─── Formulario de oferta ─────────────────────────────────────────────────────
 
 function OfferForm({ initial = {}, onSave, onCancel, saving, products = [] }) {
     const [productSearch, setProductSearch] = useState('');
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const fileInputRef = useRef(null);
     const [form, setForm] = useState({
         title:         initial.title         ?? '',
         description:   initial.description   ?? '',
@@ -26,6 +29,29 @@ function OfferForm({ initial = {}, onSave, onCancel, saving, products = [] }) {
             ? f.productIds.filter(pid => pid !== id)
             : [...f.productIds, id],
     }));
+
+    const handleImageFile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) return;
+        setUploadingImage(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const url = await uploadImage(ev.target.result, `oferta_${Date.now()}`, 'ofertas');
+                    setForm(f => ({ ...f, imageUrl: url }));
+                } catch (err) {
+                    alert('Error al subir imagen: ' + err.message);
+                } finally {
+                    setUploadingImage(false);
+                }
+            };
+            reader.readAsDataURL(file);
+        } catch {
+            setUploadingImage(false);
+        }
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -170,18 +196,56 @@ function OfferForm({ initial = {}, onSave, onCancel, saving, products = [] }) {
                 </div>
             </div>
 
-            {/* URL imagen */}
+            {/* Imagen — uploader a Cloudinary */}
             <div>
                 <label className="text-xs font-semibold text-[#7A6040] block mb-1">
-                    <Image size={11} className="inline mr-1" />URL de imagen (opcional)
+                    <Upload size={11} className="inline mr-1" />Imagen de la oferta (opcional)
                 </label>
+
                 <input
-                    value={form.imageUrl}
-                    onChange={set('imageUrl')}
-                    maxLength={500}
-                    placeholder="https://..."
-                    className="w-full px-3 py-2 rounded-xl border border-[#D4C9B0] text-sm focus:outline-none focus:border-[#8B6914] bg-[#F5F0E8] text-[#3D2B1F]"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageFile}
                 />
+
+                {form.imageUrl ? (
+                    <div className="relative rounded-xl overflow-hidden border border-[#D4C9B0] bg-[#F5F0E8]">
+                        <img
+                            src={form.imageUrl}
+                            alt="Preview"
+                            className="w-full h-32 object-cover"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                            title="Quitar imagen"
+                        >
+                            <X size={12} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-semibold px-2 py-1 rounded-lg hover:bg-black/70 transition-colors"
+                        >
+                            Cambiar
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="w-full h-24 rounded-xl border-2 border-dashed border-[#D4C9B0] bg-[#F5F0E8] flex flex-col items-center justify-center gap-1.5 text-[#A09070] hover:border-[#8B6914] hover:text-[#8B6914] transition-colors disabled:opacity-50"
+                    >
+                        {uploadingImage
+                            ? <><Loader2 size={20} className="animate-spin" /><span className="text-xs">Subiendo...</span></>
+                            : <><Upload size={20} /><span className="text-xs font-medium">Subir imagen</span><span className="text-[10px]">JPG, PNG, WEBP</span></>
+                        }
+                    </button>
+                )}
             </div>
 
             {/* Acciones */}
