@@ -408,6 +408,12 @@ export default function App() {
                                     showNotification={showNotification}
                                     requestConfirm={requestConfirm}
                                     products={products}
+                                    offers={offers}
+                                    sending={offerSending}
+                                    addOffer={addOffer}
+                                    updateOffer={updateOffer}
+                                    deleteOffer={deleteOffer}
+                                    publishOffer={publishOffer}
                                 />
                             </Suspense>
                         </div>

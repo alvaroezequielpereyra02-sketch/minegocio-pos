@@ -3,8 +3,6 @@ import {
     Tag, Send, Plus, Trash2, ToggleLeft, ToggleRight,
     Bell, BellOff, Calendar, Percent, Image, Edit3, X, CheckCircle, Search,
 } from 'lucide-react';
-import { useState as useLocalState } from 'react';
-import { useOffers } from '../hooks/useOffers';
 
 // ─── Formulario de oferta ─────────────────────────────────────────────────────
 
@@ -324,8 +322,8 @@ function OfferCard({ offer, onEdit, onDelete, onPublish, onToggle, sending }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function Offers({ showNotification, requestConfirm, products = [] }) {
-    const { offers, sending, addOffer, updateOffer, deleteOffer, publishOffer } = useOffers();
+export default function Offers({ showNotification, requestConfirm, products = [],
+    offers = [], sending, addOffer, updateOffer, deleteOffer, publishOffer }) {
     const [showForm, setShowForm] = useState(false);
     const [editingOffer, setEditingOffer] = useState(null);
     const [saving, setSaving] = useState(false);
