@@ -26,7 +26,7 @@ import { getDb, appId } from '../config/firebase';
  *   Solo incluye ofertas activas y no vencidas.
  *   Si un producto tiene múltiples ofertas activas, gana la de mayor descuento.
  */
-export const useOffers = (userRole = 'client') => {
+export const useOffers = (userRole) => {  // sin default — undefined frena la query hasta que auth cargue
     const [offers, setOffers]   = useState([]);
     const [sending, setSending] = useState(null);
 
