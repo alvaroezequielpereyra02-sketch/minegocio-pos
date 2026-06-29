@@ -1,7 +1,7 @@
 {
   "name": "minegocio-pos",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,29 +13,32 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.2.2",
-    "firebase": "^12.11.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-virtual": "^3.14.4",
+    "firebase": "^12.15.0",
     "html2pdf.js": "^0.14.0",
-    "lucide-react": "^0.577.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-virtualized-auto-sizer": "^1.0.24",
-    "react-window": "^1.8.10",
-    "recharts": "^3.8.0"
+    "idb": "^8.0.3",
+    "lucide-react": "^1.22.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-virtualized-auto-sizer": "^1.0.26",
+    "react-window": "^1.8.11",
+    "recharts": "^3.9.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitejs/plugin-react": "^5.1.4",
-    "autoprefixer": "^10.4.16",
-    "firebase-admin": "^13.6.1",
-    "jsdom": "^28.1.0",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^4.2.2",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.9",
+    "autoprefixer": "^10.5.2",
+    "firebase-admin": "^14.1.0",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^4.3.1",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9"
   }
 }

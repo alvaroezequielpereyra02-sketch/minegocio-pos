@@ -1,52 +1,57 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import App from './App.jsx';
+import './index.css';
 import ErrorBoundary from './components/ErrorBoundary';
 import ResetPasswordPage from './components/ResetPasswordPage';
 
-// --- 1. IMPORTAR LOS PROVEEDORES DE CONTEXTO ---
-import { AuthProvider } from './context/AuthContext';
-import { InventoryProvider } from './context/InventoryContext';
-import { CartProvider } from './context/CartContext';
+import { queryClient } from './lib/queryClient.js';
+
+// Contextos existentes (se migran progresivamente a lo largo de las fases)
+import { AuthProvider }         from './context/AuthContext';
+import { InventoryProvider }    from './context/InventoryContext';
+import { CartProvider }         from './context/CartContext';
 import { TransactionsProvider } from './context/TransactionsContext';
 
-// Autocorrección de versiones
-window.addEventListener('vite:preloadError', (event) => {
+// Autocorrección de versiones: si Vite no puede cargar un chunk
+// (Vercel borró los archivos de la versión anterior), se recarga.
+window.addEventListener('vite:preloadError', () => {
   window.location.reload();
 });
 
 // ── Detección de flujo de reseteo de contraseña ───────────────────────────────
-// Cuando el usuario hace click en el link del email, Firebase redirige a la app
-// con ?mode=resetPassword&oobCode=... en la URL.
-// Lo detectamos ANTES de montar los providers para mostrar solo la página de
-// reseteo — sin necesidad de que el usuario esté autenticado.
-const urlParams  = new URLSearchParams(window.location.search);
-const urlMode    = urlParams.get('mode');
-const oobCode    = urlParams.get('oobCode');
-const isReset    = urlMode === 'resetPassword' && !!oobCode;
+// TEMPORAL: Firebase redirige con ?mode=resetPassword&oobCode=...
+// Este bloque se elimina en la Fase 1 al migrar la autenticación.
+const urlParams = new URLSearchParams(window.location.search);
+const urlMode   = urlParams.get('mode');
+const oobCode   = urlParams.get('oobCode');
+const isReset   = urlMode === 'resetPassword' && !!oobCode;
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       {isReset ? (
-        // Página de reseteo — standalone, sin providers de auth/inventory
+        // Página de reseteo standalone — sin providers
+        // TEMPORAL: se reemplaza en Fase 1 por el flujo de auth propio
         <ResetPasswordPage oobCode={oobCode} />
       ) : (
-        // App normal con todos los providers
-        <AuthProvider>
-          <InventoryProvider>
-            <TransactionsProvider>
-              <CartProvider>
-                <App />
-              </CartProvider>
-            </TransactionsProvider>
-          </InventoryProvider>
-        </AuthProvider>
+        // QueryClientProvider envuelve todo — los hooks de TanStack Query
+        // necesitan acceso al queryClient desde cualquier punto del árbol.
+        <QueryClientProvider client={queryClient}>
+          {/* Los providers existentes quedan dentro de QueryClientProvider.
+              En las Fases siguientes se irán migrando a useQuery/useMutation. */}
+          <AuthProvider>
+            <InventoryProvider>
+              <TransactionsProvider>
+                <CartProvider>
+                  <App />
+                </CartProvider>
+              </TransactionsProvider>
+            </InventoryProvider>
+          </AuthProvider>
+        </QueryClientProvider>
       )}
     </ErrorBoundary>
   </React.StrictMode>,
-)
-
-// El Service Worker es registrado por useNotifications.js (firebase-messaging-sw.js)
-// No registrar service-worker.js aquí para evitar conflictos con FCM
+);
