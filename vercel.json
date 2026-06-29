@@ -24,7 +24,6 @@
       ]
     },
     {
-      "note": "TEMPORAL — eliminar en Fase 8 junto con Firebase",
       "source": "/firebase-messaging-sw.js",
       "headers": [
         { "key": "Content-Type",  "value": "application/javascript" },
@@ -33,15 +32,11 @@
     }
   ],
   "rewrites": [
-    { "source": "/manifest.json",           "destination": "/manifest.json" },
-    { "source": "/logo192.png",             "destination": "/logo192.png" },
-    { "source": "/robots.txt",              "destination": "/robots.txt" },
-    { "source": "/api/:path*",              "destination": "/api/:path*" },
-    {
-      "note": "TEMPORAL — eliminar en Fase 8",
-      "source": "/firebase-messaging-sw.js",
-      "destination": "/firebase-messaging-sw.js"
-    },
-    { "source": "/(.*)",                    "destination": "/index.html" }
+    { "source": "/manifest.json",            "destination": "/manifest.json" },
+    { "source": "/logo192.png",              "destination": "/logo192.png" },
+    { "source": "/robots.txt",               "destination": "/robots.txt" },
+    { "source": "/api/:path*",               "destination": "/api/:path*" },
+    { "source": "/firebase-messaging-sw.js", "destination": "/firebase-messaging-sw.js" },
+    { "source": "/(.*)",                     "destination": "/index.html" }
   ]
 }
