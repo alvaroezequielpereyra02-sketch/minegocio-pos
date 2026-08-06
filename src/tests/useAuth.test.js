@@ -1,315 +1,201 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-
-// ── Mocks de Firebase Auth ────────────────────────────────────────────────────
-const mockSignIn   = vi.fn();
-const mockSignOut  = vi.fn();
-const mockRegister = vi.fn();
-const mockReset    = vi.fn();
-const mockDelete   = vi.fn();
-const mockGetToken = vi.fn();
-
-vi.mock('firebase/auth', () => ({
-    onAuthStateChanged:          vi.fn(() => () => {}),
-    signInWithEmailAndPassword:  (...args) => mockSignIn(...args),
-    createUserWithEmailAndPassword: (...args) => mockRegister(...args),
-    signOut:                     (...args) => mockSignOut(...args),
-    sendPasswordResetEmail:      (...args) => mockReset(...args),
-    getIdTokenResult:            (...args) => mockGetToken(...args),
-}));
-
-// ── Mocks de Firebase Firestore ───────────────────────────────────────────────
-const mockGetDoc      = vi.fn();
-const mockGetDocsFrom = vi.fn();
-const mockSetDoc      = vi.fn();
-const mockUpdateDoc   = vi.fn();
-const mockOnSnapshot  = vi.fn(() => () => {});
-
-vi.mock('firebase/firestore', async () => {
-    const original = await vi.importActual('firebase/firestore');
-    return {
-        ...original,
-        doc:               vi.fn(() => ({ path: 'mocked' })),
-        collection:        vi.fn(() => ({ path: 'mocked-col' })),
-        getDoc:            (...args) => mockGetDoc(...args),
-        getDocsFromServer: (...args) => mockGetDocsFrom(...args),
-        setDoc:            (...args) => mockSetDoc(...args),
-        updateDoc:         (...args) => mockUpdateDoc(...args),
-        onSnapshot:        (...args) => mockOnSnapshot(...args),
-        query:             vi.fn(),
-        where:             vi.fn(),
-        serverTimestamp:   () => ({ _type: 'serverTimestamp' }),
-    };
-});
-
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAuth } from '../hooks/useAuth';
+import { api, tokenStorage } from '../services/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fixtures
-// ─────────────────────────────────────────────────────────────────────────────
+// api.js y tokenStorage ya están mockeados globalmente en tests/setup.js.
+// Acá solo configuramos qué devuelve cada llamada en cada caso.
 
-const validCredentials = { email: 'user@test.com', password: '123456' };
-
-const validRegisterData = {
-    email: 'nuevo@test.com', password: 'password123',
-    name: 'Juan Pérez', phone: '351-000', address: 'Av. 1',
-    inviteCode: 'ABCD1234',
-};
-
-const mockFirebaseUser = {
-    uid: 'uid-123',
-    email: 'user@test.com',
-    delete: mockDelete,
-};
-
-const mockInviteDoc = {
-    id:   'invite-doc-id',
-    data: () => ({ code: 'ABCD1234', status: 'active' }),
-};
-
-beforeEach(() => {
-    vi.clearAllMocks();
-    // Token por defecto retorna role: null
-    mockGetToken.mockResolvedValue({ claims: {} });
-    mockGetDoc.mockResolvedValue({ exists: () => false, data: () => null });
-    mockSetDoc.mockResolvedValue(undefined);
-    mockUpdateDoc.mockResolvedValue(undefined);
-    mockSignOut.mockResolvedValue(undefined);
-    mockReset.mockResolvedValue(undefined);
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Estado inicial
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useAuth — estado inicial', () => {
-    it('user y userData comienzan como null', () => {
-        const { result } = renderHook(() => useAuth());
-        expect(result.current.user).toBeNull();
-        expect(result.current.userData).toBeNull();
-    });
-
-    it('loginError comienza como string vacío', () => {
-        const { result } = renderHook(() => useAuth());
-        expect(result.current.loginError).toBe('');
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// login
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useAuth — login', () => {
-    it('llama a signInWithEmailAndPassword con las credenciales correctas', async () => {
-        mockSignIn.mockResolvedValueOnce({ user: mockFirebaseUser });
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => {
-            await result.current.login(validCredentials.email, validCredentials.password);
-        });
-
-        expect(mockSignIn).toHaveBeenCalledWith(
-            expect.anything(),
-            validCredentials.email,
-            validCredentials.password
-        );
-    });
-
-    it('limpia el loginError antes de intentar el login', async () => {
-        mockSignIn.mockResolvedValueOnce({ user: mockFirebaseUser });
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => { result.current.setLoginError('Error previo'); });
-        await act(async () => {
-            await result.current.login(validCredentials.email, validCredentials.password);
-        });
-
-        expect(result.current.loginError).toBe('');
-    });
-
-    it('setea loginError si las credenciales son inválidas', async () => {
-        mockSignIn.mockRejectedValueOnce({ code: 'auth/wrong-password' });
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => {
-            try { await result.current.login('wrong@test.com', 'wrong'); } catch {}
-        });
-
-        expect(result.current.loginError).toBe('Credenciales incorrectas.');
-    });
-
-    it('re-lanza el error para que el componente pueda manejarlo', async () => {
-        mockSignIn.mockRejectedValueOnce(new Error('auth/user-not-found'));
-        const { result } = renderHook(() => useAuth());
-
-        await expect(
-            act(async () => { await result.current.login('x@x.com', 'pass'); })
-        ).rejects.toThrow();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// register
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useAuth — register', () => {
+describe('useAuth', () => {
     beforeEach(() => {
-        mockGetDocsFrom.mockResolvedValue({
-            empty: false,
-            docs:  [mockInviteDoc],
-        });
-        mockRegister.mockResolvedValue({ user: mockFirebaseUser });
+        vi.clearAllMocks();
+        tokenStorage.get.mockReturnValue('test-token');
     });
 
-    it('valida el código de invitación antes de crear el usuario', async () => {
-        const { result } = renderHook(() => useAuth());
+    describe('hidratación inicial', () => {
+        it('no intenta hidratar si no hay token guardado', async () => {
+            tokenStorage.get.mockReturnValue(null);
+            const { result } = renderHook(() => useAuth());
 
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
-        });
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-        // getDocsFromServer debe haberse llamado para validar el código
-        expect(mockGetDocsFrom).toHaveBeenCalledTimes(1);
-    });
-
-    it('lanza error si el código de invitación está vencido o es inválido', async () => {
-        mockGetDocsFrom.mockResolvedValueOnce({ empty: true, docs: [] });
-        const { result } = renderHook(() => useAuth());
-
-        await expect(
-            act(async () => { await result.current.register(validRegisterData); })
-        ).rejects.toThrow();
-    });
-
-    it('crea el usuario en Auth después de validar el código', async () => {
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
+            expect(api.get).not.toHaveBeenCalled();
+            expect(result.current.user).toBeNull();
+            expect(result.current.userData).toBeNull();
         });
 
-        expect(mockRegister).toHaveBeenCalledWith(
-            expect.anything(),
-            validRegisterData.email,
-            validRegisterData.password
-        );
-    });
+        it('carga el perfil desde /auth/me si hay token guardado', async () => {
+            api.get.mockResolvedValue({
+                id: 'u1', email: 'ana@gmail.com', name: 'Ana', role: 'client',
+                profileComplete: true, avatarUrl: null,
+            });
 
-    it('guarda el usuario en Firestore con role: client', async () => {
-        const { result } = renderHook(() => useAuth());
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
+            expect(api.get).toHaveBeenCalledWith('/auth/me');
+            expect(result.current.user).toEqual({
+                uid: 'u1', email: 'ana@gmail.com', name: 'Ana', avatarUrl: null,
+            });
+            expect(result.current.userData.role).toBe('client');
         });
 
-        // El primer setDoc es el documento del usuario
-        const firstSetDocCall = mockSetDoc.mock.calls[0];
-        expect(firstSetDocCall[1].role).toBe('client');
-        expect(firstSetDocCall[1].email).toBe(validRegisterData.email);
+        it('si /auth/me falla, limpia el token y deja la sesión vacía', async () => {
+            api.get.mockRejectedValue(new Error('Token expirado.'));
+
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
+
+            expect(tokenStorage.clear).toHaveBeenCalled();
+            expect(result.current.user).toBeNull();
+            expect(result.current.userData).toBeNull();
+        });
     });
 
-    it('marca el código de invitación como usado', async () => {
-        const { result } = renderHook(() => useAuth());
+    describe('loginWithGoogle', () => {
+        it('manda el idToken, guarda el token nuevo y setea user/userData', async () => {
+            tokenStorage.get.mockReturnValue(null); // sin sesión previa
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
+            api.post.mockResolvedValue({
+                token: 'jwt-nuevo',
+                user: {
+                    id: 'u2', email: 'cliente@gmail.com', name: 'Cliente Nuevo',
+                    role: 'client', profileComplete: false, avatarUrl: 'https://foto.jpg',
+                },
+            });
+
+            await act(async () => {
+                await result.current.loginWithGoogle('google-id-token');
+            });
+
+            expect(api.post).toHaveBeenCalledWith('/auth/google', { idToken: 'google-id-token' });
+            expect(tokenStorage.set).toHaveBeenCalledWith('jwt-nuevo');
+            expect(result.current.user.email).toBe('cliente@gmail.com');
+            // profileComplete=false es la señal que gatilla CompleteProfileScreen en App.jsx
+            expect(result.current.userData.profileComplete).toBe(false);
         });
 
-        const updateCall = mockUpdateDoc.mock.calls.find(
-            call => call[1]?.status === 'used'
-        );
-        expect(updateCall).toBeDefined();
-        expect(updateCall[1].usedBy).toBe(mockFirebaseUser.uid);
+        it('si el backend rechaza el token, setea loginError y no guarda sesión', async () => {
+            tokenStorage.get.mockReturnValue(null);
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
+
+            api.post.mockRejectedValue(new Error('Token de Google inválido o expirado.'));
+
+            await act(async () => {
+                try { await result.current.loginWithGoogle('token-malo'); }
+                catch { /* se espera que rechace */ }
+            });
+
+            expect(result.current.loginError).toBe('Token de Google inválido o expirado.');
+            expect(result.current.user).toBeNull();
+        });
     });
 
-    it('ROLLBACK: elimina el usuario de Auth si Firestore falla', async () => {
-        // Simular fallo en el primer setDoc (escribir en users/)
-        mockSetDoc.mockRejectedValueOnce(new Error('Firestore permission denied'));
+    describe('registerWithInvite', () => {
+        it('manda idToken + inviteCode y guarda la sesión del rol otorgado', async () => {
+            tokenStorage.get.mockReturnValue(null);
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-        const { result } = renderHook(() => useAuth());
+            api.post.mockResolvedValue({
+                token: 'jwt-empleado',
+                user: {
+                    id: 'u3', email: 'empleada@gmail.com', name: 'Empleada',
+                    role: 'employee', profileComplete: true,
+                },
+            });
 
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
+            await act(async () => {
+                await result.current.registerWithInvite({ credential: 'g-token', inviteCode: 'ABCD1234' });
+            });
+
+            expect(api.post).toHaveBeenCalledWith('/auth/invite', {
+                idToken: 'g-token', inviteCode: 'ABCD1234',
+            });
+            expect(result.current.userData.role).toBe('employee');
         });
 
-        // El usuario debe haber sido eliminado de Auth para evitar cuenta huérfana
-        expect(mockDelete).toHaveBeenCalledTimes(1);
-    });
+        it('si el código es inválido, setea loginError con el mensaje del backend', async () => {
+            tokenStorage.get.mockReturnValue(null);
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-    it('ROLLBACK: setea loginError con el mensaje del error de Firestore', async () => {
-        mockSetDoc.mockRejectedValueOnce(new Error('Firestore error específico'));
+            api.post.mockRejectedValue(new Error('Código de invitación inválido o ya utilizado.'));
 
-        const { result } = renderHook(() => useAuth());
+            await act(async () => {
+                try {
+                    await result.current.registerWithInvite({ credential: 'g-token', inviteCode: 'VENCIDO' });
+                } catch { /* se espera que rechace */ }
+            });
 
-        await act(async () => {
-            try { await result.current.register(validRegisterData); } catch {}
+            expect(result.current.loginError).toBe('Código de invitación inválido o ya utilizado.');
         });
-
-        expect(result.current.loginError).toContain('Firestore error específico');
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// logout
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useAuth — logout', () => {
-    it('llama a signOut', async () => {
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => { await result.current.logout(); });
-
-        expect(mockSignOut).toHaveBeenCalledTimes(1);
     });
 
-    it('limpia userData al hacer logout', async () => {
-        const { result } = renderHook(() => useAuth());
+    describe('completeProfile', () => {
+        it('actualiza userData con el perfil completo y profileComplete=true', async () => {
+            api.get.mockResolvedValue({
+                id: 'u4', email: 'c@gmail.com', name: 'C', role: 'client', profileComplete: false,
+            });
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-        await act(async () => { await result.current.logout(); });
+            api.patch.mockResolvedValue({
+                id: 'u4', email: 'c@gmail.com', name: 'Cliente Completo', role: 'client',
+                profileComplete: true, businessName: 'Kiosco C', address: 'Calle 123', phone: '11111111',
+            });
 
-        expect(result.current.userData).toBeNull();
-    });
-});
+            await act(async () => {
+                await result.current.completeProfile({
+                    name: 'Cliente Completo', businessName: 'Kiosco C',
+                    address: 'Calle 123', phone: '11111111',
+                });
+            });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// resetPassword
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('useAuth — resetPassword', () => {
-    it('llama a sendPasswordResetEmail con el email correcto', async () => {
-        const { result } = renderHook(() => useAuth());
-
-        await act(async () => {
-            await result.current.resetPassword('user@test.com');
+            expect(api.patch).toHaveBeenCalledWith('/auth/me/profile', {
+                name: 'Cliente Completo', businessName: 'Kiosco C',
+                address: 'Calle 123', phone: '11111111',
+            });
+            expect(result.current.userData.profileComplete).toBe(true);
+            expect(result.current.userData.businessName).toBe('Kiosco C');
         });
-
-        expect(mockReset).toHaveBeenCalledWith(
-            expect.anything(),
-            'user@test.com',
-            expect.objectContaining({ handleCodeInApp: true })
-        );
     });
 
-    it('lanza error y setea loginError si el email está vacío', async () => {
-        const { result } = renderHook(() => useAuth());
+    describe('logout', () => {
+        it('limpia el token guardado y el estado local', async () => {
+            api.get.mockResolvedValue({
+                id: 'u5', email: 'admin@gmail.com', name: 'Admin', role: 'admin', profileComplete: true,
+            });
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
+            expect(result.current.user).not.toBeNull();
 
-        await act(async () => {
-            try { await result.current.resetPassword(''); } catch {}
+            act(() => { result.current.logout(); });
+
+            expect(tokenStorage.clear).toHaveBeenCalled();
+            expect(result.current.user).toBeNull();
+            expect(result.current.userData).toBeNull();
         });
-
-        expect(result.current.loginError).toBeTruthy();
-        expect(mockReset).not.toHaveBeenCalled();
     });
 
-    it('usa la URL de la app para el enlace de recuperación', async () => {
-        const { result } = renderHook(() => useAuth());
+    describe('evento mnpos:session-expired', () => {
+        it('limpia la sesión cuando api.js detecta un 401 en cualquier request', async () => {
+            api.get.mockResolvedValue({
+                id: 'u6', email: 'y@gmail.com', name: 'Y', role: 'client', profileComplete: true,
+            });
+            const { result } = renderHook(() => useAuth());
+            await waitFor(() => expect(result.current.authLoading).toBe(false));
+            expect(result.current.user).not.toBeNull();
 
-        await act(async () => {
-            await result.current.resetPassword('user@test.com');
+            act(() => {
+                window.dispatchEvent(new CustomEvent('mnpos:session-expired'));
+            });
+
+            expect(result.current.user).toBeNull();
+            expect(result.current.userData).toBeNull();
         });
-
-        const [, , actionSettings] = mockReset.mock.calls[0];
-        expect(actionSettings.url).toBeDefined();
-        expect(actionSettings.handleCodeInApp).toBe(true);
     });
 });

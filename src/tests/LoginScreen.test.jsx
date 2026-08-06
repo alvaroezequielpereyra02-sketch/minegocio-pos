@@ -1,211 +1,128 @@
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import LoginScreen from '../components/LoginScreen';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fixtures
-// ─────────────────────────────────────────────────────────────────────────────
+// El SDK de Google Identity Services (accounts.google.com/gsi/client) no
+// existe en jsdom. Lo simulamos con un mock que deja capturar el `callback`
+// registrado en initialize() para poder disparar el flujo como si alguien
+// hubiera completado el popup de Google.
+function mockGoogleIdentity() {
+    const initialize   = vi.fn();
+    const renderButton = vi.fn();
+    window.google = { accounts: { id: { initialize, renderButton } } };
+    return { initialize, renderButton };
+}
 
-const defaultProps = {
-    storeProfile:     { name: 'Mi Tienda', logoUrl: '' },
-    login:            vi.fn(),
-    register:         vi.fn(),
-    resetPassword:    vi.fn(),
-    loginError:       '',
-    setLoginError:    vi.fn(),
-    showNotification: vi.fn(),
-};
+function lastCallback(initialize) {
+    const calls = initialize.mock.calls;
+    return calls[calls.length - 1][0].callback;
+}
 
-beforeEach(() => {
-    vi.clearAllMocks();
-    defaultProps.login.mockResolvedValue(undefined);
-    defaultProps.register.mockResolvedValue(undefined);
-    defaultProps.resetPassword.mockResolvedValue(undefined);
-});
+const storeProfile = { name: 'Distribuidora P&P', logoUrl: null };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Renderizado inicial — modo login
-// ─────────────────────────────────────────────────────────────────────────────
+function renderLogin(overrides = {}) {
+    const props = {
+        storeProfile,
+        loginWithGoogle: vi.fn().mockResolvedValue({}),
+        registerWithInvite: vi.fn().mockResolvedValue({}),
+        loginError: '',
+        setLoginError: vi.fn(),
+        ...overrides,
+    };
+    return { ...render(<LoginScreen {...props} />), props };
+}
 
-describe('LoginScreen — renderizado inicial', () => {
-    it('muestra el nombre de la tienda en el encabezado', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByText('Mi Tienda')).toBeDefined();
+describe('LoginScreen', () => {
+    beforeEach(() => {
+        delete window.google;
     });
 
-    it('muestra el campo de email', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByPlaceholderText(/correo/i)).toBeDefined();
+    it('muestra el nombre de la tienda', () => {
+        mockGoogleIdentity();
+        renderLogin();
+        expect(screen.getByText('Distribuidora P&P')).toBeInTheDocument();
     });
 
-    it('muestra el campo de contraseña', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByPlaceholderText(/contraseña/i)).toBeDefined();
+    it('arranca en modo cliente, sin campo de código de invitación', () => {
+        mockGoogleIdentity();
+        renderLogin();
+        expect(screen.queryByPlaceholderText('CÓDIGO DE INVITACIÓN')).not.toBeInTheDocument();
     });
 
-    it('muestra el botón de ingresar', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByRole('button', { name: /ingresar/i })).toBeDefined();
+    it('al tocar "Soy del equipo" aparece el campo de código', () => {
+        mockGoogleIdentity();
+        renderLogin();
+        fireEvent.click(screen.getByText('Soy del equipo'));
+        expect(screen.getByPlaceholderText('CÓDIGO DE INVITACIÓN')).toBeInTheDocument();
     });
 
-    it('muestra el enlace para registrarse', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByText(/registrarse/i)).toBeDefined();
+    it('inicializa el SDK de Google con auto_select en false', async () => {
+        const { initialize, renderButton } = mockGoogleIdentity();
+        renderLogin();
+
+        await waitFor(() => expect(initialize).toHaveBeenCalled());
+        expect(initialize.mock.calls[0][0]).toMatchObject({ auto_select: false });
+        expect(renderButton).toHaveBeenCalled();
     });
 
-    it('no muestra el campo de nombre (solo visible en registro)', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.queryByPlaceholderText(/nombre/i)).toBeNull();
-    });
+    it('en modo cliente, la credencial de Google dispara loginWithGoogle', async () => {
+        const { initialize } = mockGoogleIdentity();
+        const { props } = renderLogin();
 
-    it('no muestra el campo de código de invitación por defecto', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.queryByPlaceholderText(/código/i)).toBeNull();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cambio a modo registro
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('LoginScreen — modo registro', () => {
-    it('al hacer clic en registrarse muestra el formulario de registro', () => {
-        render(<LoginScreen {...defaultProps} />);
-
-        const registerLink = screen.getByText(/registrarse/i);
-        fireEvent.click(registerLink);
-
-        expect(screen.getByPlaceholderText(/nombre/i)).toBeDefined();
-    });
-
-    it('muestra el campo de código de invitación en modo registro', () => {
-        render(<LoginScreen {...defaultProps} />);
-        fireEvent.click(screen.getByText(/registrarse/i));
-
-        expect(screen.getByPlaceholderText(/código/i)).toBeDefined();
-    });
-
-    it('muestra el botón "Crear cuenta" en modo registro', () => {
-        render(<LoginScreen {...defaultProps} />);
-        fireEvent.click(screen.getByText(/registrarse/i));
-
-        expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeDefined();
-    });
-
-    it('al hacer clic en "ya tengo cuenta" vuelve al modo login', () => {
-        render(<LoginScreen {...defaultProps} />);
-
-        fireEvent.click(screen.getByText(/registrarse/i));
-        expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeDefined();
-
-        fireEvent.click(screen.getByText(/ya tengo cuenta/i));
-        expect(screen.queryByRole('button', { name: /crear cuenta/i })).toBeNull();
-        expect(screen.getByRole('button', { name: /ingresar/i })).toBeDefined();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Error de login
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('LoginScreen — mensajes de error', () => {
-    it('muestra el loginError cuando está definido', () => {
-        render(<LoginScreen {...defaultProps} loginError="Credenciales incorrectas." />);
-        expect(screen.getByText('Credenciales incorrectas.')).toBeDefined();
-    });
-
-    it('no muestra el error cuando loginError está vacío', () => {
-        render(<LoginScreen {...defaultProps} loginError="" />);
-        expect(screen.queryByText('Credenciales incorrectas.')).toBeNull();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Submit del formulario de login
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('LoginScreen — submit del formulario de login', () => {
-    it('llama a login con email y contraseña al hacer submit', async () => {
-        render(<LoginScreen {...defaultProps} />);
-
-        fireEvent.change(screen.getByPlaceholderText(/correo/i), {
-            target: { value: 'user@test.com' },
-        });
-        fireEvent.change(screen.getByPlaceholderText(/contraseña/i), {
-            target: { value: '123456' },
+        await waitFor(() => expect(initialize).toHaveBeenCalled());
+        await act(async () => {
+            await lastCallback(initialize)({ credential: 'g-id-token' });
         });
 
-        fireEvent.click(screen.getByRole('button', { name: /ingresar/i }));
-
-        await waitFor(() => {
-            expect(defaultProps.login).toHaveBeenCalledWith('user@test.com', '123456');
-        });
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recuperación de contraseña
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('LoginScreen — recuperar contraseña', () => {
-    it('muestra el enlace "Olvidé mi contraseña"', () => {
-        render(<LoginScreen {...defaultProps} />);
-        expect(screen.getByText(/olvidé/i)).toBeDefined();
+        expect(props.loginWithGoogle).toHaveBeenCalledWith('g-id-token');
+        expect(props.registerWithInvite).not.toHaveBeenCalled();
     });
 
-    it('llama a resetPassword con el email ingresado', async () => {
-        render(<LoginScreen {...defaultProps} />);
+    it('en modo empleado sin código cargado, no llama a registerWithInvite y avisa el error', async () => {
+        const { initialize } = mockGoogleIdentity();
+        const { props } = renderLogin();
 
-        fireEvent.change(screen.getByPlaceholderText(/correo/i), {
-            target: { value: 'user@test.com' },
+        fireEvent.click(screen.getByText('Soy del equipo'));
+        await waitFor(() => expect(initialize).toHaveBeenCalled());
+        await act(async () => {
+            await lastCallback(initialize)({ credential: 'g-id-token' });
         });
 
-        fireEvent.click(screen.getByText(/olvidé/i));
+        expect(props.registerWithInvite).not.toHaveBeenCalled();
+        expect(props.setLoginError).toHaveBeenCalledWith('Ingresá tu código de invitación.');
+    });
 
-        await waitFor(() => {
-            expect(defaultProps.resetPassword).toHaveBeenCalledWith('user@test.com');
+    it('en modo empleado con código cargado, llama a registerWithInvite con credential + inviteCode', async () => {
+        const { initialize } = mockGoogleIdentity();
+        const { props } = renderLogin();
+
+        fireEvent.click(screen.getByText('Soy del equipo'));
+        fireEvent.change(screen.getByPlaceholderText('CÓDIGO DE INVITACIÓN'), {
+            target: { value: 'abcd1234' },
+        });
+
+        await waitFor(() => expect(initialize).toHaveBeenCalled());
+        await act(async () => {
+            await lastCallback(initialize)({ credential: 'g-id-token' });
+        });
+
+        expect(props.registerWithInvite).toHaveBeenCalledWith({
+            credential: 'g-id-token', inviteCode: 'abcd1234',
         });
     });
 
-    it('llama a setLoginError si se intenta recuperar sin email', async () => {
-        render(<LoginScreen {...defaultProps} />);
-        // Sin escribir email
-        fireEvent.click(screen.getByText(/olvidé/i));
-
-        await waitFor(() => {
-            expect(defaultProps.setLoginError).toHaveBeenCalled();
-        });
+    it('muestra loginError cuando está presente', () => {
+        mockGoogleIdentity();
+        renderLogin({ loginError: 'Token de Google inválido.' });
+        expect(screen.getByText('Token de Google inválido.')).toBeInTheDocument();
     });
 
-    it('muestra mensaje de éxito después de enviar el email de recuperación', async () => {
-        render(<LoginScreen {...defaultProps} />);
+    it('al cambiar de modo, limpia el error anterior', () => {
+        mockGoogleIdentity();
+        const setLoginError = vi.fn();
+        renderLogin({ setLoginError });
 
-        fireEvent.change(screen.getByPlaceholderText(/correo/i), {
-            target: { value: 'user@test.com' },
-        });
-        fireEvent.click(screen.getByText(/olvidé/i));
-
-        await waitFor(() => {
-            expect(screen.queryByText(/enviamos/i) || screen.queryByText(/revisa/i) ||
-                   screen.queryByText(/correo/i)).toBeDefined();
-        });
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Accesibilidad básica
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('LoginScreen — accesibilidad', () => {
-    it('el logo muestra el nombre de la tienda cuando no hay imagen', () => {
-        render(<LoginScreen {...defaultProps} storeProfile={{ name: 'SuperTienda', logoUrl: '' }} />);
-        expect(screen.getByText('SuperTienda')).toBeDefined();
-    });
-
-    it('muestra el logo si hay logoUrl', () => {
-        render(<LoginScreen {...defaultProps} storeProfile={{ name: 'Test', logoUrl: 'https://example.com/logo.png' }} />);
-        const img = screen.getByRole('img');
-        expect(img.src).toContain('example.com/logo.png');
+        fireEvent.click(screen.getByText('Soy del equipo'));
+        expect(setLoginError).toHaveBeenCalledWith('');
     });
 });

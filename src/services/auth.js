@@ -1,23 +1,15 @@
 /**
  * src/services/auth.js
  *
- * Servicio de autenticación — se implementa en la Fase 1.
- * Por ahora los stubs están definidos con sus firmas finales
- * para que los componentes y hooks puedan importar desde acá
- * sin cambiar las importaciones cuando se implemente.
+ * Servicio de autenticación — Fase 1.
+ * Reemplaza el stub de la Fase 0 con la implementación real.
  */
 import { api, tokenStorage } from './api.js';
 
 export const authService = {
   /**
-   * Login con Google.
-   * El frontend obtiene el id_token del OAuth de Google y lo manda al backend,
-   * que lo verifica con Supabase Auth y emite un JWT propio.
-   *
-   * @param {string} googleIdToken — id_token devuelto por el SDK de Google
-   * @returns {{ user, token }}
-   *
-   * IMPLEMENTAR en Fase 1: POST /api/auth/google
+   * Login / registro automático de cliente con Google.
+   * @param {string} googleIdToken — el `credential` que devuelve el botón de Google
    */
   loginWithGoogle: async (googleIdToken) => {
     const data = await api.post('/auth/google', { idToken: googleIdToken });
@@ -26,44 +18,28 @@ export const authService = {
   },
 
   /**
-   * Registro de empleado con código de invitación generado por el admin.
-   *
-   * IMPLEMENTAR en Fase 1: POST /api/auth/invite
+   * Registro (o ascenso) de empleado/admin con código de invitación.
    */
-  registerWithInvite: async ({ googleIdToken, inviteCode, name, businessName, address, phone }) => {
-    const data = await api.post('/auth/invite', {
-      idToken: googleIdToken,
-      inviteCode,
-      name,
-      businessName,
-      address,
-      phone,
-    });
+  registerWithInvite: async ({ googleIdToken, inviteCode }) => {
+    const data = await api.post('/auth/invite', { idToken: googleIdToken, inviteCode });
     tokenStorage.set(data.token);
     return data.user;
   },
 
   /**
-   * Completar perfil obligatorio en el primer login de un cliente.
-   * Se llama si user.profile_complete === false.
-   *
-   * IMPLEMENTAR en Fase 1: PATCH /api/auth/me/profile
+   * Completa el perfil obligatorio del cliente antes de poder comprar.
    */
   completeProfile: async ({ name, businessName, address, phone }) => {
     return api.patch('/auth/me/profile', { name, businessName, address, phone });
   },
 
   /**
-   * Retorna el perfil del usuario autenticado.
-   *
-   * IMPLEMENTAR en Fase 1: GET /api/auth/me
+   * Perfil actual, siempre fresco desde el servidor (no del JWT).
    */
   getMe: async () => api.get('/auth/me'),
 
   /**
-   * Renueva el access token usando el refresh token en httpOnly cookie.
-   *
-   * IMPLEMENTAR en Fase 1: POST /api/auth/refresh
+   * Desliza la sesión: token nuevo con expiración fresca y rol actualizado.
    */
   refresh: async () => {
     const data = await api.post('/auth/refresh', {});
@@ -72,9 +48,13 @@ export const authService = {
   },
 
   /**
-   * Cierra la sesión y limpia el token local.
+   * Cierra la sesión localmente.
    */
   logout: () => {
     tokenStorage.clear();
   },
+
+  // ── Gestión de invitaciones (solo admin) ────────────────────────────────────
+  listInvites:  ()     => api.get('/auth/invites'),
+  createInvite: (body) => api.post('/auth/invites', body),
 };

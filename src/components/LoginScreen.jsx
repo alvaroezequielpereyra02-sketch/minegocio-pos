@@ -1,73 +1,99 @@
-import React, { useState } from 'react';
-import { Store } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Store, Users } from 'lucide-react';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 /**
  * LoginScreen
- * Formulario de inicio de sesión y registro de nuevos usuarios.
+ *
+ * Reemplaza el formulario de email/contraseña por el botón de Google.
+ * Dos modos:
+ * - "Soy cliente"    → loginWithGoogle. Si es la primera vez, el backend crea
+ *                       la cuenta como cliente y App.jsx redirige a
+ *                       CompleteProfileScreen automáticamente.
+ * - "Soy del equipo" → pide un código de invitación y llama a
+ *                       registerWithInvite. El rol (admin/employee) lo decide
+ *                       el código, nunca el frontend.
  */
 export default function LoginScreen({
     storeProfile,
-    login,
-    register,
-    resetPassword,
+    loginWithGoogle,
+    registerWithInvite,
     loginError,
     setLoginError,
-    showNotification,
 }) {
-    const [isRegistering, setIsRegistering] = useState(false);
-    // Estado controlado del email — compartido entre el form y el botón de recuperación.
-    // Reemplaza el document.querySelector que era frágil y podía devolver null.
-    const [email, setEmail] = useState('');
-    // Estado controlado del password — necesario para que fireEvent.change
-    // funcione correctamente en jsdom (form.password.value no se actualiza sin value+onChange).
-    const [password, setPassword] = useState('');
-    const [isSendingReset, setIsSendingReset] = useState(false);
-    // Mensaje de éxito inline para el reseteo de contraseña.
-    // NO usamos showNotification porque ese toast se renderiza dentro del JSX
-    // principal de App.jsx, que no está montado cuando LoginScreen hace su propio
-    // return anticipado. El mensaje nunca aparecería en pantalla.
-    const [resetSuccessMsg, setResetSuccessMsg] = useState('');
+    const [mode, setMode]               = useState('client'); // 'client' | 'employee'
+    const [inviteCode, setInviteCode]   = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [scriptLoaded, setScriptLoaded] = useState(false);
+    const buttonRef = useRef(null);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const form = e.target;
+    // El callback de Google se registra una sola vez en initialize().
+    // Usamos refs para que siempre lea el modo/código actuales sin tener
+    // que re-inicializar el SDK en cada cambio de estado.
+    const modeRef = useRef(mode);
+    const inviteCodeRef = useRef(inviteCode);
+    useEffect(() => { modeRef.current = mode; }, [mode]);
+    useEffect(() => { inviteCodeRef.current = inviteCode; }, [inviteCode]);
+
+    const handleCredential = useCallback(async (response) => {
+        setIsSubmitting(true);
+        setLoginError('');
         try {
-            if (isRegistering) {
-                await register({
-                    name:       form.name.value,
-                    phone:      form.phone.value,
-                    address:    form.address.value,
-                    email:      email,
-                    password:   password,
-                    inviteCode: form.inviteCode?.value || '',
+            if (modeRef.current === 'employee') {
+                if (!inviteCodeRef.current.trim()) {
+                    setLoginError('Ingresá tu código de invitación.');
+                    setIsSubmitting(false);
+                    return;
+                }
+                await registerWithInvite({
+                    credential: response.credential,
+                    inviteCode: inviteCodeRef.current,
                 });
             } else {
-                await login(email, password);
+                await loginWithGoogle(response.credential);
             }
         } catch {
-            // El error ya se setea en loginError desde useAuth
+            // El mensaje de error ya quedó seteado en loginError desde useAuth.
+        } finally {
+            setIsSubmitting(false);
         }
-    };
+    }, [loginWithGoogle, registerWithInvite, setLoginError]);
 
-    const handleForgotPassword = async () => {
-        if (!email.trim()) {
-            setLoginError('Escribí tu correo antes de recuperar la contraseña.');
+    // Carga el script de Google Identity Services una sola vez.
+    useEffect(() => {
+        if (window.google?.accounts?.id) {
+            setScriptLoaded(true);
             return;
         }
-        setIsSendingReset(true);
-        setLoginError('');
-        setResetSuccessMsg('');
-        try {
-            await resetPassword(email.trim());
-            // Mostramos el éxito inline — showNotification no funciona acá porque
-            // el toast vive en App.jsx que no está en el árbol de render en este punto.
-            setResetSuccessMsg('sent');
-        } catch (err) {
-            setLoginError(err.message);
-        } finally {
-            setIsSendingReset(false);
-        }
-    };
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => setScriptLoaded(true);
+        document.head.appendChild(script);
+    }, []);
+
+    // Inicializa y dibuja el botón cuando el script está listo. Se vuelve a
+    // dibujar si cambia el modo, para que el texto acompañe (Ingresar/Continuar).
+    useEffect(() => {
+        if (!scriptLoaded || !window.google?.accounts?.id || !buttonRef.current) return;
+
+        window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredential,
+            auto_select: false,
+        });
+
+        buttonRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(buttonRef.current, {
+            theme: 'filled_black',
+            size: 'large',
+            shape: 'pill',
+            width: 296,
+            text: mode === 'employee' ? 'continue_with' : 'signin_with',
+        });
+    }, [scriptLoaded, mode, handleCredential]);
 
     return (
         <main className="min-h-screen login-bg flex items-center justify-center p-4" aria-label="Inicio de sesión">
@@ -76,121 +102,76 @@ export default function LoginScreen({
                 {/* Logo y nombre de tienda */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto mb-4 ring-2 ring-orange-500/30 flex items-center justify-center bg-orange-500/20">
-                        {storeProfile.logoUrl
+                        {storeProfile?.logoUrl
                             ? <img src={storeProfile.logoUrl} className="w-full h-full object-cover" alt="logo" />
                             : <Store size={32} className="text-orange-400" />}
                     </div>
-                    <h1 className="text-white text-2xl font-black">{storeProfile.name}</h1>
+                    <h1 className="text-white text-2xl font-black">{storeProfile?.name}</h1>
                     <p className="text-white/40 text-sm mt-1">
-                        {isRegistering ? 'Crear cuenta' : 'Iniciá sesión para continuar'}
+                        {mode === 'employee' ? 'Acceso de equipo' : 'Iniciá sesión para continuar'}
                     </p>
                 </div>
 
-                {/* Formulario */}
+                {/* Card */}
                 <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6 border border-white/15 shadow-2xl">
-                    <form onSubmit={handleSubmit} className="space-y-3">
-                        {isRegistering && (
-                            <>
-                                <input
-                                    name="name" required
-                                    autoComplete="name"
-                                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
-                                    placeholder="Nombre completo"
-                                />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input
-                                        name="phone" required
-                                        autoComplete="tel"
-                                        className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
-                                        placeholder="Teléfono"
-                                    />
-                                    <input
-                                        name="address" required
-                                        autoComplete="street-address"
-                                        className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
-                                        placeholder="Dirección"
-                                    />
-                                </div>
-                                <input
-                                    name="inviteCode" required
-                                    autoComplete="off"
-                                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-bold text-center uppercase tracking-widest"
-                                    placeholder="CÓDIGO DE INVITACIÓN"
-                                />
-                            </>
-                        )}
 
-                        <input
-                            name="email" type="email" required
-                            autoComplete="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
-                            placeholder="Correo electrónico"
-                        />
-                        <input
-                            name="password" type="password" required
-                            autoComplete={isRegistering ? 'new-password' : 'current-password'}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm"
-                            placeholder="Contraseña"
-                        />
-
-                        {loginError && (
-                            <div className="text-red-400 text-xs text-center font-medium py-1">
-                                {loginError}
-                            </div>
-                        )}
-
-                        {resetSuccessMsg === 'sent' && (
-                            <div className="rounded-2xl overflow-hidden border border-emerald-500/30">
-                                <div className="bg-emerald-500/15 px-4 py-3 flex items-center gap-3">
-                                    <span className="text-2xl">📧</span>
-                                    <div>
-                                        <p className="text-emerald-400 font-black text-sm leading-snug">
-                                            ¡Email enviado!
-                                        </p>
-                                        <p className="text-emerald-300/80 text-xs mt-0.5">
-                                            Revisá tu correo <span className="font-bold text-white/70">{email}</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="bg-amber-500/10 border-t border-amber-500/20 px-4 py-2.5 flex items-start gap-2">
-                                    <span className="text-amber-400 text-base shrink-0 mt-0.5">⚠️</span>
-                                    <p className="text-amber-300/90 text-xs leading-relaxed">
-                                        Si no lo ves en unos minutos, <span className="font-bold">revisá la carpeta de spam o correo no deseado</span> — los filtros a veces lo mandan ahí.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <button type="submit" className="w-full py-3.5 rounded-xl font-black text-sm btn-accent mt-1">
-                            {isRegistering ? 'Crear cuenta' : 'Ingresar'}
+                    {/* Selector cliente / empleado */}
+                    <div className="grid grid-cols-2 gap-2 mb-5 p-1 rounded-xl bg-white/5">
+                        <button
+                            type="button"
+                            onClick={() => { setMode('client'); setLoginError(''); }}
+                            className={`py-2 rounded-lg text-xs font-bold transition-colors ${
+                                mode === 'client' ? 'btn-accent' : 'text-white/40 hover:text-white/70'
+                            }`}
+                        >
+                            Soy cliente
                         </button>
-                    </form>
-
-                    <div className="flex items-center gap-3 my-4">
-                        <div className="flex-1 h-px bg-white/10" />
-                        <span className="text-white/20 text-xs">o</span>
-                        <div className="flex-1 h-px bg-white/10" />
+                        <button
+                            type="button"
+                            onClick={() => { setMode('employee'); setLoginError(''); }}
+                            className={`py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                                mode === 'employee' ? 'btn-accent' : 'text-white/40 hover:text-white/70'
+                            }`}
+                        >
+                            <Users size={14} /> Soy del equipo
+                        </button>
                     </div>
 
-                    <button
-                        onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
-                        className="w-full py-2.5 rounded-xl border border-white/20 text-white/60 text-sm font-semibold hover:bg-white/10 transition-colors"
-                    >
-                        {isRegistering ? 'Ya tengo cuenta' : 'Registrarse'}
-                    </button>
+                    {mode === 'employee' && (
+                        <input
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                            autoComplete="off"
+                            className="w-full mb-3 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/30 outline-none focus:border-orange-400 transition-colors text-sm font-bold text-center uppercase tracking-widest"
+                            placeholder="CÓDIGO DE INVITACIÓN"
+                        />
+                    )}
 
-                    {!isRegistering && (
-                        <button
-                            onClick={handleForgotPassword}
-                            disabled={isSendingReset}
-                            className="w-full mt-2 text-white/30 text-xs hover:text-white/50 transition-colors disabled:opacity-50"
-                        >
-                            {isSendingReset ? 'Enviando...' : 'Olvidé mi contraseña'}
-                        </button>
+                    {loginError && (
+                        <div className="text-red-400 text-xs text-center font-medium py-1 mb-3">
+                            {loginError}
+                        </div>
+                    )}
+
+                    <p className="text-white/30 text-xs text-center mb-4 leading-relaxed">
+                        {mode === 'employee'
+                            ? 'Pedile el código a un administrador si todavía no lo tenés.'
+                            : 'Usamos tu cuenta de Google — no hace falta crear otra contraseña.'}
+                    </p>
+
+                    {/* El botón real de Google se dibuja acá adentro */}
+                    <div className="flex justify-center min-h-[44px]">
+                        {!scriptLoaded && (
+                            <div className="text-white/30 text-xs py-3">Cargando…</div>
+                        )}
+                        <div
+                            ref={buttonRef}
+                            style={{ opacity: isSubmitting ? 0.5 : 1, pointerEvents: isSubmitting ? 'none' : 'auto' }}
+                        />
+                    </div>
+
+                    {isSubmitting && (
+                        <p className="text-white/40 text-xs text-center mt-3">Verificando…</p>
                     )}
                 </div>
             </div>

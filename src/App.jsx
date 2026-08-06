@@ -25,6 +25,7 @@ import Cart                   from './components/Cart';
 import ProductGrid            from './components/ProductGrid';
 import LoadingScreen          from './components/LoadingScreen';
 import LoginScreen            from './components/LoginScreen';
+import CompleteProfileScreen  from './components/CompleteProfileScreen';
 import AppModals              from './components/AppModals';
 import { ProcessingModal }    from './components/Modals';
 
@@ -76,7 +77,7 @@ export default function App() {
     const { supportsPWA, installApp, updateAvailable } = usePWA();
 
     // Contextos
-    const { user, userData, authLoading, loginError, setLoginError, login, register, logout, resetPassword } = useAuthContext();
+    const { user, userData, authLoading, loginError, setLoginError, loginWithGoogle, registerWithInvite, completeProfile, logout } = useAuthContext();
     const {
         products, categories, subcategories, customers, expenses, storeProfile,
         addProduct, updateProduct, deleteProduct, addStock,
@@ -266,10 +267,23 @@ export default function App() {
     if (!user || !userData) return (
         <LoginScreen
             storeProfile={storeProfile}
-            login={login} register={register}
-            resetPassword={resetPassword}
+            loginWithGoogle={loginWithGoogle}
+            registerWithInvite={registerWithInvite}
             loginError={loginError} setLoginError={setLoginError}
-            showNotification={showNotification}
+        />
+    );
+
+    // Cliente nuevo con Google: falta completar nombre del negocio, dirección
+    // y teléfono antes de poder comprar. El staff (admin/employee) nunca pasa
+    // por acá — profile_complete se marca true automáticamente para ellos
+    // en el backend al usar un código de invitación.
+    if (userData.role === 'client' && !userData.profileComplete) return (
+        <CompleteProfileScreen
+            storeProfile={storeProfile}
+            user={user}
+            userData={userData}
+            completeProfile={completeProfile}
+            logout={logout}
         />
     );
 

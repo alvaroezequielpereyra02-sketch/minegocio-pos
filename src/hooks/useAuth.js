@@ -1,225 +1,139 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signOut,
-    sendPasswordResetEmail,
-    getIdTokenResult,
-} from 'firebase/auth';
-import {
-    doc, getDoc, onSnapshot, setDoc, serverTimestamp,
-    collection, query, where, getDocs, getDocsFromServer, updateDoc
-} from 'firebase/firestore';
+/**
+ * src/hooks/useAuth.js
+ *
+ * Reemplaza Firebase Auth por Google OAuth + JWT propio.
+ *
+ * Cambios de forma respecto a la versión anterior (para quien compare):
+ * - login(email, password)      → loginWithGoogle(credential)
+ * - register({...})             → registerWithInvite({ credential, inviteCode })
+ * - resetPassword(email)        → ya no existe (no hay contraseñas que resetear)
+ * - user / userData             → se mantienen con la misma forma general para
+ *                                   no romper el resto de la app de una sola vez
+ *                                   (migración incremental).
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { authService } from '../services/auth.js';
+import { tokenStorage } from '../services/api.js';
 
-import { auth, getDb, appId } from '../config/firebase';
+function mapUserData(me) {
+  if (!me) return null;
+  return {
+    id:              me.id,
+    role:            me.role,
+    name:            me.name,
+    email:           me.email,
+    phone:           me.phone,
+    address:         me.address,
+    businessName:    me.businessName,
+    avatarUrl:       me.avatarUrl,
+    profileComplete: me.profileComplete,
+    commissionRate:  me.commissionRate,
+  };
+}
 
 export const useAuth = () => {
-    const [user, setUser]               = useState(null);
-    const [userData, setUserData]       = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
-    const [loginError, setLoginError]   = useState('');
+  const [user, setUser]               = useState(null);
+  const [userData, setUserData]       = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginError, setLoginError]   = useState('');
 
-    // Ref al usuario actual para accederlo desde los event listeners
-    // sin crear dependencias en useEffect
-    const currentUserRef = useRef(null);
+  // Trae el perfil fresco del servidor y actualiza el estado local.
+  // Se usa al montar la app y al volver a la pestaña.
+  const hydrate = useCallback(async () => {
+    if (!tokenStorage.get()) {
+      setAuthLoading(false);
+      return;
+    }
+    try {
+      const me = await authService.getMe();
+      setUser({ uid: me.id, email: me.email, name: me.name, avatarUrl: me.avatarUrl });
+      setUserData(mapUserData(me));
+    } catch {
+      // Token inválido, expirado, o cuenta desactivada → limpiar sesión local.
+      tokenStorage.clear();
+      setUser(null);
+      setUserData(null);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
 
-    // ── Función centralizada para leer el rol desde el JWT ────────────────────
-    // forceRefresh: true  → va a Firebase Auth a buscar el token fresco del servidor
-    // forceRefresh: false → usa el token cacheado en memoria (sin request extra)
-    const resolveRole = useCallback(async (firebaseUser, forceRefresh = false) => {
-        if (!firebaseUser) return null;
-        try {
-            const tokenResult = await getIdTokenResult(firebaseUser, forceRefresh);
-            return tokenResult.claims.role || null;
-        } catch {
-            // Offline o token inválido — usamos el rol de Firestore como fallback
-            return null;
-        }
-    }, []);
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
-    // ── Refrescar el token y actualizar userData en vivo ──────────────────────
-    // Se llama al volver online y al recuperar el foco de la ventana.
-    const refreshRole = useCallback(async () => {
-        const firebaseUser = currentUserRef.current;
-        if (!firebaseUser) return;
-        const claimsRole = await resolveRole(firebaseUser, true); // forceRefresh: true
-        if (claimsRole) {
-            setUserData(prev => prev ? { ...prev, role: claimsRole } : prev);
-        }
-    }, [resolveRole]);
-
-    useEffect(() => {
-        let unsubUserData = () => {};
-        // Marca si es la primera carga del snapshot para ese usuario.
-        // Primera carga (incluye recarga de página) → forceRefresh: true
-        // Actualizaciones posteriores del snapshot → forceRefresh: false (caché, sin costo)
-        let isFirstSnapshot = true;
-
-        const authTimeout = setTimeout(() => setAuthLoading(false), 6000);
-
-        const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
-            unsubUserData();
-            currentUserRef.current = firebaseUser;
-            isFirstSnapshot = true; // reset al cambiar de usuario o recargar
-
-            if (firebaseUser) {
-                setUser(firebaseUser);
-                // Firestore se cargó en segundo plano desde el inicio — getDb() es
-                // instantáneo en este punto porque onAuthStateChanged tarda ~200-400ms.
-                getDb().then(db => {
-                    unsubUserData = onSnapshot(
-                    doc(db, 'users', firebaseUser.uid),
-                    async (userDoc) => {
-                        clearTimeout(authTimeout);
-
-                        // Primera vez: forzamos refresh para tener el rol más reciente.
-                        // Resto de snapshots: usamos caché para no generar requests innecesarios.
-                        const shouldForce = isFirstSnapshot;
-                        isFirstSnapshot = false;
-
-                        const claimsRole = await resolveRole(firebaseUser, shouldForce);
-
-                        if (userDoc.exists()) {
-                            const firestoreData = userDoc.data();
-                            setUserData({
-                                ...firestoreData,
-                                role: claimsRole || firestoreData.role || 'client',
-                            });
-                        } else if (navigator.onLine) {
-                            setTimeout(async () => {
-                                const db2 = await getDb();
-                                const retryDoc = await getDoc(doc(db2, 'users', firebaseUser.uid));
-                                if (!retryDoc.exists()) {
-                                    signOut(auth);
-                                    setUserData(null);
-                                    setUser(null);
-                                } else {
-                                    const firestoreData = retryDoc.data();
-                                    setUserData({
-                                        ...firestoreData,
-                                        role: claimsRole || firestoreData.role || 'client',
-                                    });
-                                }
-                            }, 3000);
-                        }
-                        setAuthLoading(false);
-                    },
-                    () => { clearTimeout(authTimeout); setAuthLoading(false); }
-                );
-                }); // end getDb().then()
-            } else {
-                clearTimeout(authTimeout);
-                setUser(null);
-                setUserData(null);
-                setAuthLoading(false);
-            }
-        });
-
-        // ── Refrescar rol al volver online ────────────────────────────────────
-        // El rol puede haber cambiado en el servidor mientras el usuario estaba offline.
-        const handleOnline = () => refreshRole();
-
-        // ── Refrescar rol al recuperar el foco de la ventana ─────────────────
-        // El usuario abre otra pestaña, cambia algo en Firebase Console,
-        // vuelve a la app — el rol se actualiza sin necesidad de recargar.
-        const handleVisibility = () => {
-            if (document.visibilityState === 'visible') refreshRole();
-        };
-
-        window.addEventListener('online', handleOnline);
-        document.addEventListener('visibilitychange', handleVisibility);
-
-        return () => {
-            unsubAuth();
-            unsubUserData();
-            window.removeEventListener('online', handleOnline);
-            document.removeEventListener('visibilitychange', handleVisibility);
-        };
-    }, [resolveRole, refreshRole]);
-
-    const login = async (email, password) => {
-        try {
-            setLoginError('');
-            await signInWithEmailAndPassword(auth, email, password);
-        } catch (error) {
-            setLoginError("Credenciales incorrectas.");
-            throw error;
-        }
+  // Si api.js detecta un 401 en cualquier llamada, avisa acá para limpiar la sesión.
+  useEffect(() => {
+    const handleExpired = () => {
+      setUser(null);
+      setUserData(null);
     };
+    window.addEventListener('mnpos:session-expired', handleExpired);
+    return () => window.removeEventListener('mnpos:session-expired', handleExpired);
+  }, []);
 
-    const validateInviteCode = async (code) => {
-        if (!code) throw new Error("Código de invitación requerido.");
-        const db = await getDb();
-        const codesRef = collection(db, 'stores', appId, 'invitation_codes');
-        const q = query(codesRef, where('code', '==', code.toUpperCase()), where('status', '==', 'active'));
-        const snapshot = await getDocsFromServer(q);
-        if (snapshot.empty) throw new Error("Código de invitación inválido o ya utilizado.");
-        return snapshot.docs[0];
+  // Al volver a la pestaña, re-sincroniza el perfil — reemplaza el patrón de
+  // refresco de custom claims que existía con Firebase.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && tokenStorage.get()) hydrate();
     };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [hydrate]);
 
-    const register = async ({ email, password, name, phone, address, inviteCode }) => {
-        try {
-            setLoginError('');
-            const inviteDoc = await validateInviteCode(inviteCode);
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const uid = userCredential.user.uid;
+  /**
+   * Login / registro automático de cliente. `credential` es el id_token que
+   * devuelve el botón de Google (response.credential).
+   */
+  const loginWithGoogle = async (credential) => {
+    try {
+      setLoginError('');
+      const me = await authService.loginWithGoogle(credential);
+      setUser({ uid: me.id, email: me.email, name: me.name, avatarUrl: me.avatarUrl });
+      setUserData(mapUserData(me));
+      return me;
+    } catch (err) {
+      setLoginError(err.message || 'No se pudo iniciar sesión con Google.');
+      throw err;
+    }
+  };
 
-            const newUserData = {
-                email, name, phone, address,
-                inviteCode: inviteCode.toUpperCase(),
-                role: 'client',
-                createdAt: serverTimestamp()
-            };
+  /**
+   * Registro (o ascenso) de empleado/admin con código de invitación.
+   */
+  const registerWithInvite = async ({ credential, inviteCode }) => {
+    try {
+      setLoginError('');
+      const me = await authService.registerWithInvite({ googleIdToken: credential, inviteCode });
+      setUser({ uid: me.id, email: me.email, name: me.name, avatarUrl: me.avatarUrl });
+      setUserData(mapUserData(me));
+      return me;
+    } catch (err) {
+      setLoginError(err.message || 'No se pudo completar el registro.');
+      throw err;
+    }
+  };
 
-            try {
-                // ✅ FIX: si alguno de estos setDoc falla (red o reglas de Firestore),
-                // el usuario ya existe en Auth pero sin documento → loop infinito de carga
-                // y no puede re-registrarse con el mismo email.
-                // Solución: eliminar el usuario de Auth en el catch para mantener consistencia.
-                await setDoc(doc(await getDb(), 'users', uid), newUserData);
-                await setDoc(doc(await getDb(), 'stores', appId, 'customers', uid), { ...newUserData, userId: uid });
-                await updateDoc(doc(await getDb(), 'stores', appId, 'invitation_codes', inviteDoc.id), {
-                    status: 'used', usedBy: uid, usedAt: serverTimestamp()
-                });
-            } catch (firestoreError) {
-                // Revertir: borrar el usuario de Auth para evitar cuenta huérfana
-                await userCredential.user.delete();
-                throw firestoreError;
-            }
+  /**
+   * Completa el perfil obligatorio del cliente (nombre, negocio, dirección,
+   * teléfono). Al terminar, profileComplete pasa a true y destraba el checkout.
+   */
+  const completeProfile = async (profile) => {
+    const updated = await authService.completeProfile(profile);
+    setUserData(mapUserData(updated));
+    return updated;
+  };
 
-            return userCredential.user;
-        } catch (error) {
-            setLoginError(error.message);
-            throw error;
-        }
-    };
+  const logout = () => {
+    authService.logout();
+    setUser(null);
+    setUserData(null);
+  };
 
-    const logout = async () => {
-        await signOut(auth);
-        setUserData(null);
-    };
-
-    const resetPassword = async (email) => {
-        if (!email) {
-            setLoginError('Escribí tu correo primero.');
-            throw new Error('Email requerido');
-        }
-        // handleCodeInApp: true → el link del email apunta a la app en Vercel,
-        // no a la página genérica de Firebase (firebaseapp.com).
-        // La app detecta ?mode=resetPassword&oobCode=... en main.jsx y muestra
-        // ResetPasswordPage con el estilo visual de la tienda.
-        const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-        const actionCodeSettings = {
-            url: appUrl,
-            handleCodeInApp: true,
-        };
-        await sendPasswordResetEmail(auth, email, actionCodeSettings);
-    };
-
-    return {
-        user, userData, authLoading,
-        loginError, setLoginError,
-        login, register, logout, resetPassword
-    };
+  return {
+    user, userData, authLoading,
+    loginError, setLoginError,
+    loginWithGoogle, registerWithInvite, completeProfile, logout,
+  };
 };

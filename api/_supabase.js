@@ -1,3 +1,4 @@
+import './_env.js';
 /**
  * api/_supabase.js
  *

@@ -29,3 +29,6 @@ yarn-error.log*
 .vscode/
 .idea/
 Cómo dar Permisos de Admin a Nuevos Usuarios.txt
+
+.vercel
+.env*
