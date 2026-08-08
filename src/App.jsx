@@ -26,6 +26,7 @@ import ProductGrid            from './components/ProductGrid';
 import LoadingScreen          from './components/LoadingScreen';
 import LoginScreen            from './components/LoginScreen';
 import CompleteProfileScreen  from './components/CompleteProfileScreen';
+import { authService } from './services/auth.js';
 import AppModals              from './components/AppModals';
 import { ProcessingModal }    from './components/Modals';
 
@@ -66,10 +67,17 @@ export default function App() {
     const requestConfirm = useCallback((title, message, action, isDanger = false) => {
         setConfirmConfig({
             title, message, isDanger,
-            onConfirm: async () => { setConfirmConfig(null); await action(); },
+            onConfirm: async () => {
+                setConfirmConfig(null);
+                try {
+                    await action();
+                } catch (err) {
+                    showNotification(err.message || 'No se pudo completar la acción.');
+                }
+            },
             onCancel:  () => setConfirmConfig(null),
         });
-    }, []);
+    }, [showNotification]);
 
     // ── Hooks ──────────────────────────────────────────────────────────────────
     const { modals, toggleModal } = useModals();
@@ -85,12 +93,21 @@ export default function App() {
         addSubCategory, deleteSubCategory,
         addCustomer, updateCustomer, deleteCustomer,
         addExpense, deleteExpense,
-        updateStoreProfile, generateInvitationCode, registerFaultyProduct, bulkUpdatePrices,
+        updateStoreProfile, registerFaultyProduct, bulkUpdatePrices,
     } = useInventoryContext();
     const { transactions, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance, dateRange, setDateRange } = useTransactionsContext();
     const { cart, addToCart, updateCartQty, setCartItemQty, removeFromCart, clearCart, cartTotal, paymentMethod, setPaymentMethod,
             offers, sending: offerSending, activeOfferMap, addOffer, updateOffer, deleteOffer, publishOffer } = useCartContext();
     const printer = usePrinter(showNotification);
+
+    // Reemplaza el generateInvitationCode que vivía en useInventory (Firestore).
+    // InvitationModal solo necesita una función sin argumentos que le
+    // devuelva el código como string — acá adaptamos la respuesta nueva
+    // (que trae el objeto completo) a esa forma.
+    const generateInvitationCode = async () => {
+        const invite = await authService.createInvite({ role: 'employee' });
+        return invite.code;
+    };
 
     // ── Estados UI locales ─────────────────────────────────────────────────────
     const [selectedTransaction, setSelectedTransaction] = useState(null);

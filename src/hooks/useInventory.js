@@ -1,210 +1,145 @@
-import { useState, useEffect } from 'react';
-import {
-    collection, query, orderBy, limit, onSnapshot,
-    addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp,
-    writeBatch, increment
-} from 'firebase/firestore';
-import { getDb, appId } from '../config/firebase';
+/**
+ * src/hooks/useInventory.js — Fase 2A
+ *
+ * Reemplaza los listeners de Firestore (onSnapshot) por TanStack Query.
+ * La actualización "en vivo" ahora es polling (cada 15s, configurado en
+ * src/lib/queryClient.js) en vez de push en tiempo real — para el tamaño
+ * de este negocio es indistinguible en la práctica y muchísimo más simple
+ * de mantener.
+ *
+ * La forma del objeto que devuelve este hook es intencionalmente idéntica
+ * a la versión anterior (mismos nombres, misma firma de cada función) para
+ * no tener que tocar los componentes que ya lo consumen.
+ *
+ * Cambio de alcance respecto a la versión anterior: `generateInvitationCode`
+ * ya NO vive acá — quedó reemplazado por el sistema de invitaciones de la
+ * Fase 1 (`authService.createInvite`). Ver FASE_2A_APPMODALS_PATCH.md.
+ */
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { productsService }                        from '../services/products.js';
+import { categoriesService, subcategoriesService } from '../services/categories.js';
+import { customersService }                        from '../services/customers.js';
+import { expensesService }                         from '../services/expenses.js';
+import { storeService }                             from '../services/store.js';
+
+// Categorías, subcategorías y perfil de tienda cambian poco — no hace
+// falta el polling agresivo de 15s del resto de los datos.
+const LOW_CHURN = { refetchInterval: false, staleTime: 5 * 60 * 1000 };
 
 export const useInventory = (user, userData) => {
-    const [products, setProducts] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [subcategories, setSubcategories] = useState([]);
-    const [customers, setCustomers] = useState([]);
-    const [expenses, setExpenses] = useState([]);
-    const [storeProfile, setStoreProfile] = useState({ name: 'MiNegocio', logoUrl: '' });
+  const queryClient = useQueryClient();
+  const isAdmin = userData?.role === 'admin';
 
-    useEffect(() => {
-        if (!user) return;
-        let unsubs = [];
-        getDb().then(db => {
-            const unsubProfile = onSnapshot(doc(db, 'stores', appId, 'settings', 'profile'), (d) => {
-                if (d.exists()) setStoreProfile(d.data());
-            });
-            const unsubProducts = onSnapshot(query(collection(db, 'stores', appId, 'products'), orderBy('name'), limit(1000)), (s) =>
-                setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false))
-            );
-            const unsubCats = onSnapshot(query(collection(db, 'stores', appId, 'categories'), orderBy('name')), (s) =>
-                setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
-            );
-            const unsubSubCats = onSnapshot(query(collection(db, 'stores', appId, 'subcategories'), orderBy('name')), (s) =>
-                setSubcategories(s.docs.map(d => ({ id: d.id, ...d.data() })))
-            );
-            unsubs = [unsubProfile, unsubProducts, unsubCats, unsubSubCats];
-        });
-        return () => { unsubs.forEach(fn => fn()); };
-    }, [user]);
+  // ── Queries ──────────────────────────────────────────────────────────────
 
-    useEffect(() => {
-        if (!user) return;
-        let unsubs2 = [];
-        if (userData?.role === 'admin') {
-            getDb().then(db => {
-                const unsubCustomers = onSnapshot(
-                    query(collection(db, 'stores', appId, 'customers'), orderBy('name'), limit(500)),
-                    (s) => setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })))
-                );
-                const unsubExpenses = onSnapshot(
-                    query(collection(db, 'stores', appId, 'expenses'), orderBy('date', 'desc'), limit(300)),
-                    (s) => setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })))
-                );
-                unsubs2 = [unsubCustomers, unsubExpenses];
-            });
-        } else {
-            setCustomers([]); setExpenses([]);
-        }
-        return () => { unsubs2.forEach(fn => fn()); };
-    }, [user, userData?.role]);
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn:  () => productsService.getAll(),
+    enabled:  !!user,
+  });
 
-    // --- REGISTRO DE FALLAS ---
-    const registerFaultyProduct = async (product, qty, reason) => {
-        if (!product || !qty) return;
-        const db = await getDb();
-        const batch = writeBatch(db);
-        const productRef = doc(db, 'stores', appId, 'products', product.id);
-        const expenseRef = doc(collection(db, 'stores', appId, 'expenses'));
-        batch.update(productRef, { stock: increment(-qty) });
-        const lossAmount = (product.cost || 0) * qty;
-        batch.set(expenseRef, {
-            description: `PÉRDIDA (Fallado): ${qty}x ${product.name} - ${reason || 'Sin motivo'}`,
-            amount: lossAmount,
-            date: serverTimestamp(),
-            type: 'inventory_loss',
-            productId: product.id
-        });
-        await batch.commit();
-    };
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn:  categoriesService.getAll,
+    enabled:  !!user,
+    ...LOW_CHURN,
+  });
 
-    const addProduct = async (data) => {
-        const db = await getDb();
-        return addDoc(collection(db, 'stores', appId, 'products'), { ...data, isActive: true, createdAt: serverTimestamp() });
-    };
-    const updateProduct = async (id, data) => {
-        const db = await getDb();
-        return updateDoc(doc(db, 'stores', appId, 'products', id), data);
-    };
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ['subcategories'],
+    queryFn:  () => subcategoriesService.getAll(),
+    enabled:  !!user,
+    ...LOW_CHURN,
+  });
 
-    const bulkUpdatePrices = async (categoryId, priceConfig) => {
-        const { type, value, field, roundTo = 0 } = priceConfig;
-        const targets = categoryId === '__all__'
-            ? products
-            : categoryId.startsWith('__sub__:')
-                ? products.filter(p => p.subCategoryId === categoryId.slice(8))
-                : products.filter(p => p.categoryId === categoryId);
-        if (targets.length === 0) return { updated: 0 };
-        const round = (n) => (!roundTo || roundTo <= 0) ? Math.round(n) : Math.round(n / roundTo) * roundTo;
-        const applyChange = (current) => {
-            const base = Number(current || 0);
-            const next = type === 'percent' ? base * (1 + value / 100) : base + value;
-            return round(Math.max(0, next));
-        };
-        const CHUNK = 450;
-        let updated = 0;
-        const db = await getDb();
-        for (let i = 0; i < targets.length; i += CHUNK) {
-            const chunk = targets.slice(i, i + CHUNK);
-            const batch = writeBatch(db);
-            chunk.forEach(p => {
-                const ref = doc(db, 'stores', appId, 'products', p.id);
-                const payload = {};
-                if (field === 'price' || field === 'both') payload.price = applyChange(p.price);
-                if (field === 'cost'  || field === 'both') payload.cost  = applyChange(p.cost);
-                batch.update(ref, payload);
-                updated++;
-            });
-            await batch.commit();
-        }
-        return { updated };
-    };
+  const { data: storeProfile = { name: 'MiNegocio', logoUrl: '' } } = useQuery({
+    queryKey: ['storeProfile'],
+    queryFn:  storeService.getProfile,
+    enabled:  !!user,
+    ...LOW_CHURN,
+  });
 
-    const deleteProduct = async (id) => {
-        const db = await getDb();
-        return updateDoc(doc(db, 'stores', appId, 'products', id), { isActive: false, deletedAt: serverTimestamp() });
-    };
-    const addStock = async (product, qty) => {
-        if (!product || !qty) return;
-        const db = await getDb();
-        await updateDoc(doc(db, 'stores', appId, 'products', product.id), { stock: increment(qty) });
-    };
+  const { data: customers = [] } = useQuery({
+    queryKey: ['customers'],
+    queryFn:  () => customersService.getAll(),
+    enabled:  !!user && isAdmin,
+  });
 
-    const addCategory = async (name) => {
-        const db = await getDb();
-        return addDoc(collection(db, 'stores', appId, 'categories'), { name, isActive: true, createdAt: serverTimestamp() });
-    };
-    const updateCategory = async (id, data) => {
-        const db = await getDb();
-        return updateDoc(doc(db, 'stores', appId, 'categories', id), data);
-    };
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['expenses'],
+    queryFn:  () => expensesService.getAll(),
+    enabled:  !!user && isAdmin,
+  });
 
-    // FIX: antes de borrar, verifica que no haya productos activos usando esta categoría.
-    // Evita categoryId huérfanos (inconsistencia entre hard-delete de cat y soft-delete de productos).
-    const deleteCategory = async (id) => {
-        const orphans = products.filter(p => p.categoryId === id && p.isActive !== false);
-        if (orphans.length > 0) {
-            throw new Error(`No se puede borrar: ${orphans.length} producto(s) usan esta categoría.`);
-        }
-        const db = await getDb();
-        return deleteDoc(doc(db, 'stores', appId, 'categories', id));
-    };
+  // ── Helper para mutaciones repetitivas ──────────────────────────────────
 
-    const addSubCategory = async (parentId, name) => {
-        const db = await getDb();
-        return addDoc(collection(db, 'stores', appId, 'subcategories'), { parentId, name, createdAt: serverTimestamp() });
-    };
-    const deleteSubCategory = async (id) => {
-        const db = await getDb();
-        return deleteDoc(doc(db, 'stores', appId, 'subcategories', id));
-    };
+  const invalidate = (key) => queryClient.invalidateQueries({ queryKey: [key] });
 
-    const addCustomer = async (data) => {
-        const db = await getDb();
-        return addDoc(collection(db, 'stores', appId, 'customers'), { ...data, createdAt: serverTimestamp() });
-    };
-    const updateCustomer = async (id, data) => {
-        const db = await getDb();
-        return updateDoc(doc(db, 'stores', appId, 'customers', id), data);
-    };
-    const deleteCustomer = async (id) => {
-        const db = await getDb();
-        return deleteDoc(doc(db, 'stores', appId, 'customers', id));
-    };
+  // ── Productos ────────────────────────────────────────────────────────────
 
-    const addExpense = async (data) => {
-        const db = await getDb();
-        return addDoc(collection(db, 'stores', appId, 'expenses'), { ...data, date: serverTimestamp() });
-    };
-    const deleteExpense = async (id) => {
-        const db = await getDb();
-        return deleteDoc(doc(db, 'stores', appId, 'expenses', id));
-    };
+  const addProductMutation    = useMutation({ mutationFn: productsService.create, onSuccess: () => invalidate('products') });
+  const updateProductMutation = useMutation({ mutationFn: ({ id, data }) => productsService.update(id, data), onSuccess: () => invalidate('products') });
+  const deleteProductMutation = useMutation({ mutationFn: productsService.delete, onSuccess: () => invalidate('products') });
+  const addStockMutation      = useMutation({ mutationFn: ({ product, qty }) => productsService.addStock(product.id, qty), onSuccess: () => invalidate('products') });
+  const faultyMutation        = useMutation({ mutationFn: ({ product, qty, reason }) => productsService.registerFaulty(product.id, qty, reason), onSuccess: () => { invalidate('products'); invalidate('expenses'); } });
+  const bulkPriceMutation     = useMutation({ mutationFn: ({ categoryId, priceConfig }) => productsService.bulkPrice(categoryId, priceConfig), onSuccess: () => invalidate('products') });
 
-    const updateStoreProfile = async (data) => {
-        const db = await getDb();
-        return setDoc(doc(db, 'stores', appId, 'settings', 'profile'), data, { merge: true });
-    };
+  const addProduct    = (data)        => addProductMutation.mutateAsync(data);
+  const updateProduct = (id, data)    => updateProductMutation.mutateAsync({ id, data });
+  const deleteProduct = (id)          => deleteProductMutation.mutateAsync(id);
+  const addStock       = (product, qty) => addStockMutation.mutateAsync({ product, qty });
+  const registerFaultyProduct = (product, qty, reason) => faultyMutation.mutateAsync({ product, qty, reason });
+  const bulkUpdatePrices = (categoryId, priceConfig) => bulkPriceMutation.mutateAsync({ categoryId, priceConfig });
 
-    // FIX: reemplaza Math.random() (predecible) por crypto.getRandomValues()
-    // (criptográficamente seguro). Genera 6 bytes aleatorios → base36 → 8 chars en mayúsculas.
-    const generateInvitationCode = async () => {
-        const arr = new Uint8Array(6);
-        crypto.getRandomValues(arr);
-        const code = Array.from(arr, b => b.toString(36)).join('').toUpperCase().slice(0, 8);
-        const db = await getDb();
-        await addDoc(collection(db, 'stores', appId, 'invitation_codes'), {
-            code,
-            status: 'active',
-            createdAt: serverTimestamp(),
-        });
-        return code;
-    };
+  // ── Categorías ───────────────────────────────────────────────────────────
 
-    return {
-        products, categories, subcategories, customers, expenses, storeProfile,
-        addProduct, updateProduct, deleteProduct, addStock, registerFaultyProduct, bulkUpdatePrices,
-        addCategory, updateCategory, deleteCategory,
-        addSubCategory, deleteSubCategory,
-        addCustomer, updateCustomer, deleteCustomer,
-        addExpense, deleteExpense,
-        updateStoreProfile, generateInvitationCode
-    };
+  const addCategoryMutation    = useMutation({ mutationFn: categoriesService.create, onSuccess: () => invalidate('categories') });
+  const updateCategoryMutation = useMutation({ mutationFn: ({ id, data }) => categoriesService.update(id, data?.name), onSuccess: () => invalidate('categories') });
+  const deleteCategoryMutation = useMutation({ mutationFn: categoriesService.delete, onSuccess: () => invalidate('categories') });
+
+  const addCategory    = (name)     => addCategoryMutation.mutateAsync(name);
+  const updateCategory = (id, data) => updateCategoryMutation.mutateAsync({ id, data });
+  const deleteCategory = (id)       => deleteCategoryMutation.mutateAsync(id);
+
+  // ── Subcategorías ────────────────────────────────────────────────────────
+
+  const addSubCategoryMutation    = useMutation({ mutationFn: ({ parentId, name }) => subcategoriesService.create(parentId, name), onSuccess: () => invalidate('subcategories') });
+  const deleteSubCategoryMutation = useMutation({ mutationFn: subcategoriesService.delete, onSuccess: () => invalidate('subcategories') });
+
+  const addSubCategory    = (parentId, name) => addSubCategoryMutation.mutateAsync({ parentId, name });
+  const deleteSubCategory = (id)             => deleteSubCategoryMutation.mutateAsync(id);
+
+  // ── Clientes (libreta del POS) ───────────────────────────────────────────
+
+  const addCustomerMutation    = useMutation({ mutationFn: customersService.create, onSuccess: () => invalidate('customers') });
+  const updateCustomerMutation = useMutation({ mutationFn: ({ id, data }) => customersService.update(id, data), onSuccess: () => invalidate('customers') });
+  const deleteCustomerMutation = useMutation({ mutationFn: customersService.delete, onSuccess: () => invalidate('customers') });
+
+  const addCustomer    = (data)     => addCustomerMutation.mutateAsync(data);
+  const updateCustomer = (id, data) => updateCustomerMutation.mutateAsync({ id, data });
+  const deleteCustomer = (id)       => deleteCustomerMutation.mutateAsync(id);
+
+  // ── Gastos ───────────────────────────────────────────────────────────────
+
+  const addExpenseMutation    = useMutation({ mutationFn: expensesService.create, onSuccess: () => invalidate('expenses') });
+  const deleteExpenseMutation = useMutation({ mutationFn: expensesService.delete, onSuccess: () => invalidate('expenses') });
+
+  const addExpense    = (data) => addExpenseMutation.mutateAsync(data);
+  const deleteExpense = (id)   => deleteExpenseMutation.mutateAsync(id);
+
+  // ── Perfil de tienda ─────────────────────────────────────────────────────
+
+  const updateStoreProfileMutation = useMutation({ mutationFn: storeService.updateProfile, onSuccess: () => invalidate('storeProfile') });
+  const updateStoreProfile = (data) => updateStoreProfileMutation.mutateAsync(data);
+
+  return {
+    products, categories, subcategories, customers, expenses, storeProfile,
+    addProduct, updateProduct, deleteProduct, addStock, registerFaultyProduct, bulkUpdatePrices,
+    addCategory, updateCategory, deleteCategory,
+    addSubCategory, deleteSubCategory,
+    addCustomer, updateCustomer, deleteCustomer,
+    addExpense, deleteExpense,
+    updateStoreProfile,
+  };
 };
