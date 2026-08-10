@@ -5,14 +5,14 @@
  * Los clientes nunca reciben estas notificaciones.
  */
 
-import { checkRateLimit }   from './_rateLimit.js';
+import { checkRateLimit }   from '../lib/rateLimit.js';
 import {
     db, messaging,
     ADMIN_TOKENS_COLLECTION,
     ALLOWED_STORE_IDS,
     sanitize, applyHeaders,
     purgeInvalidTokens,
-} from './_firebase.js';
+} from '../lib/firebase.js';
 
 // ── Validación ────────────────────────────────────────────────────────────────
 

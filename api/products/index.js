@@ -4,9 +4,9 @@
  *   - sin autenticación (catálogo público, Fase 2B): solo activos + públicos.
  * POST /api/products   → crear producto (admin).
  */
-import { supabase }      from '../_supabase.js';
-import { requireAdmin }  from '../_middleware.js';
-import { mapProduct }    from '../_mappers.js';
+import { supabase }      from '../../lib/supabase.js';
+import { requireAdmin }  from '../../lib/middleware.js';
+import { mapProduct }    from '../../lib/mappers.js';
 import jwt                from 'jsonwebtoken';
 
 const STORE_ID = process.env.SUPABASE_STORE_ID;

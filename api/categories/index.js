@@ -3,9 +3,9 @@
  *                          catálogo público y para armar filtros en el POS).
  * POST /api/categories → crear (admin).
  */
-import { supabase }     from '../_supabase.js';
-import { requireAdmin } from '../_middleware.js';
-import { mapCategory }  from '../_mappers.js';
+import { supabase }     from '../../lib/supabase.js';
+import { requireAdmin } from '../../lib/middleware.js';
+import { mapCategory }  from '../../lib/mappers.js';
 
 const STORE_ID = process.env.SUPABASE_STORE_ID;
 

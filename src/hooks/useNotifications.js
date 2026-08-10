@@ -6,7 +6,7 @@ import { getDb, appId, getMessagingInstance } from '../config/firebase';
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 // ── Colecciones separadas por rol ─────────────────────────────────────────────
-// Deben coincidir con las constantes en api/_firebase.js
+// Deben coincidir con las constantes en lib/firebase.js
 const ADMIN_TOKENS_COLLECTION = 'fcm_tokens';        // admins → reciben pedidos
 const USER_TOKENS_COLLECTION  = 'fcm_tokens_users';  // clientes → reciben ofertas
 
