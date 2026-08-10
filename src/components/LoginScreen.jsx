@@ -36,29 +36,39 @@ export default function LoginScreen({
     useEffect(() => { modeRef.current = mode; }, [mode]);
     useEffect(() => { inviteCodeRef.current = inviteCode; }, [inviteCode]);
 
+    // loginWithGoogle/registerWithInvite/setLoginError vienen de useAuth() y se
+    // recrean en cada render (no están envueltas en useCallback ahí). Sin esta
+    // ref, handleCredential cambiaría de identidad en cada render y arrastraría
+    // al efecto de initialize() de más abajo, causando el warning de GSI
+    // "initialize() is called multiple times".
+    const authFnsRef = useRef({ loginWithGoogle, registerWithInvite, setLoginError });
+    useEffect(() => {
+        authFnsRef.current = { loginWithGoogle, registerWithInvite, setLoginError };
+    }, [loginWithGoogle, registerWithInvite, setLoginError]);
+
     const handleCredential = useCallback(async (response) => {
         setIsSubmitting(true);
-        setLoginError('');
+        authFnsRef.current.setLoginError('');
         try {
             if (modeRef.current === 'employee') {
                 if (!inviteCodeRef.current.trim()) {
-                    setLoginError('Ingresá tu código de invitación.');
+                    authFnsRef.current.setLoginError('Ingresá tu código de invitación.');
                     setIsSubmitting(false);
                     return;
                 }
-                await registerWithInvite({
+                await authFnsRef.current.registerWithInvite({
                     credential: response.credential,
                     inviteCode: inviteCodeRef.current,
                 });
             } else {
-                await loginWithGoogle(response.credential);
+                await authFnsRef.current.loginWithGoogle(response.credential);
             }
         } catch {
             // El mensaje de error ya quedó seteado en loginError desde useAuth.
         } finally {
             setIsSubmitting(false);
         }
-    }, [loginWithGoogle, registerWithInvite, setLoginError]);
+    }, []); // estable: nunca cambia de identidad, así initialize() no se repite
 
     // Carga el script de Google Identity Services una sola vez.
     useEffect(() => {
