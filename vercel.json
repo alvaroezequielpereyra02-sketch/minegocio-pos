@@ -35,8 +35,7 @@
     { "source": "/manifest.json",            "destination": "/manifest.json" },
     { "source": "/logo192.png",              "destination": "/logo192.png" },
     { "source": "/robots.txt",               "destination": "/robots.txt" },
-    { "source": "/api/:path*",               "destination": "/api/:path*" },
     { "source": "/firebase-messaging-sw.js", "destination": "/firebase-messaging-sw.js" },
     { "source": "/(.*)",                     "destination": "/index.html" }
   ]
-} 
+}
