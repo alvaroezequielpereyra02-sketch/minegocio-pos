@@ -519,7 +519,7 @@ export default function App() {
                                     <div key={c.id} className="p-4 flex justify-between items-center hover:bg-[#F5F0E8] transition-colors">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className="w-9 h-9 rounded-full bg-[#8B6914]/15 border border-[#8B6914]/20 flex items-center justify-center shrink-0">
-                                                <span className="text-sm font-black text-[#8B6914]">{c.name?.charAt(0).toUpperCase()}</span>
+                                                <span className="text-sm font-black text-[#8B6914]">{(c.name || '?').charAt(0).toUpperCase()}</span>
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="font-bold text-[#3D2B1F] truncate">{c.name}</div>

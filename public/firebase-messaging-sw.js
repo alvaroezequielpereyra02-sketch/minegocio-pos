@@ -6,7 +6,7 @@ importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-messaging-comp
 
 // ─── CACHE ────────────────────────────────────────────────────────────────────
 // ⚠️ IMPORTANTE: cambiar este número en cada deploy importante
-const CACHE_VERSION = 'v22';
+const CACHE_VERSION = 'v23';
 const CACHE_NAME = `minegocio-pos-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [

@@ -115,10 +115,10 @@ export default function Sidebar({
 
         <div className="flex items-center gap-3 px-1">
           <div className="w-10 h-10 rounded-full bg-[#8B6914]/20 ring-1 ring-[#8B6914]/40 flex items-center justify-center text-[#A07820] font-black text-base shrink-0">
-            {userData.name.charAt(0).toUpperCase()}
+            {(userData.name || userData.email || '?').charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 overflow-hidden">
-            <div className="text-white/90 text-sm font-semibold truncate">{userData.name}</div>
+            <div className="text-white/90 text-sm font-semibold truncate">{userData.name || userData.email || 'Sin nombre'}</div>
             <div className="text-white/30 text-xs">{userData.role === 'admin' ? 'Administrador' : 'Cliente'}</div>
           </div>
           <button
