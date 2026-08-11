@@ -1,27 +1,34 @@
 /**
- * api/auth/[...path].js
+ * api/auth.js
  *
- * Consolida TODAS las rutas de autenticación en un solo archivo. Antes eran
- * 6 archivos separados (google.js, invite.js, invites/index.js, me/index.js,
- * me/profile.js, refresh.js) — se unifican acá porque el plan Hobby de
- * Vercel tiene un tope de 12 funciones serverless por deployment, y cada
- * archivo en api/ cuenta como una función propia, sin importar su tamaño.
+ * Reemplaza a api/auth/[...path].js — ese patrón de "capturar todo" no se
+ * estaba reconociendo como ruta real en este proyecto (Vercel + framework
+ * "vite"), así que los pedidos caían en el catch-all de la SPA en vez de
+ * llegar a nuestro código. La solución: un archivo concreto, sin
+ * corchetes, que despacha internamente según `?action=`. Los archivos
+ * concretos son el tipo de función más básico y confiable de la
+ * plataforma — no dependen de ninguna convención de rutas dinámicas.
  *
- * Las URLs no cambian — /api/auth/google sigue siendo /api/auth/google.
- * Lo único que cambia es que ahora un solo archivo despacha internamente
- * según el resto de la ruta (`req.query.path`, un array) y el método HTTP.
+ * La lógica interna de cada handler es idéntica a como estaba en la
+ * versión anterior — esto es solo un cambio en cómo se despacha.
  *
- * La lógica interna de cada handler es idéntica a la de los archivos
- * originales — esto es pura reorganización, no hay cambios de comportamiento.
+ * URLs:
+ *   POST  /api/auth?action=google
+ *   POST  /api/auth?action=invite
+ *   GET   /api/auth?action=invites       (admin)
+ *   POST  /api/auth?action=invites       (admin)
+ *   GET   /api/auth?action=me
+ *   PATCH /api/auth?action=me-profile
+ *   POST  /api/auth?action=refresh
  */
-import { supabase }          from '../../lib/supabase.js';
-import { verifyGoogleToken } from '../../lib/google.js';
-import { requireAuth, requireAdmin, signToken } from '../../lib/middleware.js';
-import { mapUser, mapInvitationCode }            from '../../lib/mappers.js';
+import { supabase }          from '../lib/supabase.js';
+import { verifyGoogleToken } from '../lib/google.js';
+import { requireAuth, requireAdmin, signToken } from '../lib/middleware.js';
+import { mapUser, mapInvitationCode }            from '../lib/mappers.js';
 
 const STORE_ID = process.env.SUPABASE_STORE_ID;
 
-// ── POST /api/auth/google ───────────────────────────────────────────────────
+// ── action=google ────────────────────────────────────────────────────────────
 
 async function googleHandler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -78,12 +85,12 @@ async function googleHandler(req, res) {
     return res.status(200).json({ user: mapUser(userRow), token });
 
   } catch (e) {
-    console.error('[auth/google] Error:', e.message);
+    console.error('[auth?action=google] Error:', e.message);
     return res.status(e.status || 500).json({ error: e.status ? e.message : 'Error interno del servidor.' });
   }
 }
 
-// ── POST /api/auth/invite ───────────────────────────────────────────────────
+// ── action=invite ────────────────────────────────────────────────────────────
 
 async function inviteHandler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -148,12 +155,12 @@ async function inviteHandler(req, res) {
     return res.status(200).json({ user: mapUser(userRow), token });
 
   } catch (e) {
-    console.error('[auth/invite] Error:', e.message);
+    console.error('[auth?action=invite] Error:', e.message);
     return res.status(e.status || 500).json({ error: e.status ? e.message : 'Error interno del servidor.' });
   }
 }
 
-// ── GET/POST /api/auth/invites (admin) ──────────────────────────────────────
+// ── action=invites (admin) ──────────────────────────────────────────────────
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function generateCode(length = 8) {
@@ -200,7 +207,7 @@ async function invitesHandler(req, res) {
   return res.status(405).json({ error: 'Método no permitido.' });
 }
 
-// ── GET /api/auth/me ─────────────────────────────────────────────────────────
+// ── action=me ────────────────────────────────────────────────────────────────
 
 async function meHandler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido.' });
@@ -215,7 +222,7 @@ async function meHandler(req, res) {
   return res.status(200).json(mapUser(data));
 }
 
-// ── PATCH /api/auth/me/profile ──────────────────────────────────────────────
+// ── action=me-profile ────────────────────────────────────────────────────────
 
 function clean(v, max = 200) {
   if (typeof v !== 'string') return null;
@@ -244,7 +251,7 @@ async function meProfileHandler(req, res) {
   return res.status(200).json(mapUser(data));
 }
 
-// ── POST /api/auth/refresh ──────────────────────────────────────────────────
+// ── action=refresh ───────────────────────────────────────────────────────────
 
 async function refreshHandler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -266,16 +273,14 @@ async function refreshHandler(req, res) {
 // ── Dispatcher ───────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  const path = Array.isArray(req.query.path) ? req.query.path : [];
-  const [seg0, seg1] = path;
+  const action = req.query.action;
 
-  if (seg0 === 'google')  return googleHandler(req, res);
-  if (seg0 === 'invite')  return inviteHandler(req, res);
-  if (seg0 === 'invites') return requireAdmin(invitesHandler)(req, res);
-  if (seg0 === 'refresh') return requireAuth(refreshHandler)(req, res);
+  if (action === 'google')      return googleHandler(req, res);
+  if (action === 'invite')      return inviteHandler(req, res);
+  if (action === 'invites')     return requireAdmin(invitesHandler)(req, res);
+  if (action === 'me')          return requireAuth(meHandler)(req, res);
+  if (action === 'me-profile')  return requireAuth(meProfileHandler)(req, res);
+  if (action === 'refresh')     return requireAuth(refreshHandler)(req, res);
 
-  if (seg0 === 'me' && !seg1)             return requireAuth(meHandler)(req, res);
-  if (seg0 === 'me' && seg1 === 'profile') return requireAuth(meProfileHandler)(req, res);
-
-  return res.status(404).json({ error: 'Ruta no encontrada.' });
+  return res.status(404).json({ error: 'Acción no reconocida. Usá ?action=google|invite|invites|me|me-profile|refresh.' });
 }

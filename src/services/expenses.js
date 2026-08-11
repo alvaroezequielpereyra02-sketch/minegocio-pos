@@ -1,16 +1,16 @@
 /**
  * src/services/expenses.js
  *
- * Actualizado en la consolidación de funciones (Fase 2A.1): ahora vive bajo
- * /api/data/expenses en vez de /api/expenses. Cambio de URL únicamente.
+ * Actualizado — el backend pasó de rutas dinámicas a un solo archivo
+ * (api/data.js) con `?resource=expenses`.
  */
 import { api } from './api.js';
 
 export const expensesService = {
   getAll: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return api.get(`/data/expenses${qs ? `?${qs}` : ''}`);
+    const qs = new URLSearchParams({ resource: 'expenses', ...params }).toString();
+    return api.get(`/data?${qs}`);
   },
-  create: (body) => api.post('/data/expenses', body),
-  delete: (id)   => api.delete(`/data/expenses/${id}`),
+  create: (body) => api.post('/data?resource=expenses', body),
+  delete: (id)   => api.delete(`/data?resource=expenses&id=${id}`),
 };

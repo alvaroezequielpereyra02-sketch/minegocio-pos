@@ -1,28 +1,90 @@
 /**
- * api/products/[...path].js
+ * api/products.js
  *
- * Consolida las rutas de producto que dependen de un :id — antes eran 4
- * archivos separados ([id].js, [id]/add-stock.js, [id]/register-faulty.js,
- * bulk-price-update.js). `api/products/index.js` (listar/crear) queda
- * como archivo aparte porque no tiene :id — no hay pérdida de rutas, solo
- * de cantidad de archivos físicos (para el límite de 12 funciones de Vercel).
+ * Reemplaza api/products/index.js + api/products/[...path].js. Mismo
+ * motivo que api/auth.js: un archivo concreto con `?id=` y `?action=` en
+ * vez de rutas dinámicas, que no se estaban reconociendo de forma
+ * confiable en este proyecto.
  *
- * Rutas que cubre este archivo:
- *   GET    /api/products/:id
- *   PATCH  /api/products/:id
- *   DELETE /api/products/:id
- *   POST   /api/products/:id/add-stock
- *   POST   /api/products/:id/register-faulty
- *   POST   /api/products/bulk-price-update
+ * URLs:
+ *   GET    /api/products                          lista (pública si no hay sesión de staff)
+ *   POST   /api/products                           crear (admin)
+ *   GET    /api/products?id=xxx                    un producto (staff)
+ *   PATCH  /api/products?id=xxx                    actualizar (admin: todo / employee: solo stock)
+ *   DELETE /api/products?id=xxx                    soft-delete (admin)
+ *   POST   /api/products?id=xxx&action=add-stock          sumar stock (staff)
+ *   POST   /api/products?id=xxx&action=register-faulty    registrar fallado (staff)
+ *   POST   /api/products?action=bulk-price-update          ajuste masivo (admin)
  */
-import { supabase }     from '../../lib/supabase.js';
-import { requireStaff, requireAdmin } from '../../lib/middleware.js';
-import { mapProduct }   from '../../lib/mappers.js';
+import { supabase }     from '../lib/supabase.js';
+import { requireStaff, requireAdmin } from '../lib/middleware.js';
+import { mapProduct }   from '../lib/mappers.js';
+import jwt               from 'jsonwebtoken';
 
 const STORE_ID = process.env.SUPABASE_STORE_ID;
 
-const EMPLOYEE_ALLOWED_FIELDS = ['stock'];
+function tryGetUser(req) {
+  const authHeader = req.headers['authorization'] || '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+  try {
+    return jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
 
+// ── GET /api/products (lista) ───────────────────────────────────────────────
+
+async function listHandler(req, res) {
+  const user = tryGetUser(req);
+  const isStaff = user && ['admin', 'employee'].includes(user.role);
+
+  let q = supabase.from('products').select('*').eq('store_id', STORE_ID);
+
+  if (isStaff) {
+    if (req.query.includeInactive !== '1') q = q.eq('is_active', true);
+  } else {
+    q = q.eq('is_active', true).eq('is_public', true);
+  }
+
+  if (req.query.category)    q = q.eq('category_id', req.query.category);
+  if (req.query.subcategory) q = q.eq('subcategory_id', req.query.subcategory);
+  if (req.query.search)      q = q.ilike('name', `%${req.query.search}%`);
+
+  const { data, error } = await q.order('name').limit(1000);
+  if (error) return res.status(500).json({ error: 'Error al listar productos.' });
+
+  return res.status(200).json(data.map(mapProduct));
+}
+
+// ── POST /api/products (crear) ──────────────────────────────────────────────
+
+async function createHandler(req, res) {
+  const body = req.body || {};
+  if (!body.name || typeof body.name !== 'string') {
+    return res.status(400).json({ error: 'El nombre del producto es obligatorio.' });
+  }
+
+  const { data, error } = await supabase
+    .from('products')
+    .insert({
+      store_id: STORE_ID,
+      name: body.name, description: body.description || null, barcode: body.barcode || null,
+      category_id: body.categoryId || null, subcategory_id: body.subcategoryId || null,
+      price: body.price || 0, wholesale_price: body.wholesalePrice ?? null, cost: body.cost || 0,
+      stock: body.stock || 0, min_stock: body.minStock || 0, unit: body.unit || 'unidad',
+      images: body.images || (body.imageUrl ? [body.imageUrl] : []),
+      is_public: body.isPublic ?? true,
+    })
+    .select().single();
+
+  if (error) return res.status(500).json({ error: 'Error al crear el producto.' });
+  return res.status(201).json(mapProduct(data));
+}
+
+// ── GET/PATCH/DELETE /api/products?id=xxx ───────────────────────────────────
+
+const EMPLOYEE_ALLOWED_FIELDS = ['stock'];
 const FIELD_MAP = {
   name: 'name', description: 'description', barcode: 'barcode',
   categoryId: 'category_id', subcategoryId: 'subcategory_id',
@@ -30,8 +92,6 @@ const FIELD_MAP = {
   stock: 'stock', minStock: 'min_stock', unit: 'unit',
   images: 'images', isActive: 'is_active', isPublic: 'is_public',
 };
-
-// ── GET/PATCH/DELETE /api/products/:id ──────────────────────────────────────
 
 async function detailHandler(req, res, id) {
   if (req.method === 'GET') {
@@ -58,9 +118,7 @@ async function detailHandler(req, res, id) {
     for (const key of keys) {
       if (FIELD_MAP[key]) update[FIELD_MAP[key]] = body[key];
     }
-    if ('imageUrl' in body) {
-      update.images = body.imageUrl ? [body.imageUrl] : [];
-    }
+    if ('imageUrl' in body) update.images = body.imageUrl ? [body.imageUrl] : [];
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ error: 'No se envió ningún campo válido para actualizar.' });
     }
@@ -87,15 +145,13 @@ async function detailHandler(req, res, id) {
   return res.status(405).json({ error: 'Método no permitido.' });
 }
 
-// ── POST /api/products/:id/add-stock ────────────────────────────────────────
+// ── POST /api/products?id=xxx&action=add-stock ──────────────────────────────
 
 async function addStockHandler(req, res, id) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
 
   const qty = Number(req.body?.qty);
-  if (!qty || Number.isNaN(qty)) {
-    return res.status(400).json({ error: 'qty debe ser un número distinto de cero.' });
-  }
+  if (!qty || Number.isNaN(qty)) return res.status(400).json({ error: 'qty debe ser un número distinto de cero.' });
 
   const { data: product, error: findErr } = await supabase
     .from('products').select('stock')
@@ -104,15 +160,14 @@ async function addStockHandler(req, res, id) {
   if (!product) return res.status(404).json({ error: 'Producto no encontrado.' });
 
   const { data, error } = await supabase
-    .from('products')
-    .update({ stock: Number(product.stock) + qty })
+    .from('products').update({ stock: Number(product.stock) + qty })
     .eq('store_id', STORE_ID).eq('id', id).select().single();
 
   if (error) return res.status(500).json({ error: 'Error al actualizar el stock.' });
   return res.status(200).json(mapProduct(data));
 }
 
-// ── POST /api/products/:id/register-faulty ──────────────────────────────────
+// ── POST /api/products?id=xxx&action=register-faulty ────────────────────────
 
 async function registerFaultyHandler(req, res, id) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -128,8 +183,7 @@ async function registerFaultyHandler(req, res, id) {
   if (!product) return res.status(404).json({ error: 'Producto no encontrado.' });
 
   const { data: updated, error: updateErr } = await supabase
-    .from('products')
-    .update({ stock: Number(product.stock) - qty })
+    .from('products').update({ stock: Number(product.stock) - qty })
     .eq('store_id', STORE_ID).eq('id', id).select().single();
   if (updateErr) return res.status(500).json({ error: 'Error al descontar el stock.' });
 
@@ -139,14 +193,12 @@ async function registerFaultyHandler(req, res, id) {
     description: `PÉRDIDA (Fallado): ${qty}x ${product.name} - ${reason || 'Sin motivo'}`,
     date: new Date().toISOString().slice(0, 10), created_by: req.user.sub,
   });
-  if (expenseErr) {
-    console.error('[register-faulty] El stock se descontó pero el gasto no se pudo registrar:', expenseErr.message);
-  }
+  if (expenseErr) console.error('[register-faulty] Stock descontado pero el gasto no se registró:', expenseErr.message);
 
   return res.status(200).json(mapProduct(updated));
 }
 
-// ── POST /api/products/bulk-price-update ────────────────────────────────────
+// ── POST /api/products?action=bulk-price-update ─────────────────────────────
 
 function round(n, roundTo) {
   if (!roundTo || roundTo <= 0) return Math.round(n);
@@ -168,7 +220,7 @@ async function bulkPriceHandler(req, res) {
     .eq('store_id', STORE_ID).eq('is_active', true);
 
   if (categoryId === '__all__') {
-    // sin filtro adicional
+    // sin filtro
   } else if (categoryId.startsWith('__sub__:')) {
     q = q.eq('subcategory_id', categoryId.slice(8));
   } else {
@@ -190,10 +242,7 @@ async function bulkPriceHandler(req, res) {
     const payload = {};
     if (field === 'price' || field === 'both') payload.price = applyChange(p.price);
     if (field === 'cost'  || field === 'both') payload.cost  = applyChange(p.cost);
-
-    const { error } = await supabase
-      .from('products').update(payload)
-      .eq('store_id', STORE_ID).eq('id', p.id);
+    const { error } = await supabase.from('products').update(payload).eq('store_id', STORE_ID).eq('id', p.id);
     if (!error) updated++;
   }
 
@@ -203,13 +252,15 @@ async function bulkPriceHandler(req, res) {
 // ── Dispatcher ───────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  const path = Array.isArray(req.query.path) ? req.query.path : [];
-  const [seg0, seg1] = path;
+  const { id, action } = req.query;
 
-  if (seg0 === 'bulk-price-update') return requireAdmin(bulkPriceHandler)(req, res);
-  if (seg0 && seg1 === 'add-stock')        return requireStaff((r, s) => addStockHandler(r, s, seg0))(req, res);
-  if (seg0 && seg1 === 'register-faulty')  return requireStaff((r, s) => registerFaultyHandler(r, s, seg0))(req, res);
-  if (seg0 && !seg1)                       return requireStaff((r, s) => detailHandler(r, s, seg0))(req, res);
+  if (action === 'bulk-price-update') return requireAdmin(bulkPriceHandler)(req, res);
+  if (id && action === 'add-stock')        return requireStaff((r, s) => addStockHandler(r, s, id))(req, res);
+  if (id && action === 'register-faulty')  return requireStaff((r, s) => registerFaultyHandler(r, s, id))(req, res);
+  if (id)                                  return requireStaff((r, s) => detailHandler(r, s, id))(req, res);
 
-  return res.status(404).json({ error: 'Ruta no encontrada.' });
+  if (req.method === 'GET')  return listHandler(req, res);
+  if (req.method === 'POST') return requireAdmin(createHandler)(req, res);
+
+  return res.status(405).json({ error: 'Método no permitido.' });
 }

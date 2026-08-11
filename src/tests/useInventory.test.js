@@ -62,8 +62,8 @@ describe('useInventory', () => {
       });
 
       const calledPaths = api.get.mock.calls.map(([path]) => path);
-      expect(calledPaths.some((p) => p.startsWith('/data/customers'))).toBe(false);
-      expect(calledPaths.some((p) => p.startsWith('/data/expenses'))).toBe(false);
+      expect(calledPaths.some((p) => p.startsWith('/data?resource=customers'))).toBe(false);
+      expect(calledPaths.some((p) => p.startsWith('/data?resource=expenses'))).toBe(false);
     });
 
     it('customers y expenses SÍ se piden si el usuario es admin', async () => {
@@ -71,8 +71,8 @@ describe('useInventory', () => {
 
       await waitFor(() => {
         const calledPaths = api.get.mock.calls.map(([path]) => path);
-        expect(calledPaths.some((p) => p.startsWith('/data/customers'))).toBe(true);
-        expect(calledPaths.some((p) => p.startsWith('/data/expenses'))).toBe(true);
+        expect(calledPaths.some((p) => p.startsWith('/data?resource=customers'))).toBe(true);
+        expect(calledPaths.some((p) => p.startsWith('/data?resource=expenses'))).toBe(true);
       });
     });
 
@@ -104,7 +104,7 @@ describe('useInventory', () => {
         await result.current.addStock(product, 5);
       });
 
-      expect(api.post).toHaveBeenCalledWith('/products/p1/add-stock', { qty: 5 });
+      expect(api.post).toHaveBeenCalledWith('/products?id=p1&action=add-stock', { qty: 5 });
     });
 
     it('registerFaultyProduct(product, qty, reason) llama al endpoint correcto', async () => {
@@ -116,7 +116,7 @@ describe('useInventory', () => {
         await result.current.registerFaultyProduct(product, 2, 'Se rompió en el transporte');
       });
 
-      expect(api.post).toHaveBeenCalledWith('/products/p1/register-faulty', {
+      expect(api.post).toHaveBeenCalledWith('/products?id=p1&action=register-faulty', {
         qty: 2, reason: 'Se rompió en el transporte',
       });
     });
@@ -129,7 +129,7 @@ describe('useInventory', () => {
         await result.current.bulkUpdatePrices('__all__', { type: 'percent', value: 10, field: 'price', roundTo: 10 });
       });
 
-      expect(api.post).toHaveBeenCalledWith('/products/bulk-price-update', {
+      expect(api.post).toHaveBeenCalledWith('/products?action=bulk-price-update', {
         categoryId: '__all__', type: 'percent', value: 10, field: 'price', roundTo: 10,
       });
     });
@@ -155,7 +155,7 @@ describe('useInventory', () => {
         .rejects.toThrow('No se puede borrar: 3 producto(s) usan esta categoría.');
     });
 
-    it('addSubCategory(parentId, name) llama a POST /categories/subcategories con ambos', async () => {
+    it('addSubCategory(parentId, name) llama a POST /categories?resource=subcategories con ambos', async () => {
       api.post.mockResolvedValue({ id: 'sub1', name: 'Cereales dulces' });
       const { result } = renderHook(() => useInventory(fakeUser, adminData), { wrapper: createWrapper() });
 
@@ -163,12 +163,12 @@ describe('useInventory', () => {
         await result.current.addSubCategory('cat1', 'Cereales dulces');
       });
 
-      expect(api.post).toHaveBeenCalledWith('/categories/subcategories', { categoryId: 'cat1', name: 'Cereales dulces' });
+      expect(api.post).toHaveBeenCalledWith('/categories?resource=subcategories', { categoryId: 'cat1', name: 'Cereales dulces' });
     });
   });
 
   describe('clientes y gastos', () => {
-    it('addCustomer llama a POST /data/customers', async () => {
+    it('addCustomer llama a POST /data?resource=customers', async () => {
       api.post.mockResolvedValue({ id: 'c1', name: 'Kiosco Don José' });
       const { result } = renderHook(() => useInventory(fakeUser, adminData), { wrapper: createWrapper() });
 
@@ -176,10 +176,10 @@ describe('useInventory', () => {
         await result.current.addCustomer({ name: 'Kiosco Don José', phone: '11111111' });
       });
 
-      expect(api.post).toHaveBeenCalledWith('/data/customers', { name: 'Kiosco Don José', phone: '11111111' });
+      expect(api.post).toHaveBeenCalledWith('/data?resource=customers', { name: 'Kiosco Don José', phone: '11111111' });
     });
 
-    it('addExpense llama a POST /data/expenses', async () => {
+    it('addExpense llama a POST /data?resource=expenses', async () => {
       api.post.mockResolvedValue({ id: 'e1', amount: 500 });
       const { result } = renderHook(() => useInventory(fakeUser, adminData), { wrapper: createWrapper() });
 
@@ -187,12 +187,12 @@ describe('useInventory', () => {
         await result.current.addExpense({ amount: 500, description: 'Flete' });
       });
 
-      expect(api.post).toHaveBeenCalledWith('/data/expenses', { amount: 500, description: 'Flete' });
+      expect(api.post).toHaveBeenCalledWith('/data?resource=expenses', { amount: 500, description: 'Flete' });
     });
   });
 
   describe('perfil de tienda', () => {
-    it('updateStoreProfile llama a PATCH /data/store-profile', async () => {
+    it('updateStoreProfile llama a PATCH /data?resource=store-profile', async () => {
       api.patch.mockResolvedValue({ name: 'Distribuidora P&P', logoUrl: 'https://...' });
       const { result } = renderHook(() => useInventory(fakeUser, adminData), { wrapper: createWrapper() });
 
@@ -200,7 +200,7 @@ describe('useInventory', () => {
         await result.current.updateStoreProfile({ name: 'Distribuidora P&P' });
       });
 
-      expect(api.patch).toHaveBeenCalledWith('/data/store-profile', { name: 'Distribuidora P&P' });
+      expect(api.patch).toHaveBeenCalledWith('/data?resource=store-profile', { name: 'Distribuidora P&P' });
     });
   });
 });

@@ -1,13 +1,12 @@
 /**
  * src/services/store.js
  *
- * Actualizado en la consolidación de funciones (Fase 2A.1): ahora vive bajo
- * /api/data/store-profile en vez de /api/store/profile. Cambio de URL
- * únicamente.
+ * Actualizado — el backend pasó de rutas dinámicas a un solo archivo
+ * (api/data.js) con `?resource=store-profile`.
  */
 import { api } from './api.js';
 
 export const storeService = {
-  getProfile:    ()     => api.get('/data/store-profile'),
-  updateProfile: (body) => api.patch('/data/store-profile', body),
+  getProfile:    ()     => api.get('/data?resource=store-profile'),
+  updateProfile: (body) => api.patch('/data?resource=store-profile', body),
 };

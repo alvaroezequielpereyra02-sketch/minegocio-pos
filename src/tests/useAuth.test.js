@@ -24,7 +24,7 @@ describe('useAuth', () => {
             expect(result.current.userData).toBeNull();
         });
 
-        it('carga el perfil desde /auth/me si hay token guardado', async () => {
+        it('carga el perfil desde /auth?action=me si hay token guardado', async () => {
             api.get.mockResolvedValue({
                 id: 'u1', email: 'ana@gmail.com', name: 'Ana', role: 'client',
                 profileComplete: true, avatarUrl: null,
@@ -33,14 +33,14 @@ describe('useAuth', () => {
             const { result } = renderHook(() => useAuth());
             await waitFor(() => expect(result.current.authLoading).toBe(false));
 
-            expect(api.get).toHaveBeenCalledWith('/auth/me');
+            expect(api.get).toHaveBeenCalledWith('/auth?action=me');
             expect(result.current.user).toEqual({
                 uid: 'u1', email: 'ana@gmail.com', name: 'Ana', avatarUrl: null,
             });
             expect(result.current.userData.role).toBe('client');
         });
 
-        it('si /auth/me falla, limpia el token y deja la sesión vacía', async () => {
+        it('si /auth?action=me falla, limpia el token y deja la sesión vacía', async () => {
             api.get.mockRejectedValue(new Error('Token expirado.'));
 
             const { result } = renderHook(() => useAuth());
@@ -70,7 +70,7 @@ describe('useAuth', () => {
                 await result.current.loginWithGoogle('google-id-token');
             });
 
-            expect(api.post).toHaveBeenCalledWith('/auth/google', { idToken: 'google-id-token' });
+            expect(api.post).toHaveBeenCalledWith('/auth?action=google', { idToken: 'google-id-token' });
             expect(tokenStorage.set).toHaveBeenCalledWith('jwt-nuevo');
             expect(result.current.user.email).toBe('cliente@gmail.com');
             // profileComplete=false es la señal que gatilla CompleteProfileScreen en App.jsx
@@ -112,7 +112,7 @@ describe('useAuth', () => {
                 await result.current.registerWithInvite({ credential: 'g-token', inviteCode: 'ABCD1234' });
             });
 
-            expect(api.post).toHaveBeenCalledWith('/auth/invite', {
+            expect(api.post).toHaveBeenCalledWith('/auth?action=invite', {
                 idToken: 'g-token', inviteCode: 'ABCD1234',
             });
             expect(result.current.userData.role).toBe('employee');
@@ -155,7 +155,7 @@ describe('useAuth', () => {
                 });
             });
 
-            expect(api.patch).toHaveBeenCalledWith('/auth/me/profile', {
+            expect(api.patch).toHaveBeenCalledWith('/auth?action=me-profile', {
                 name: 'Cliente Completo', businessName: 'Kiosco C',
                 address: 'Calle 123', phone: '11111111',
             });

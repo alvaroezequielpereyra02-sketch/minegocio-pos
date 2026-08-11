@@ -1,29 +1,24 @@
 /**
- * api/data/[...path].js
+ * api/data.js
  *
- * Consolida clientes (libreta del POS), gastos y perfil de tienda en un
- * solo archivo — antes eran 5 archivos separados (customers/index.js,
- * customers/[id].js, expenses/index.js, expenses/[id].js, store/profile.js).
- * Se agrupan porque son recursos chicos, de bajo tráfico, todos
- * administrativos — juntarlos en un solo "gateway" libera varios cupos del
- * límite de 12 funciones serverless del plan Hobby de Vercel.
+ * Reemplaza api/data/[...path].js (que a su vez ya juntaba customers,
+ * expenses y store/profile). Un solo archivo concreto, sin corchetes,
+ * despachando por `?resource=` e `?id=`.
  *
- * Esto SÍ cambia las URLs de estos tres recursos:
- *   /api/customers      → /api/data/customers
- *   /api/customers/:id  → /api/data/customers/:id
- *   /api/expenses       → /api/data/expenses
- *   /api/expenses/:id   → /api/data/expenses/:id
- *   /api/store/profile  → /api/data/store-profile
- * El frontend (src/services/customers.js, expenses.js, store.js) ya está
- * actualizado para llamar a las rutas nuevas.
+ * URLs:
+ *   GET/POST   /api/data?resource=customers
+ *   PATCH/DEL  /api/data?resource=customers&id=xxx
+ *   GET/POST   /api/data?resource=expenses
+ *   DELETE     /api/data?resource=expenses&id=xxx
+ *   GET/PATCH  /api/data?resource=store-profile
  */
-import { supabase }     from '../../lib/supabase.js';
-import { requireStaff, requireAdmin } from '../../lib/middleware.js';
-import { mapCustomer, mapExpense, mapStore } from '../../lib/mappers.js';
+import { supabase }     from '../lib/supabase.js';
+import { requireStaff, requireAdmin } from '../lib/middleware.js';
+import { mapCustomer, mapExpense, mapStore } from '../lib/mappers.js';
 
 const STORE_ID = process.env.SUPABASE_STORE_ID;
 
-// ── /api/data/customers ──────────────────────────────────────────────────────
+// ── customers ────────────────────────────────────────────────────────────────
 
 async function customersListHandler(req, res) {
   if (req.method === 'GET') {
@@ -80,10 +75,7 @@ async function customerDetailHandler(req, res, id) {
   }
 
   if (req.method === 'DELETE') {
-    const { error } = await supabase
-      .from('customers').delete()
-      .eq('store_id', STORE_ID).eq('id', id);
-
+    const { error } = await supabase.from('customers').delete().eq('store_id', STORE_ID).eq('id', id);
     if (error) return res.status(500).json({ error: 'Error al eliminar el cliente.' });
     return res.status(204).end();
   }
@@ -91,7 +83,7 @@ async function customerDetailHandler(req, res, id) {
   return res.status(405).json({ error: 'Método no permitido.' });
 }
 
-// ── /api/data/expenses ────────────────────────────────────────────────────────
+// ── expenses ─────────────────────────────────────────────────────────────────
 
 async function expensesListHandler(req, res) {
   if (req.method === 'GET') {
@@ -106,9 +98,7 @@ async function expensesListHandler(req, res) {
 
   if (req.method === 'POST') {
     const amount = Number(req.body?.amount);
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'El monto debe ser un número mayor a cero.' });
-    }
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'El monto debe ser un número mayor a cero.' });
 
     const { data, error } = await supabase
       .from('expenses')
@@ -130,15 +120,12 @@ async function expensesListHandler(req, res) {
 async function expenseDeleteHandler(req, res, id) {
   if (req.method !== 'DELETE') return res.status(405).json({ error: 'Método no permitido.' });
 
-  const { error } = await supabase
-    .from('expenses').delete()
-    .eq('store_id', STORE_ID).eq('id', id);
-
+  const { error } = await supabase.from('expenses').delete().eq('store_id', STORE_ID).eq('id', id);
   if (error) return res.status(500).json({ error: 'Error al eliminar el gasto.' });
   return res.status(204).end();
 }
 
-// ── /api/data/store-profile ─────────────────────────────────────────────────
+// ── store-profile ────────────────────────────────────────────────────────────
 
 async function storeProfileGetHandler(req, res) {
   const { data, error } = await supabase
@@ -165,35 +152,32 @@ async function storeProfilePatchHandler(req, res) {
   }
 
   const { data, error } = await supabase
-    .from('stores').update(update)
-    .eq('id', STORE_ID).select().single();
+    .from('stores').update(update).eq('id', STORE_ID).select().single();
 
   if (error) return res.status(500).json({ error: 'Error al actualizar la tienda.' });
   return res.status(200).json(mapStore(data));
 }
 
-async function storeProfileHandler(req, res) {
-  if (req.method === 'GET')   return storeProfileGetHandler(req, res);        // público
-  if (req.method === 'PATCH') return requireAdmin(storeProfilePatchHandler)(req, res);
-  return res.status(405).json({ error: 'Método no permitido.' });
-}
-
 // ── Dispatcher ───────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  const path = Array.isArray(req.query.path) ? req.query.path : [];
-  const [seg0, seg1] = path;
+  const { resource, id } = req.query;
 
-  if (seg0 === 'customers' && !seg1) return requireStaff(customersListHandler)(req, res);
-  if (seg0 === 'customers' && seg1)  return requireStaff((r, s) => customerDetailHandler(r, s, seg1))(req, res);
+  if (resource === 'customers') {
+    if (id) return requireStaff((r, s) => customerDetailHandler(r, s, id))(req, res);
+    return requireStaff(customersListHandler)(req, res);
+  }
 
-  if (seg0 === 'expenses' && !seg1)  return requireAdmin(expensesListHandler)(req, res);
-  if (seg0 === 'expenses' && seg1)   return requireAdmin((r, s) => expenseDeleteHandler(r, s, seg1))(req, res);
+  if (resource === 'expenses') {
+    if (id) return requireAdmin((r, s) => expenseDeleteHandler(r, s, id))(req, res);
+    return requireAdmin(expensesListHandler)(req, res);
+  }
 
-  // store-profile no pasa por requireAuth acá arriba porque el GET debe ser
-  // público (la pantalla de login lo necesita antes de que exista sesión) —
-  // storeProfileHandler decide caso por caso, igual que el archivo original.
-  if (seg0 === 'store-profile' && !seg1) return storeProfileHandler(req, res);
+  if (resource === 'store-profile') {
+    if (req.method === 'GET')   return storeProfileGetHandler(req, res); // público
+    if (req.method === 'PATCH') return requireAdmin(storeProfilePatchHandler)(req, res);
+    return res.status(405).json({ error: 'Método no permitido.' });
+  }
 
-  return res.status(404).json({ error: 'Ruta no encontrada.' });
+  return res.status(404).json({ error: 'Especificá ?resource=customers|expenses|store-profile.' });
 }
