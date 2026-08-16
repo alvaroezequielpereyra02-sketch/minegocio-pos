@@ -1,345 +1,314 @@
+/**
+ * src/tests/useTransactions.test.js — Fase 3A
+ *
+ * Reescrito: el hook ya no habla con Firestore (writeBatch/getDoc), habla
+ * con transactionsService (→ api.js, ya mockeado globalmente en setup.js).
+ * Mismo patrón que useInventory.test.js: wrapper de QueryClientProvider +
+ * controlar qué devuelve cada verbo de `api`.
+ *
+ * calcBalance NO se prueba acá — tiene su propia suite en balance.test.js,
+ * sin renderizar el hook.
+ */
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+
 import { useTransactions } from '../hooks/useTransactions';
+import { api } from '../services/api';
 
-import {
-    writeBatch, getDoc, increment, doc, collection,
-} from 'firebase/firestore';
-
-// ── writeBatch mock con operaciones encadenables ───────────────────────────────
-const mockBatch = {
-    set:    vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    commit: vi.fn().mockResolvedValue(undefined),
-};
-
-const nowTs = () => ({ seconds: Math.floor(Date.now() / 1000) });
+function createWrapper() {
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, refetchInterval: false, staleTime: 0 } },
+    });
+    return function Wrapper({ children }) {
+        return React.createElement(QueryClientProvider, { client: queryClient }, children);
+    };
+}
 
 const mockUser     = { uid: 'admin-uid', email: 'admin@test.com' };
 const mockUserData = { role: 'admin' };
 
-const mockCart = [
-    { id: 'prod-1', name: 'Coca Cola', qty: 2, price: 500, cost: 300 },
-    { id: 'prod-2', name: 'Agua',      qty: 1, price: 200, cost: 100 },
+const mockProducts = [
+    { id: 'prod-1', name: 'Coca Cola', categoryId: 'cat-bebidas' },
+    { id: 'prod-2', name: 'Agua',      categoryId: 'cat-bebidas' },
 ];
 
-const mockSaleData = {
-    type: 'sale', total: 1200,
-    clientId: 'cust-1', clientName: 'Juan', clientRole: 'customer',
-    paymentStatus: 'paid', fulfillmentStatus: 'pending',
-    sellerId: 'admin-uid', paymentMethod: 'cash',
-    date: { _type: 'serverTimestamp' },
+const mockCartItems = [
+    { id: 'prod-1', name: 'Coca Cola', qty: 2, price: 500, originalPrice: 500, cost: 300, offerId: null, isWholesale: false },
+    { id: 'prod-2', name: 'Agua',      qty: 1, price: 200, originalPrice: 200, cost: 100, offerId: null, isWholesale: false },
+];
+
+const baseSaleData = {
+    total: 1200, paymentMethod: 'cash', deliveryType: 'delivery',
+    clientRole: 'guest', clientId: 'anonimo', notes: null,
 };
 
 beforeEach(() => {
     vi.clearAllMocks();
-    writeBatch.mockReturnValue(mockBatch);
-    doc.mockReturnValue({ id: 'mocked-ref', path: 'mocked-path' });
-    collection.mockReturnValue({ path: 'mocked-collection' });
+    api.get.mockResolvedValue([]);
+});
 
-    // Simular que collection/doc retorna un ref con id generado
-    const mockTransRef = { id: 'tx-new-123', path: 'stores/test/transactions/tx-new-123' };
-    doc.mockImplementation((db, ...args) => {
-        // Si se llama con collection como primer arg, es para nueva transacción
-        if (args.length === 0) return mockTransRef;
-        return { id: args[args.length - 1] || 'mocked-id', path: args.join('/') };
+// ─────────────────────────────────────────────────────────────────────────────
+// Carga de transacciones
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('useTransactions — carga', () => {
+    it('pide /transactions cuando hay user y userData', async () => {
+        renderHook(() => useTransactions(mockUser, mockUserData), { wrapper: createWrapper() });
+        await waitFor(() => expect(api.get).toHaveBeenCalledWith('/transactions'));
+    });
+
+    it('no pide nada si falta el usuario', async () => {
+        renderHook(() => useTransactions(null, null), { wrapper: createWrapper() });
+        await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+        expect(api.get).not.toHaveBeenCalled();
+    });
+
+    it('arranca en array vacío mientras la query está en vuelo', () => {
+        api.get.mockReturnValue(new Promise(() => {})); // nunca resuelve
+        const { result } = renderHook(() => useTransactions(mockUser, mockUserData), { wrapper: createWrapper() });
+        expect(result.current.transactions).toEqual([]);
+    });
+
+    it('se llena con lo que devuelve el servicio', async () => {
+        api.get.mockResolvedValue([{ id: 'tx-1', type: 'sale', total: 500 }]);
+        const { result } = renderHook(() => useTransactions(mockUser, mockUserData), { wrapper: createWrapper() });
+        await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+        expect(result.current.transactions[0].id).toBe('tx-1');
     });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// createTransaction
+// createTransaction (checkout)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useTransactions — createTransaction', () => {
-    it('usa writeBatch para operación atómica', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    beforeEach(() => {
+        api.post.mockResolvedValue({ id: 'tx-new-123', type: 'sale', total: 1200 });
+    });
+
+    it('llama a POST /transactions con total, método de pago y tipo de entrega', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
-            await result.current.createTransaction(mockSaleData, mockCart);
+            await result.current.createTransaction(baseSaleData, mockCartItems);
         });
 
-        expect(writeBatch).toHaveBeenCalledTimes(1);
-        expect(mockBatch.commit).toHaveBeenCalledTimes(1);
+        expect(api.post).toHaveBeenCalledTimes(1);
+        const [path, body] = api.post.mock.calls[0];
+        expect(path).toBe('/transactions');
+        expect(body.total).toBe(1200);
+        expect(body.paymentMethod).toBe('cash');
+        expect(body.deliveryType).toBe('delivery');
     });
 
-    it('descuenta stock de cada producto del carrito', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('mapea cada item del carrito con productId y categoryId resuelto desde products', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
-            await result.current.createTransaction(mockSaleData, mockCart);
+            await result.current.createTransaction(baseSaleData, mockCartItems);
         });
 
-        // Debe haber 2 updates de stock (uno por cada item del carrito)
-        const updateCalls = mockBatch.update.mock.calls.filter(
-            ([, payload]) => payload.stock !== undefined
-        );
-        expect(updateCalls).toHaveLength(2);
-
-        // Cada stock debe ser negativo (increment con valor negativo)
-        // increment está mockeado como v => v, entonces -qty
-        updateCalls.forEach((call, i) => {
-            expect(call[1].stock).toBe(-mockCart[i].qty);
+        const [, body] = api.post.mock.calls[0];
+        expect(body.items).toHaveLength(2);
+        expect(body.items[0]).toMatchObject({
+            productId: 'prod-1', name: 'Coca Cola', qty: 2, price: 500, cost: 300, categoryId: 'cat-bebidas',
         });
+        expect(body.items[1]).toMatchObject({ productId: 'prod-2', categoryId: 'cat-bebidas' });
     });
 
-    it('elimina campos undefined antes de persistir', async () => {
-        const saleDataWithUndefined = { ...mockSaleData, campoExtra: undefined };
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('incluye customerId cuando la venta es de un cliente de la libreta (clientRole=customer)', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
-            await result.current.createTransaction(saleDataWithUndefined, mockCart);
+            await result.current.createTransaction(
+                { ...baseSaleData, clientRole: 'customer', clientId: 'cust-1' },
+                mockCartItems
+            );
         });
 
-        const setCall = mockBatch.set.mock.calls[0];
-        expect(setCall[1].campoExtra).toBeUndefined();
-        // El campo no debe estar presente en el objeto limpio
-        expect(Object.keys(setCall[1])).not.toContain('campoExtra');
+        const [, body] = api.post.mock.calls[0];
+        expect(body.customerId).toBe('cust-1');
     });
 
-    it('actualiza el contador de compras del cliente con merge', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('NO incluye customerId para ventas anónimas o de cliente logueado', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
-            await result.current.createTransaction(mockSaleData, mockCart);
+            await result.current.createTransaction({ ...baseSaleData, clientRole: 'client', clientId: 'user-1' }, mockCartItems);
         });
 
-        // El set con merge:true para el cliente
-        const setMergeCall = mockBatch.set.mock.calls.find(
-            call => call[2]?.merge === true
-        );
-        expect(setMergeCall).toBeDefined();
-        expect(setMergeCall[1].externalOrdersCount).toBeDefined();
+        const [, body] = api.post.mock.calls[0];
+        expect(body.customerId).toBeUndefined();
     });
 
-    it('no crea documento de cliente para ventas anónimas', async () => {
-        const anonSaleData = { ...mockSaleData, clientId: 'anonimo', clientRole: 'guest' };
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
-        );
-
-        await act(async () => {
-            await result.current.createTransaction(anonSaleData, mockCart);
-        });
-
-        const setMergeCall = mockBatch.set.mock.calls.find(
-            call => call[2]?.merge === true
-        );
-        expect(setMergeCall).toBeUndefined();
-    });
-
-    it('retorna la transacción con su id generado', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('retorna la transacción creada por el backend', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         let tx;
         await act(async () => {
-            tx = await result.current.createTransaction(mockSaleData, mockCart);
+            tx = await result.current.createTransaction(baseSaleData, mockCartItems);
         });
 
-        expect(tx).toBeDefined();
-        expect(tx.id).toBeDefined();
-        expect(tx.type).toBe('sale');
-        expect(tx.total).toBe(1200);
+        expect(tx).toEqual({ id: 'tx-new-123', type: 'sale', total: 1200 });
     });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// updateTransaction — ajuste de stock inteligente
+// updateTransaction
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useTransactions — updateTransaction', () => {
-    const oldItems = [{ id: 'prod-1', qty: 2 }];
-    const newItems = [{ id: 'prod-1', qty: 5 }];
-
     beforeEach(() => {
-        getDoc.mockResolvedValue({
-            exists: () => true,
-            data:   () => ({ items: oldItems, total: 1000, type: 'sale' }),
-        });
+        api.patch.mockResolvedValue({ id: 'tx-1', total: 2500 });
     });
 
-    it('actualiza solo campos simples sin toccar el stock', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('llama a PATCH /transactions?id=xxx con los campos limpios', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
             await result.current.updateTransaction('tx-1', { paymentStatus: 'paid' });
         });
 
-        // Sin items → no usa writeBatch, solo updateDoc
-        expect(writeBatch).not.toHaveBeenCalled();
+        expect(api.patch).toHaveBeenCalledWith('/transactions?id=tx-1', { paymentStatus: 'paid' });
     });
 
-    it('usa writeBatch cuando se actualizan los items', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('elimina campos undefined antes de mandar el payload', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
+
+        await act(async () => {
+            await result.current.updateTransaction('tx-1', { paymentStatus: 'paid', notes: undefined });
+        });
+
+        const [, body] = api.patch.mock.calls[0];
+        expect(Object.keys(body)).not.toContain('notes');
+    });
+
+    it('mapea los items con productId y categoryId (con fallback a products) cuando vienen en el update', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
+        );
+
+        const newItems = [{ id: 'prod-1', name: 'Coca Cola', qty: 5, price: 500, cost: 300 }];
 
         await act(async () => {
             await result.current.updateTransaction('tx-1', { items: newItems, total: 2500 });
         });
 
-        expect(writeBatch).toHaveBeenCalledTimes(1);
-        expect(mockBatch.commit).toHaveBeenCalledTimes(1);
+        const [, body] = api.patch.mock.calls[0];
+        expect(body.items[0]).toMatchObject({ productId: 'prod-1', qty: 5, categoryId: 'cat-bebidas' });
     });
 
-    it('devuelve el stock de los items viejos antes de aplicar los nuevos', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('respeta el categoryId del item si ya viene resuelto, sin pisarlo con products', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
+
+        const newItems = [{ id: 'prod-1', name: 'Coca Cola', qty: 5, price: 500, cost: 300, categoryId: 'cat-otra' }];
 
         await act(async () => {
             await result.current.updateTransaction('tx-1', { items: newItems, total: 2500 });
         });
 
-        const stockUpdates = mockBatch.update.mock.calls.filter(
-            ([, payload]) => payload.stock !== undefined
-        );
-
-        // Debe haber 2 updates de stock: +oldQty (devolución) y -newQty (nuevo desembolso)
-        expect(stockUpdates.length).toBeGreaterThanOrEqual(2);
-
-        const stocks = stockUpdates.map(c => c[1].stock);
-        expect(stocks).toContain(oldItems[0].qty);  // devolver lo viejo (+2)
-        expect(stocks).toContain(-newItems[0].qty); // descontar lo nuevo (-5)
+        const [, body] = api.patch.mock.calls[0];
+        expect(body.items[0].categoryId).toBe('cat-otra');
     });
 
-    it('bloquea la actualización si los nuevos items están vacíos y total=0', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('bloquea la actualización si los items quedan vacíos y el total es 0', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => {
             await result.current.updateTransaction('tx-1', { items: [], total: 0 });
         });
 
-        // El "escudo de seguridad" debe haberlo bloqueado
-        expect(writeBatch).not.toHaveBeenCalled();
+        expect(api.patch).not.toHaveBeenCalled();
     });
 
-    it('lanza error si la transacción no existe', async () => {
-        getDoc.mockResolvedValueOnce({ exists: () => false, data: () => null });
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('NO bloquea si los items quedan vacíos pero el total es mayor a 0', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
-        await expect(
-            act(async () => {
-                await result.current.updateTransaction('tx-inexistente', { items: newItems, total: 100 });
-            })
-        ).rejects.toThrow();
+        await act(async () => {
+            await result.current.updateTransaction('tx-1', { items: [], total: 500 });
+        });
+
+        expect(api.patch).toHaveBeenCalled();
+    });
+
+    it('retorna el resultado del backend', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
+        );
+
+        let res;
+        await act(async () => {
+            res = await result.current.updateTransaction('tx-1', { paymentStatus: 'paid' });
+        });
+
+        expect(res).toEqual({ id: 'tx-1', total: 2500 });
     });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// deleteTransaction — restauración de stock
+// deleteTransaction
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useTransactions — deleteTransaction', () => {
-    const transactionItems = [
-        { id: 'prod-1', qty: 3 },
-        { id: 'prod-2', qty: 1 },
-    ];
-
-    beforeEach(() => {
-        getDoc.mockResolvedValue({
-            exists: () => true,
-            data:   () => ({ type: 'sale', items: transactionItems }),
-        });
-    });
-
-    it('usa writeBatch para borrar + restaurar stock', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('llama a DELETE /transactions?id=xxx', async () => {
+        api.delete.mockResolvedValue(null);
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
         await act(async () => { await result.current.deleteTransaction('tx-1'); });
 
-        expect(writeBatch).toHaveBeenCalledTimes(1);
-        expect(mockBatch.commit).toHaveBeenCalledTimes(1);
-    });
-
-    it('restaura el stock de todos los productos vendidos', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
-        );
-
-        await act(async () => { await result.current.deleteTransaction('tx-1'); });
-
-        const stockUpdates = mockBatch.update.mock.calls.filter(
-            ([, payload]) => payload.stock !== undefined
-        );
-
-        expect(stockUpdates).toHaveLength(2);
-        // Los stocks deben ser positivos (devolución al inventario)
-        expect(stockUpdates[0][1].stock).toBe(transactionItems[0].qty); // +3
-        expect(stockUpdates[1][1].stock).toBe(transactionItems[1].qty); // +1
-    });
-
-    it('borra el documento de la transacción', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
-        );
-
-        await act(async () => { await result.current.deleteTransaction('tx-1'); });
-
-        expect(mockBatch.delete).toHaveBeenCalledTimes(1);
-    });
-
-    it('no hace nada si la transacción no existe', async () => {
-        getDoc.mockResolvedValueOnce({ exists: () => false });
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
-        );
-
-        await act(async () => { await result.current.deleteTransaction('tx-inexistente'); });
-
-        expect(writeBatch).not.toHaveBeenCalled();
-    });
-
-    it('no restaura stock en transacciones que no son de tipo sale', async () => {
-        getDoc.mockResolvedValueOnce({
-            exists: () => true,
-            data:   () => ({ type: 'expense', items: [] }),
-        });
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
-        );
-
-        await act(async () => { await result.current.deleteTransaction('tx-expense'); });
-
-        const stockUpdates = mockBatch.update.mock.calls.filter(
-            ([, payload]) => payload.stock !== undefined
-        );
-        expect(stockUpdates).toHaveLength(0);
-        // Pero sí debe borrar el documento
-        expect(mockBatch.delete).toHaveBeenCalledTimes(1);
+        expect(api.delete).toHaveBeenCalledWith('/transactions?id=tx-1');
     });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// purgeTransactions
+// purgeTransactions — todavía no migrado a propósito (ver FASE_3A_CHECKLIST.md)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('useTransactions — purgeTransactions', () => {
-    it('no hace nada si no hay transacciones cargadas', async () => {
-        const { result } = renderHook(() =>
-            useTransactions(mockUser, mockUserData, [], [], [], 'week')
+    it('lanza un error explicativo en vez de tocar datos', async () => {
+        const { result } = renderHook(
+            () => useTransactions(mockUser, mockUserData, mockProducts, [], [], 'week'),
+            { wrapper: createWrapper() }
         );
 
-        await act(async () => { await result.current.purgeTransactions(); });
-
-        expect(writeBatch).not.toHaveBeenCalled();
+        await expect(result.current.purgeTransactions()).rejects.toThrow();
+        expect(api.delete).not.toHaveBeenCalled();
     });
 });

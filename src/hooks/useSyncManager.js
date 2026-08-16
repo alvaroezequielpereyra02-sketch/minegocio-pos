@@ -4,7 +4,6 @@
  * acceso garantizado a createTransaction cuando Firebase ya está listo.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { serverTimestamp } from 'firebase/firestore';
 
 export const OFFLINE_QUEUE_KEY = 'minegocio_offline_queue';
 
@@ -113,7 +112,7 @@ export const useSyncManager = ({ user, createTransaction, showNotification }) =>
         for (const entry of queue) {
             try {
                 await createRef.current(
-                    { ...entry.saleData, date: serverTimestamp() },
+                    entry.saleData,
                     entry.itemsWithCost
                 );
                 removeFromOfflineQueue(entry.localId);

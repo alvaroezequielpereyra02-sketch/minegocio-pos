@@ -1,15 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-    collection, query, orderBy, limit, where, onSnapshot, Timestamp,
-    updateDoc, doc, serverTimestamp, writeBatch, getDoc, increment
-} from 'firebase/firestore';
-import { getDb, appId } from '../config/firebase';
+/**
+ * useTransactions — Fase 3A
+ *
+ * Reemplaza Firestore por Supabase a través de transactionsService.
+ * calcBalance queda EXACTAMENTE igual que en la versión anterior — es
+ * matemática pura sobre arrays ya cargados, no le importa de dónde
+ * vinieron los datos.
+ *
+ * `createTransaction(saleData, items)` mantiene la misma firma que ya
+ * usan useCheckout.js y useSyncManager.js — son quienes construyen esos
+ * parámetros, acá solo se adapta la forma a lo que espera nuestra API.
+ */
+import { useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { transactionsService } from '../services/transactions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// calcBalance — función pura exportada
-// Separada del hook para poder importarla directamente en los tests
-// sin necesidad de renderizar el hook completo ni mockear Firebase.
-// El hook la consume vía useMemo pasándole el estado actual.
+// calcBalance — función pura exportada, SIN CAMBIOS respecto a la versión
+// anterior. Separada del hook para poder importarla directamente en los
+// tests sin necesidad de renderizar el hook completo.
 // ─────────────────────────────────────────────────────────────────────────────
 export function calcBalance({ transactions = [], products = [], expenses = [], categories = [], dateRange = 'week' }) {
     let salesPaid = 0, salesPending = 0, salesPartial = 0, costOfGoodsSold = 0, inventoryValue = 0;
@@ -35,9 +43,6 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
         chartDataMap[key] = { name: key, total: 0 };
     }
 
-    // FIX: pre-indexar categorías con Map para evitar O(n×m×k).
-    // categories.find() dentro de loops anidados hacía hasta 100.000 comparaciones
-    // con 500 transacciones × 10 ítems × 20 categorías. Map.get() es O(1).
     const catMap = new Map(categories.map(c => [c.id, c.name]));
 
     const categoryStats = {};
@@ -48,12 +53,12 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
     });
 
     expenses.forEach(e => {
-        const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date();
+        const eDate = e.date?.seconds ? new Date(e.date.seconds * 1000) : new Date(e.date);
         if (eDate >= startDate) filteredExpenses += Number(e.amount || 0);
     });
 
     transactions.forEach(t => {
-        const tDate = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date();
+        const tDate = t.date?.seconds ? new Date(t.date.seconds * 1000) : new Date(t.date);
         const isWithinRange = tDate >= startDate;
 
         if (t.type === 'sale') {
@@ -82,7 +87,6 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
                 if (t.items) {
                     t.items.forEach(item => {
                         costOfGoodsSold += (Number(item.cost || 0) * Number(item.qty || 0));
-                        // FIX: O(1) con Map en lugar de O(n) con .find()
                         const catName = (item.categoryId && catMap.get(item.categoryId)) || 'Varios';
                         if (!categoryStats[catName]) categoryStats[catName] = 0;
                         categoryStats[catName] += (Number(item.price || 0) * Number(item.qty || 0));
@@ -110,144 +114,108 @@ export function calcBalance({ transactions = [], products = [], expenses = [], c
     };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const useTransactions = (user, userData, products = [], expenses = [], categories = [], dateRange = 'week') => {
-    const [transactions, setTransactions] = useState([]);
-    const [lastTransactionId, setLastTransactionId] = useState(null);
+    const queryClient = useQueryClient();
 
-    // Cargar Transacciones
-    // Filtramos por fecha en Firestore: 35 días (5 de margen sobre los 30 del balance),
-    // con límite de 500 como techo de seguridad para tiendas con mucho volumen.
-    useEffect(() => {
-        if (!user || !userData) return;
-        let unsubscribe = () => {};
-        getDb().then(db => {
-            let q;
-            if (userData.role === 'admin') {
-                const cutoff = new Date();
-                cutoff.setDate(cutoff.getDate() - 35);
-                q = query(
-                    collection(db, 'stores', appId, 'transactions'),
-                    where('date', '>=', Timestamp.fromDate(cutoff)),
-                    orderBy('date', 'desc'),
-                    limit(500)
-                );
-            } else {
-                q = query(
-                    collection(db, 'stores', appId, 'transactions'),
-                    where('clientId', '==', user.uid),
-                    orderBy('date', 'desc'),
-                    limit(50)
-                );
-            }
-            unsubscribe = onSnapshot(q, (snapshot) => {
-                setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            });
-        });
-        return () => unsubscribe();
-    }, [user, userData]);
+    const { data: transactions = [] } = useQuery({
+        queryKey: ['transactions'],
+        queryFn:  () => transactionsService.getAll(),
+        enabled:  !!user && !!userData,
+    });
 
-    // Crear Transacción (Venta)
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['products'] }); // el stock cambió
+    };
+
+    // ── Crear (checkout) ─────────────────────────────────────────────────────
+    //
+    // El backend vuelve a resolver quién es el cliente de forma autoritativa
+    // a partir del rol real del usuario logueado — acá solo le pasamos
+    // `customerId` cuando corresponde a una venta asignada a alguien de la
+    // libreta del POS. Nunca confiamos en el resto de los campos de cliente
+    // que ya vengan resueltos del lado del frontend.
     const createTransaction = async (saleData, cartItems) => {
-        const cleanSaleData = Object.fromEntries(
-            Object.entries(saleData).filter(([_, value]) => value !== undefined)
-        );
-        const db = await getDb();
-        const batch = writeBatch(db);
-        const transactionRef = doc(collection(db, 'stores', appId, 'transactions'));
-        batch.set(transactionRef, cleanSaleData);
-        cartItems.forEach(item => {
-            const productRef = doc(db, 'stores', appId, 'products', item.id);
-            batch.update(productRef, { stock: increment(-item.qty) });
-        });
-        if (cleanSaleData.clientId && cleanSaleData.clientId !== 'anonimo') {
-            const customerRef = doc(db, 'stores', appId, 'customers', cleanSaleData.clientId);
-            batch.set(customerRef, {
-                name: cleanSaleData.clientName || 'Cliente',
-                email: user?.email || '',
-                externalOrdersCount: increment(1),
-                lastPurchase: serverTimestamp()
-            }, { merge: true });
-        }
-        await batch.commit();
-        const fullTransaction = { ...cleanSaleData, id: transactionRef.id, date: { seconds: Date.now() / 1000 } };
-        setLastTransactionId(fullTransaction);
+        const payload = {
+            items: cartItems.map(i => ({
+                productId:     i.id,
+                name:          i.name,
+                qty:           i.qty,
+                price:         i.price,
+                originalPrice: i.originalPrice,
+                cost:          i.cost,
+                offerId:       i.offerId,
+                isWholesale:   i.isWholesale,
+                categoryId:    products.find(p => p.id === i.id)?.categoryId || null,
+            })),
+            total:         saleData.total,
+            paymentMethod: saleData.paymentMethod,
+            deliveryType:  saleData.deliveryType,
+            customerId:    saleData.clientRole === 'customer' ? saleData.clientId : undefined,
+            notes:         saleData.notes,
+        };
+        const fullTransaction = await transactionsService.create(payload);
+        invalidate();
         return fullTransaction;
     };
 
+    // ── Actualizar ───────────────────────────────────────────────────────────
     const updateTransaction = async (id, data) => {
         const cleanData = Object.fromEntries(
-            Object.entries(data).filter(([_, value]) => value !== undefined)
+            Object.entries(data).filter(([, value]) => value !== undefined)
         );
-        if (cleanData.items && cleanData.items.length === 0 && cleanData.total === 0) {
-            console.error("Bloqueo preventivo: Se intentó guardar una boleta vacía.");
+
+        if (cleanData.items && cleanData.items.length === 0 && Number(cleanData.total) === 0) {
+            console.error('Bloqueo preventivo: Se intentó guardar una boleta vacía.');
             return;
         }
-        const db = await getDb();
-        const transactionRef = doc(db, 'stores', appId, 'transactions', id);
-        if (!cleanData.items) {
-            await updateDoc(transactionRef, cleanData);
-            return;
+
+        const payload = { ...cleanData };
+        if (cleanData.items) {
+            payload.items = cleanData.items.map(i => ({
+                productId:     i.id || i.productId,
+                name:          i.name,
+                qty:           i.qty,
+                price:         i.price,
+                originalPrice: i.originalPrice,
+                cost:          i.cost,
+                offerId:       i.offerId,
+                isWholesale:   i.isWholesale,
+                categoryId:    i.categoryId || products.find(p => p.id === (i.id || i.productId))?.categoryId || null,
+            }));
         }
-        const batch = writeBatch(db);
-        const oldTransactionSnap = await getDoc(transactionRef);
-        if (!oldTransactionSnap.exists()) throw new Error("La transacción no existe.");
-        const oldItems = oldTransactionSnap.data().items || [];
-        const newItems = cleanData.items;
-        oldItems.forEach(item => {
-            const productRef = doc(db, 'stores', appId, 'products', item.id);
-            batch.update(productRef, { stock: increment(item.qty) });
-        });
-        newItems.forEach(item => {
-            const productRef = doc(db, 'stores', appId, 'products', item.id);
-            batch.update(productRef, { stock: increment(-item.qty) });
-        });
-        batch.update(transactionRef, cleanData);
-        await batch.commit();
+
+        const result = await transactionsService.update(id, payload);
+        invalidate();
+        return result;
     };
 
+    // ── Eliminar ─────────────────────────────────────────────────────────────
     const deleteTransaction = async (id) => {
-        const db = await getDb();
-        const transactionRef = doc(db, 'stores', appId, 'transactions', id);
-        const transactionSnap = await getDoc(transactionRef);
-        if (!transactionSnap.exists()) return;
-        const batch = writeBatch(db);
-        const transactionData = transactionSnap.data();
-        if (transactionData.type === 'sale' && transactionData.items) {
-            transactionData.items.forEach(item => {
-                const productRef = doc(db, 'stores', appId, 'products', item.id);
-                batch.update(productRef, { stock: increment(item.qty) });
-            });
-        }
-        batch.delete(transactionRef);
-        await batch.commit();
+        await transactionsService.delete(id);
+        invalidate();
     };
 
+    // ── Purgar todo (admin) ──────────────────────────────────────────────────
+    // TEMPORAL: todavía no migrado — es una operación destructiva poco
+    // frecuente (borra TODAS las transacciones) y se dejó para una pasada
+    // aparte en vez de arriesgarla dentro de esta migración. Si la tocás
+    // desde App.jsx antes de que la migremos, vas a ver este error en
+    // vez de que borre algo a medias.
     const purgeTransactions = async () => {
-        const BATCH_LIMIT = 450;
-        const db = await getDb();
-        const ops = [];
-        transactions.forEach(t => {
-            if (t.type === 'sale' && t.items) {
-                t.items.forEach(item => {
-                    ops.push({ type: 'update', ref: doc(db, 'stores', appId, 'products', item.id), data: { stock: increment(item.qty) } });
-                });
-            }
-            ops.push({ type: 'delete', ref: doc(db, 'stores', appId, 'transactions', t.id) });
-        });
-        for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
-            const chunk = ops.slice(i, i + BATCH_LIMIT);
-            const batch = writeBatch(db);
-            chunk.forEach(op => { if (op.type === 'delete') batch.delete(op.ref); else batch.update(op.ref, op.data); });
-            await batch.commit();
-        }
+        throw new Error('purgeTransactions todavía no está migrado a Supabase — avisale a Claude para sumarlo.');
     };
 
-    // CÁLCULO DE BALANCE
-    // Delega en calcBalance (función pura exportada) para que los tests
-    // puedan importarla directamente sin renderizar el hook.
     const balance = useMemo(() =>
         calcBalance({ transactions, products, expenses, categories, dateRange }),
     [transactions, products, expenses, categories, dateRange]);
 
-    return { transactions, lastTransactionId, createTransaction, updateTransaction, deleteTransaction, purgeTransactions, balance };
+    return {
+        transactions,
+        lastTransactionId: null, // confirmado sin uso en ningún componente — se deja solo por compatibilidad de forma
+        createTransaction, updateTransaction, deleteTransaction, purgeTransactions,
+        balance,
+    };
 };

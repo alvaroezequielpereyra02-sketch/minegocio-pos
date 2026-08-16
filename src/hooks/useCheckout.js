@@ -8,7 +8,6 @@
  * del Dashboard muestra qué productos hay que reponer.
  */
 import { useState } from 'react';
-import { serverTimestamp } from 'firebase/firestore';
 import { appId } from '../config/firebase';
 import { addToOfflineQueue, checkRealInternet } from './useSyncManager';
 
@@ -115,7 +114,7 @@ export const useCheckout = ({
         setIsProcessing(true);
         const saleData = {
             type: 'sale', total: Number(cartTotal), items: itemsWithCost,
-            date: serverTimestamp(), deliveryType: 'delivery', status: 'pending',
+            deliveryType: 'delivery', status: 'pending',
             clientInfo: { name: client.name, address: client.address, phone: client.phone },
             clientId: client.id, clientName: client.name, clientRole: client.role,
             paymentStatus: 'pending', fulfillmentStatus: 'pending',

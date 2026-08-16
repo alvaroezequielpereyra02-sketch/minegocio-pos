@@ -256,6 +256,53 @@ describe('balance — ventas por categoría', () => {
 // Robustez ante datos malformados (valores undefined, null, cadenas)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase 3A — fechas como string ISO (Postgres/Supabase), sin forma de
+// Timestamp de Firestore. Antes de esta fase, cualquier `date` sin `.seconds`
+// caía siempre en `new Date()` ("hoy"), lo que hubiera hecho que toda venta
+// migrada a Supabase se contara como si fuera de hoy. calcBalance ahora
+// intenta `new Date(date)` en ese caso.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('balance — fechas en formato string ISO (Postgres)', () => {
+    const isoNow  = () => new Date(Date.now() - 60000).toISOString();
+    const isoWeek = () => new Date(Date.now() - 3 * 86400000).toISOString();
+    const isoOld  = () => new Date(Date.now() - 40 * 86400000).toISOString();
+
+    it('cuenta una venta con date en string ISO dentro del período', () => {
+        const transactions = [
+            { id: '1', type: 'sale', total: 1500, paymentStatus: 'paid', date: isoWeek() },
+        ];
+        const b = calcBalance({ transactions, dateRange: 'week' });
+        expect(b.salesPaid).toBe(1500);
+        expect(b.periodSales).toBe(1500);
+    });
+
+    it('excluye del período una venta con date ISO fuera de rango', () => {
+        const transactions = [
+            { id: '1', type: 'sale', total: 999, paymentStatus: 'paid', date: isoOld() },
+        ];
+        const b = calcBalance({ transactions, dateRange: 'week' });
+        expect(b.salesPaid).toBe(999);   // el total histórico sí lo cuenta
+        expect(b.periodSales).toBe(0);   // pero está fuera del gráfico del período
+    });
+
+    it('suma al total de hoy una venta con date ISO de hoy', () => {
+        const transactions = [
+            { id: '1', type: 'sale', total: 700, amountPaid: 700, paymentStatus: 'paid', paymentMethod: 'cash', date: isoNow() },
+        ];
+        const b = calcBalance({ transactions });
+        expect(b.todayTotal).toBe(700);
+        expect(b.todayCash).toBe(700);
+    });
+
+    it('resta un gasto con date en string ISO dentro del período', () => {
+        const expenses = [{ id: 'e1', amount: 300, date: isoWeek() }];
+        const b = calcBalance({ expenses, dateRange: 'week' });
+        expect(b.periodExpenses).toBe(300);
+    });
+});
+
 describe('balance — robustez ante datos malformados', () => {
     it('no crashea con total undefined en una transacción', () => {
         const transactions = [
